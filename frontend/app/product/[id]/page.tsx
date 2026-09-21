@@ -1,7 +1,7 @@
 'use client';
-
 import { useParams, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
+import { useCartStore } from '../../../store/cartStore';
 
 // Định nghĩa kiểu dữ liệu
 interface Product {
@@ -18,6 +18,7 @@ const TOPPING_PRICES = { 'Trân châu': 5000, 'Thạch trái cây': 5000, 'Kem c
 export default function ProductDetail() {
   const params = useParams();
   const router = useRouter();
+  const addToCart = useCartStore((state) => state.addToCart);
   
   // Các state quản lý dữ liệu và tùy chọn
   const [product, setProduct] = useState<Product | null>(null);
@@ -104,9 +105,25 @@ export default function ProductDetail() {
             <span className="text-xl font-bold">Tổng tạm tính:</span>
             <span className="text-3xl font-bold text-blue-600">{finalPrice.toLocaleString('vi-VN')} VNĐ</span>
           </div>
-          <button className="w-full bg-blue-600 text-white font-bold py-3.5 rounded-xl hover:bg-blue-700 transition text-lg">
+          <button 
+            onClick={() => {
+                const cartItemId = `${product.id}-${selectedSize}-${selectedToppings.join('-')}`;
+                addToCart({
+                cartItemId,
+                productId: product.id,
+                name: product.name,
+                price: finalPrice,
+                size: selectedSize,
+                toppings: selectedToppings,
+                quantity: 1
+                });
+                alert('Đã thêm vào giỏ hàng thành công!');
+                router.push('/cart'); // Chuyển hướng sang trang giỏ hàng
+            }}
+            className="w-full bg-blue-600 text-white font-bold py-3.5 rounded-xl hover:bg-blue-700 transition text-lg"
+            >
             Thêm vào giỏ hàng
-          </button>
+            </button>
         </div>
       </div>
     </main>
