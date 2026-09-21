@@ -1,0 +1,12 @@
+# Bỏ qua thư viện thư mục con
+node_modules/
+dist/
+.next/
+
+# Bỏ qua file biến môi trường thật (chỉ giữ lại .env.example)
+.env
+*.env
+
+# Bỏ qua log và file hệ thống
+*.log
+.DS_Store
