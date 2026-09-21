@@ -1,5 +1,5 @@
 'use client';
-
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 
 // Định nghĩa kiểu dữ liệu cho sản phẩm
@@ -64,9 +64,12 @@ export default function MenuPage() {
             <p className="text-gray-600 mt-2 font-medium">
               {product.price.toLocaleString('vi-VN')} VNĐ
             </p>
-            <button className="mt-5 w-full bg-blue-600 text-white font-semibold py-2.5 rounded-lg hover:bg-blue-700 transition">
+            <Link 
+              href={`/product/${product.id}`} 
+              className="mt-5 block text-center w-full bg-blue-600 text-white font-semibold py-2.5 rounded-lg hover:bg-blue-700 transition"
+            >
               Xem chi tiết
-            </button>
+            </Link>
           </div>
         ))}
       </div>
