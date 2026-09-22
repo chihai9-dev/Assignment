@@ -6,9 +6,9 @@ Dự án môn Công nghệ phần mềm.
 - `/backend`: NestJS
 
 ## Tại thư mục backend:
-cd backend
-npm install
+- `cd backend
+- `npm install
 
 ## Tại thư mục frontend:
-cd frontend
-npm install
+- `cd frontend
+- `npm install
