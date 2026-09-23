@@ -31,6 +31,30 @@
 $ npm install
 ```
 
+## Prisma Setup
+
+Dự án này sử dụng [Prisma](https://www.prisma.io/) làm ORM để tương tác với cơ sở dữ liệu. Sau khi cài đặt các package ở bước trên, bạn cần thiết lập Prisma theo các bước sau:
+
+1. **Cấu hình biến môi trường:**
+   Tạo file `.env` ở thư mục gốc của dự án và thêm chuỗi kết nối cơ sở dữ liệu của bạn:
+
+   ```env
+   DATABASE_URL="mysql://USER:PASSWORD@HOST:PORT/DATABASE"
+   ```
+
+2. **Khởi tạo và tạo Prisma Client:**
+   Chạy lệnh sau để tạo Prisma Client dựa trên file `prisma/schema.prisma`:
+
+   ```bash
+   npx prisma generate
+   ```
+
+3. **Đồng bộ cơ sở dữ liệu (Migration):**
+   Nếu bạn có các thay đổi trong schema và cần cập nhật lên database:
+   ```bash
+   npx prisma migrate dev
+   ```
+
 ## Compile and run the project
 
 ```bash
