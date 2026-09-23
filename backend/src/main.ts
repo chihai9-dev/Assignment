@@ -3,10 +3,10 @@ import { AppModule } from './app.module';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  
+
   // Thêm dòng này để cho phép Frontend Next.js lấy được dữ liệu
-  app.enableCors(); 
-  
+  app.enableCors();
+
   await app.listen(3000);
 }
 bootstrap();
