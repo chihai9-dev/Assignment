@@ -50,7 +50,7 @@
 
     // Render lưới sản phẩm
     return (
-      <main className="p-8 w-full min-h-screen  bg-[#fdf3f3] text-black">
+      <main className="p-8 w-full min-h-screen  bg-[#762626] text-white">
         <div className="max-w-6xl mx-auto">
           <h1 className="text-4xl font-bold mb-8 text-center">BrewLite Menu</h1>
 
@@ -59,7 +59,7 @@
             {products.map((product) => (
               <div
                 key={product.id}
-                className="border rounded-xl p-5 shadow-sm hover:shadow-md transition bg-[#b3c8ff]"
+                className="border rounded-xl p-5 shadow-sm hover:shadow-md transition bg-[#f5f5f5] text-black"
               >
                 <img
                   src={product.imageUrl}
