@@ -6,3 +6,120 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model Order {
+  id        Int          @id @default(autoincrement())
+  userId    Int
+  status    order_status @default(PENDING)
+  total     Int          @default(0)
+  createdAt DateTime     @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime     @default(now()) @db.Timestamptz(6)
+  User      User         @relation(fields: [userId], references: [id], onUpdate: NoAction)
+  OrderItem OrderItem[]
+  Payment   Payment[]
+
+  @@index([status], map: "idx_order_status")
+  @@index([userId], map: "idx_order_userid")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model OrderItem {
+  id               Int                @id @default(autoincrement())
+  orderId          Int
+  productId        Int
+  size             product_size
+  qty              Int
+  lineTotal        Int
+  Order            Order              @relation(fields: [orderId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  Product          Product            @relation(fields: [productId], references: [id], onUpdate: NoAction)
+  OrderItemTopping OrderItemTopping[]
+
+  @@index([orderId], map: "idx_orderitem_orderid")
+  @@index([productId], map: "idx_orderitem_productid")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model Payment {
+  id             Int            @id @default(autoincrement())
+  orderId        Int
+  idempotencyKey String         @unique @db.VarChar(255)
+  amount         Int
+  method         payment_method
+  status         payment_status @default(PENDING)
+  Order          Order          @relation(fields: [orderId], references: [id], onUpdate: NoAction)
+
+  @@index([orderId], map: "idx_payment_orderid")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model Product {
+  id        Int         @id @default(autoincrement())
+  name      String      @db.VarChar(255)
+  price     Int
+  imageUrl  String?     @db.VarChar(500)
+  stock     Int         @default(0)
+  version   Int         @default(0)
+  createdAt DateTime    @default(now()) @db.Timestamptz(6)
+  updatedAt DateTime    @default(now()) @db.Timestamptz(6)
+  OrderItem OrderItem[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model User {
+  id            Int      @id @default(autoincrement())
+  email         String   @unique @db.VarChar(255)
+  passwordHash  String   @db.VarChar(255)
+  loyaltyPoints Int      @default(0)
+  createdAt     DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt     DateTime @default(now()) @db.Timestamptz(6)
+  Order         Order[]
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model OrderItemTopping {
+  orderItemId Int
+  toppingId   Int
+  priceAtTime Int
+  OrderItem   OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  Topping     Topping   @relation(fields: [toppingId], references: [id], onUpdate: NoAction)
+
+  @@id([orderItemId, toppingId])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model Topping {
+  id               Int                @id @default(autoincrement())
+  name             String             @unique @db.VarChar(255)
+  price            Int
+  isAvailable      Boolean            @default(true)
+  createdAt        DateTime           @default(now()) @db.Timestamptz(6)
+  OrderItemTopping OrderItemTopping[]
+}
+
+enum order_status {
+  PENDING
+  PAID
+  PREPARING
+  READY
+  COMPLETED
+  PAYMENT_FAILED
+  CANCELLED
+}
+
+enum payment_method {
+  WALLET
+  CARD
+}
+
+enum product_size {
+  S
+  M
+  L
+}
+
+enum payment_status {
+  PENDING
+  SUCCESS
+  FAILED
+}
