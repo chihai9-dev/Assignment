@@ -16,7 +16,7 @@ export default function MenuPage() {
 
   useEffect(() => {
     // Gọi API từ Backend NestJS
-    fetch('http://localhost:3000/products')
+    fetch('http://localhost:3001/products')
       .then((res) => res.json())
       .then((data) => {
         setProducts(data);

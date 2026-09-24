@@ -28,13 +28,23 @@ export default function ProductDetail() {
 
   // Gọi API lấy chi tiết 1 sản phẩm
   useEffect(() => {
-    fetch(`http://localhost:3000/products/${params.id}`)
-      .then((res) => res.json())
+    fetch(`http://localhost:3001/products/${params.id}`)
+      .then((res) => {
+        // Nếu backend trả về lỗi (404, 400, 500...), ném ra lỗi để nhảy vào catch
+        if (!res.ok) {
+          throw new Error('Không thể tải dữ liệu sản phẩm');
+        }
+        return res.json();
+      })
       .then((data) => {
-        setProduct(data);
+        setProduct(data); // Chỉ set dữ liệu khi chắc chắn đó là Product
         setIsLoading(false);
       })
-      .catch(() => setIsLoading(false));
+      .catch((error) => {
+        console.error('Lỗi fetch:', error);
+        setProduct(null); // Set về null để màn hình hiển thị "Không tìm thấy sản phẩm!"
+        setIsLoading(false);
+      });
   }, [params.id]);
 
   // Hàm xử lý chọn/bỏ chọn topping

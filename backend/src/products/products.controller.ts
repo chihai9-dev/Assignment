@@ -1,17 +1,18 @@
 import { Controller, Get, Param, ParseIntPipe } from '@nestjs/common';
 import { ProductsService } from './products.service';
 
-@Controller('products') // Đường dẫn cơ sở: /products
+@Controller('products')
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
-  @Get() // GET /products
+  @Get()
   findAll() {
     return this.productsService.findAll();
   }
 
-  @Get(':id') // GET /products/:id
+  @Get(':id')
   findOne(@Param('id', ParseIntPipe) id: number) {
+    // ParseIntPipe đảm bảo id truyền từ URL sẽ được ép kiểu về số nguyên
     return this.productsService.findOne(id);
   }
 }
