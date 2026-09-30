@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:15-alpine # Dùng bản alpine để tối ưu, cực nhẹ cho RAM
+    container_name: brewlite_db_container
+    restart: always
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 123456
+      POSTGRES_DB: brewlite_db
+    volumes:
+      - postgres_data:/var/lib/postgresql/data # Giữ lại dữ liệu khi tắt máy
+
+volumes:
+  postgres_data:
+  
