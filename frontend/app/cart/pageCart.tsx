@@ -18,13 +18,13 @@ export default function CartPage() {
   }
 
   return (
-    <main className="p-8 max-w-4xl mx-auto min-h-screen">
+    <main className="p-8 max-w-4xl mx-auto min-h-screen bg-[#8d2727] text-white">
       <h1 className="text-3xl font-bold mb-8">Giỏ hàng của bạn</h1>
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
         <div className="md:col-span-2 space-y-4">
           {items.map(item => (
-            <div key={item.cartItemId} className="flex items-center justify-between p-4 border rounded-xl shadow-sm">
+            <div key={item.cartItemId} className="flex items-center justify-between p-4 border rounded-xl shadow-sm bg-white text-black transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-white/40">
               <div>
                 <h3 className="font-bold text-lg">{item.name}</h3>
                 <p className="text-sm text-gray-500">Size {item.size} {item.toppings.length > 0 && `+ ${item.toppings.join(', ')}`}</p>
@@ -33,9 +33,9 @@ export default function CartPage() {
               
               <div className="flex items-center gap-4">
                 <div className="flex items-center border rounded-lg">
-                  <button onClick={() => updateQuantity(item.cartItemId, item.quantity - 1)} className="px-3 py-1 bg-gray-100 hover:bg-gray-200">-</button>
+                  <button onClick={() => updateQuantity(item.cartItemId, item.quantity - 1)} className="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-l-lg active:bg-[#a3a3a3]">-</button>
                   <span className="px-4 font-medium">{item.quantity}</span>
-                  <button onClick={() => updateQuantity(item.cartItemId, item.quantity + 1)} className="px-3 py-1 bg-gray-100 hover:bg-gray-200">+</button>
+                  <button onClick={() => updateQuantity(item.cartItemId, item.quantity + 1)} className="px-3 py-1 bg-gray-100 hover:bg-gray-200 rounded-r-lg active:bg-[#a3a3a3]">+</button>
                 </div>
                 <button onClick={() => removeFromCart(item.cartItemId)} className="text-red-500 hover:text-red-700 font-bold">Xóa</button>
               </div>
@@ -43,13 +43,13 @@ export default function CartPage() {
           ))}
         </div>
 
-        <div className="bg-gray-50 p-6 rounded-xl border h-fit">
+        <div className="bg-gray-50 p-6 rounded-xl border h-fit text-black">
           <h2 className="text-xl font-bold mb-4">Thanh toán</h2>
           <div className="flex justify-between font-bold text-xl mb-6">
             <span>Tổng cộng:</span>
             <span className="text-blue-600">{totalAmount.toLocaleString('vi-VN')}đ</span>
           </div>
-          <button className="w-full bg-green-600 text-white font-bold py-3 rounded-lg hover:bg-green-700 transition">
+          <button className="w-full bg-green-600 text-white font-bold py-3 rounded-lg hover:bg-green-700 transition active:bg-[#0b5c0d]">
             Tiến hành đặt đơn
           </button>
           <Link href="/" className="block text-center mt-4 text-blue-600 hover:underline text-sm">
