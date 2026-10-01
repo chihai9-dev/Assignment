@@ -56,7 +56,7 @@ export default function MenuPage() {
             {products.map((product) => (
                <div
                 key={product.id}
-                className="border rounded-xl p-5 shadow-sm hover:shadow-md transition bg-[#f5f5f5] text-black"
+                className="border rounded-xl p-5 shadow-sm hover:shadow-md transition bg-[#f5f5f5] text-black transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-white/30"
               >
                 <img
                   src={product.imageUrl}
@@ -69,7 +69,7 @@ export default function MenuPage() {
                 </p>
                 <Link
                    href={`/product/${product.id}`}
-                   className="mt-5 block text-center w-full bg-blue-600 text-white font-semibold py-2.5 rounded-lg hover:bg-blue-700 transition"
+                   className="mt-5 block text-center w-full bg-blue-600 text-white font-semibold py-2.5 rounded-lg hover:bg-blue-700 transition active:bg-[#10169f]"
                 >
                    Xem chi tiết
                 </Link>
