@@ -18,7 +18,7 @@ export default function CartPage() {
   }
 
   return (
-    <main className="p-8 max-w-4xl mx-auto min-h-screen bg-[#8d2727] text-white">
+    <main className="p-8 w-full min-h-screen bg-[#8d2727] text-white">
       <h1 className="text-3xl font-bold mb-8">Giỏ hàng của bạn</h1>
       
       <div className="grid grid-cols-1 md:grid-cols-3 gap-8">

@@ -50,7 +50,7 @@ export class ProductsService {
 
   // Hàm trả về toàn bộ danh sách sản phẩm
   findAll() {
-    return this.products;
+    return this.products; 
   }
 
   // Hàm trả về chi tiết 1 sản phẩm (cho API GET /products/:id)
