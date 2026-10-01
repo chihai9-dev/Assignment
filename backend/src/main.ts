@@ -7,6 +7,6 @@ async function bootstrap() {
   // Thêm dòng này để cho phép Frontend Next.js lấy được dữ liệu
   app.enableCors(); 
   
-  await app.listen(3000);
+  await app.listen(3001);
 }
 bootstrap();
