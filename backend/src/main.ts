@@ -1,12 +1,14 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { ValidationPipe } from '@nestjs/common/pipes/index.js';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  
-  // Thêm dòng này để cho phép Frontend Next.js lấy được dữ liệu
-  app.enableCors(); 
-  
-  await app.listen(3001);
+  app.useGlobalPipes(new ValidationPipe());
+  app.enableCors({
+    origin: '*',
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
+  })
+  await app.listen(process.env.PORT || 3001);
 }
 bootstrap();

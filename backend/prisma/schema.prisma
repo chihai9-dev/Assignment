@@ -60,6 +60,7 @@ model Product {
   imageUrl  String?     @db.VarChar(500)
   stock     Int         @default(0)
   version   Int         @default(0)
+  status    ProductStatus @default(active)
   createdAt DateTime    @default(now()) @db.Timestamptz(6)
   updatedAt DateTime    @default(now()) @db.Timestamptz(6)
   OrderItem OrderItem[]
@@ -122,4 +123,8 @@ enum payment_status {
   PENDING
   SUCCESS
   FAILED
+}
+enum ProductStatus {
+  active
+  inactive
 }
