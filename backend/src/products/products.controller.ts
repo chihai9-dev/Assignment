@@ -2,7 +2,7 @@ import { Controller, Get, Post, Body, Patch, Param, Delete, ParseIntPipe } from 
 import { ProductsService } from './products.service';
 import { CreateProductDto } from './dto/create-product.dto';
 
-@Controller('api/products') // Đường dẫn cơ sở: /products
+@Controller('api/products') // Đường dẫn cơ sở: api/products
 export class ProductsController {
   constructor(private readonly productsService: ProductsService) {}
 
