@@ -28,7 +28,7 @@ export default function ProductDetail() {
 
   // Gọi API lấy chi tiết 1 sản phẩm
   useEffect(() => {
-    fetch(`http://localhost:3000/products/${params.id}`)
+    fetch(`http://localhost:3001/products/${params.id}`)
       .then((res) => res.json())
       .then((data) => {
         setProduct(data);
