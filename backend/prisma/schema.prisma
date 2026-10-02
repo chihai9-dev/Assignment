@@ -73,7 +73,7 @@ model User {
   passwordHash  String   @db.VarChar(255)
   loyaltyPoints Int      @default(0)
   createdAt     DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt     DateTime @default(now()) @db.Timestamptz(6)
+  updatedAt     DateTime @updatedAt @db.Timestamptz(6)
   Order         Order[]
 }
 

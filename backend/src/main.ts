@@ -4,7 +4,13 @@ import { ValidationPipe } from '@nestjs/common/pipes/index.js';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-  app.useGlobalPipes(new ValidationPipe());
+  app.useGlobalPipes(
+  new ValidationPipe({
+    whitelist: true,            // tự bỏ field không có trong DTO
+    forbidNonWhitelisted: true, // gửi field lạ (vd loyaltyPoints) -> 400
+    transform: true,            // tự ép kiểu theo DTO
+  }),
+);
   app.enableCors({
     origin: '*',
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
