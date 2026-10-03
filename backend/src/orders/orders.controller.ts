@@ -1,9 +1,13 @@
-import { Controller, Get } from '@nestjs/common';
+import { Body, Controller, Post } from '@nestjs/common';
+import { CreateOrderDto } from './dto/create-order.dto';
+import { OrdersService } from './orders.service';
 
-@Controller('orders')
+@Controller('api/orders') // Phải có chữ api để đồng bộ với Frontend
 export class OrdersController {
-  @Get()
-  testOrderApi() {
-    return "API Quản lý Đơn hàng (Task 6) đã sẵn sàng!";
+  constructor(private readonly ordersService: OrdersService) {}
+
+  @Post()
+  create(@Body() createOrderDto: CreateOrderDto) {
+    return this.ordersService.create(createOrderDto);
   }
 }
