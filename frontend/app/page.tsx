@@ -70,13 +70,8 @@ export default function MenuPage() {
                 {product.price.toLocaleString("vi-VN")} VNĐ
               </p>
               <Link
-<<<<<<< HEAD
-                href={`/products/${product.id}`}
-                className="mt-5 block text-center w-full bg-blue-600 text-white font-semibold py-2.5 rounded-lg hover:bg-blue-700 transition"
-=======
                 href={`/product/${product.id}`}
                 className="mt-5 block text-center w-full bg-blue-600 text-white font-semibold py-2.5 rounded-lg hover:bg-blue-700 transition active:bg-[#10169f]"
->>>>>>> a40cea6067f1dec3f9183e66965c946f41fad8b5
               >
                 Xem chi tiết
               </Link>
