@@ -70,7 +70,7 @@ export default function MenuPage() {
                 {product.price.toLocaleString("vi-VN")} VNĐ
               </p>
               <Link
-                href={`/product/${product.id}`}
+                href={`/products/${product.id}`}
                 className="mt-5 block text-center w-full bg-blue-600 text-white font-semibold py-2.5 rounded-lg hover:bg-blue-700 transition"
               >
                 Xem chi tiết
