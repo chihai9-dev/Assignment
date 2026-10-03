@@ -71,15 +71,12 @@ export default function ProductDetail() {
   const finalPrice = product.price + SIZE_PRICES[selectedSize] + toppingsTotal;
 
   return (
-    <main className="p-8 max-w-2xl mx-auto min-h-screen bg-white text-black">
-      <button
-        onClick={() => router.back()}
-        className="mb-6 text-blue-600 font-semibold hover:underline"
-      >
+    <main className="p-8 w-full min-h-screen bg-[#fff4c5] text-black">
+      <button onClick={() => router.back()} className="mb-6 text-blue-600 font-semibold hover:underline">
         &larr; Quay lại Menu
       </button>
-
-      <div className="bg-gray-50 p-6 rounded-2xl shadow-sm border border-gray-200">
+      
+      <div className="w-full md:w-3/5 mx-auto bg-gray-50 p-6 rounded-2xl shadow-sm border border-gray-200">
         <h1 className="text-3xl font-bold mb-2">{product.name}</h1>
         <p className="text-2xl text-blue-600 font-bold mb-6">
           Giá gốc: {product.price.toLocaleString("vi-VN")} VNĐ
@@ -88,18 +85,15 @@ export default function ProductDetail() {
         {/* Khu vực chọn Size */}
         <div className="mb-6">
           <h3 className="text-lg font-semibold mb-3">Chọn Size (Bắt buộc)</h3>
-          <div className="flex gap-4">
-            {(["S", "M", "L"] as const).map((size) => (
-              <label
-                key={size}
-                className="flex items-center gap-2 cursor-pointer border p-3 rounded-lg bg-white hover:border-blue-500 has-[:checked]:border-blue-500 has-[:checked]:ring-1 has-[:checked]:ring-blue-500 transition"
-              >
-                <input
-                  type="radio"
-                  name="size"
-                  value={size}
-                  checked={selectedSize === size}
-                  onChange={() => setSelectedSize(size)}
+          <div className="flex flex-wrap gap-4">
+            {(['S', 'M', 'L'] as const).map(size => (
+              <label key={size} className="flex items-center gap-2 cursor-pointer border p-3 rounded-lg bg-white hover:border-blue-500 has-[:checked]:border-blue-500 has-[:checked]:ring-1 has-[:checked]:ring-blue-500 transition">
+                <input 
+                  type="radio" 
+                  name="size" 
+                  value={size} 
+                  checked={selectedSize === size} 
+                  onChange={() => setSelectedSize(size)} 
                   className="w-4 h-4 text-blue-600"
                 />
                 <span className="font-medium">
