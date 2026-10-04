@@ -55,7 +55,7 @@ export default function MenuPage() {
         <h1 className="text-4xl font-bold mb-8 text-center">BrewLite Menu</h1>
         {/* TailwindCSS Grid: 1 cột trên mobile, 3 cột trên màn hình lớn */}
         <div className="grid grid-cols-2 md:grid-cols-3 w-full max-w-[900px] mx-auto gap-4 md:gap-8">
-          {products.map((product) => (
+          {products?.map((product) => (
             <div
               key={product.id}
               className="border rounded-xl p-5 shadow-sm hover:shadow-md transition bg-[#f5f5f5] text-black transition-all duration-300 hover:-translate-y-1 hover:shadow-lg hover:shadow-white/30"

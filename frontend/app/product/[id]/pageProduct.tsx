@@ -32,14 +32,16 @@ export default function ProductDetail() {
 
   // Gọi API lấy chi tiết 1 sản phẩm
   useEffect(() => {
-    fetch(`http://localhost:3001/api/products/${params.id}`)
-      .then((res) => res.json())
-      .then((data) => {
-        setProduct(data);
-        setIsLoading(false);
-      })
-      .catch(() => setIsLoading(false));
-  }, [params.id]);
+  fetch(`http://localhost:3001/api/products/${params.id}`)
+    .then((res) => res.json())
+    .then((data) => {
+      // Trích xuất đúng dữ liệu sản phẩm từ Object trả về
+      const productData = data.data ? data.data : data;
+      setProduct(productData);
+      setIsLoading(false);
+    })
+    .catch(() => setIsLoading(false));
+}, [params.id]);
 
   // Hàm xử lý chọn/bỏ chọn topping
   const handleToppingChange = (topping: string) => {
