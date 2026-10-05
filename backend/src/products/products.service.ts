@@ -7,12 +7,6 @@ export class ProductsService {
   constructor(private prisma: PrismaService) {}
 
   async create(createProductDto: CreateProductDto) {
-    const existingProduct = await this.prisma.product.findFirst({
-      where:{id: createProductDto.id},
-    });
-    if (existingProduct) {
-      throw new ConflictException('Sản phẩm với mã này đã tồn tại');
-    }
     return this.prisma.product.create({
       data: createProductDto,
     });

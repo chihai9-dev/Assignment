@@ -1,10 +1,6 @@
 import { IsString, IsNotEmpty, MaxLength, IsInt, Min, IsOptional, IsUrl, IsEnum } from 'class-validator';
-import {  ProductStatus } from '@prisma/client';
+import { ProductStatus } from '@prisma/client';
 export class CreateProductDto {
-    @IsInt({ message: 'Mã sản phẩm phải là số nguyên' })
-    @IsNotEmpty({ message: 'Mã sản phẩm không được để trống' })
-    id: number;
-
   @IsString({ message: 'Tên sản phẩm phải là chuỗi' })
   @IsNotEmpty({ message: 'Tên sản phẩm không được để trống' })
   @MaxLength(255, { message: 'Tên sản phẩm không được vượt quá 255 ký tự' })
