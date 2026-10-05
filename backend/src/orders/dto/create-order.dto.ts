@@ -18,8 +18,7 @@ export class OrderItemDto {
 }
 
 export class CreateOrderDto {
-  @IsInt()
-  userId: number; // Tạm thời nhận từ body, sau này Task 7 sẽ lấy từ JWT
+  // userId không còn nhận từ body nữa — Task 7 đã lấy trực tiếp từ JWT (xem orders.controller.ts)
 
   @IsArray()
   @ValidateNested({ each: true })

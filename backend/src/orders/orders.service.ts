@@ -7,7 +7,7 @@ import { PrismaService } from '../prisma/prisma.service';
 export class OrdersService {
   constructor(private prisma: PrismaService) {}
 
-  async create(createOrderDto: CreateOrderDto) {
+  async create(createOrderDto: CreateOrderDto, userId: number) {
     // 1. Tính tổng tiền của đơn hàng
     const totalAmount = createOrderDto.items.reduce(
       (sum, item) => sum + item.price * item.qty,
@@ -17,7 +17,7 @@ export class OrdersService {
 // 2. Lưu vào database với trạng thái PENDING
     const order = await this.prisma.order.create({
       data: {
-        userId: createOrderDto.userId,
+        userId, // lấy từ JWT (req.user.userId), không tin dữ liệu người dùng tự gửi lên
         status: 'PENDING',
         total: totalAmount,
         OrderItem: {
