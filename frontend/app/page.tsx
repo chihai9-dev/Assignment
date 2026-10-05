@@ -19,7 +19,9 @@ export default function MenuPage() {
     fetch("http://localhost:3001/api/products")
       .then((res) => res.json())
       .then((data) => {
-        setProducts(data);
+        console.log("Dữ liệu API:", data);
+
+        setProducts(Array.isArray(data) ? data : data.data || []);
         setIsLoading(false);
       })
       .catch((error) => {
