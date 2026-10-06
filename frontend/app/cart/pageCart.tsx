@@ -1,12 +1,14 @@
 'use client';
 
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useCartStore } from '../../store/cartStore';
 
 export default function CartPage() {
+  const router = useRouter();
   const { items, removeFromCart, updateQuantity } = useCartStore();
 
-  const totalAmount = items.reduce((sum, item) => sum + item.price * item.quantity, 0);
+  const totalAmount = items.reduce((sum, item) => sum + Number(item.price) * Number(item.quantity), 0);
 
   if (items.length === 0) {
     return (
@@ -49,7 +51,9 @@ export default function CartPage() {
             <span>Tổng cộng:</span>
             <span className="text-blue-600">{totalAmount.toLocaleString('vi-VN')}đ</span>
           </div>
-          <button className="w-full bg-green-600 text-white font-bold py-3 rounded-lg hover:bg-green-700 transition active:bg-[#0b5c0d]">
+          <button 
+            onClick={() => router.push('/checkout')}
+            className="w-full bg-green-600 text-white font-bold py-3 rounded-lg hover:bg-green-700 transition active:bg-[#0b5c0d]">
             Tiến hành đặt đơn
           </button>
           <Link href="/" className="block text-center mt-4 text-blue-600 hover:underline text-sm">

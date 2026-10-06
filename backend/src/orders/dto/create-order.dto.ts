@@ -2,6 +2,7 @@ import { Type } from 'class-transformer';
 import { IsArray, IsInt, IsNotEmpty, IsString, Min, ValidateNested } from 'class-validator';
 
 export class OrderItemDto {
+  @Type(() => Number)
   @IsInt()
   productId: number;
 
@@ -9,11 +10,14 @@ export class OrderItemDto {
   @IsNotEmpty()
   size: string; // Vd: 'S', 'M', 'L'
 
+  @Type(() => Number)
   @IsInt()
   @Min(1)
   qty: number;
 
+  @Type(() => Number)
   @IsInt()
+  @Min(0)
   price: number;
 }
 

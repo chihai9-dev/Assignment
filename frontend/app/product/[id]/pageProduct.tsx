@@ -72,7 +72,7 @@ export default function ProductDetail() {
     (total, t) => total + TOPPING_PRICES[t as keyof typeof TOPPING_PRICES],
     0,
   );
-  const finalPrice = product.price + SIZE_PRICES[selectedSize] + toppingsTotal;
+  const finalPrice =Number(product.price) +Number(SIZE_PRICES[selectedSize]) +Number(toppingsTotal);
 
   return (
     <main className="p-8 w-full min-h-screen bg-[#fff4c5] text-black">
@@ -141,6 +141,7 @@ export default function ProductDetail() {
               {finalPrice.toLocaleString("vi-VN")} VNĐ
             </span>
           </div>
+          <div className="flex gap-4">
           <button
             onClick={() => {
               // Bắt buộc đăng nhập trước khi được thêm vào giỏ hàng
@@ -163,10 +164,12 @@ export default function ProductDetail() {
               alert("Đã thêm vào giỏ hàng thành công!");
               router.push("/cart"); // Chuyển hướng sang trang giỏ hàng
             }}
-            className="w-full bg-blue-600 text-white font-bold py-3.5 rounded-xl hover:bg-blue-700 transition text-lg"
+            className="flex-1 bg-blue-600 text-white font-bold py-3.5 rounded-xl hover:bg-blue-700 transition text-lg"
           >
             Thêm vào giỏ hàng
           </button>
+          
+          </div>
         </div>
       </div>
     </main>
