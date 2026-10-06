@@ -37,7 +37,7 @@ export class PaymentsService {
     // 2. Kiểm tra Order
     const order = await this.prisma.order.findUnique({
       where: {
-        id: BigInt(orderId),
+        id: Number(orderId),
       },
     });
 
