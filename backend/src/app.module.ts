@@ -7,10 +7,10 @@ import { ProductsModule } from './products/products.module';
 import { UsersModule } from './users/users.module';
 import { AuthModule } from './auth/auth.module';
 import { PaymentsModule } from './payments/payments.module';
-
+import { ToppingsModule } from './toppings/toppings.module';
 
 @Module({
-  imports: [ProductsModule, PrismaModule, OrdersModule, UsersModule, AuthModule, PaymentsModule],
+  imports: [ProductsModule, PrismaModule, OrdersModule, UsersModule, AuthModule, PaymentsModule, ToppingsModule],
   controllers: [AppController],
   providers: [AppService],
 })
