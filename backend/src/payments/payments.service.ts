@@ -1,7 +1,7 @@
 import {
-  Injectable,
   BadRequestException,
   ConflictException,
+  Injectable,
   NotFoundException,
 } from '@nestjs/common';
 
@@ -66,7 +66,7 @@ export class PaymentsService {
       async (tx) => {
         const payment = await tx.payment.create({
           data: {
-            orderId: BigInt(orderId),
+            orderId: Number(orderId),
             amount,
             method,
             idempotencyKey,
@@ -76,7 +76,7 @@ export class PaymentsService {
         const updatedOrder =
           await tx.order.update({
             where: {
-              id: BigInt(orderId),
+              id: Number(orderId),
             },
             data: {
               status: 'PAID',
@@ -96,7 +96,7 @@ export class PaymentsService {
   async findByOrder(orderId: number) {
     const order = await this.prisma.order.findUnique({
       where: {
-        id: BigInt(orderId),
+        id: Number(orderId),
       },
     });
 
@@ -108,7 +108,7 @@ export class PaymentsService {
 
     return this.prisma.payment.findMany({
       where: {
-        orderId: BigInt(orderId),
+        orderId: Number(orderId),
       },
     });
   }
