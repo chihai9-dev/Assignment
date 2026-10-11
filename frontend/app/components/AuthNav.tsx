@@ -22,6 +22,12 @@ export default function AuthNav() {
       {user ? (
         <div className="flex items-center gap-3 text-gray-700">
           <span>Xin chào, <b>{user.email}</b></span>
+          <Link href="/orders" className="text-gray-700 hover:text-blue-600 font-semibold">
+            Đơn hàng
+          </Link>
+          <Link href="/barista" className="text-amber-700 hover:text-amber-800 font-semibold">
+            Quầy Barista
+          </Link>
           <button onClick={handleLogout} className="text-red-500 hover:text-red-700 font-semibold">
             Đăng xuất
           </button>

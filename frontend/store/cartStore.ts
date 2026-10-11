@@ -31,18 +31,13 @@ export const useCartStore = create<CartStore>()(
       cartsByUser: {},
       activeUserEmail: null,
 
-      // Thêm vào giỏ
+      // Thêm vào giỏ (hỗ trợ cả khách vãng lai chưa đăng nhập)
       addToCart: (newItem) =>
         set((state) => {
           const authUser = useAuthStore.getState().user;
           const email = authUser?.email;
 
-          if (!email) {
-            return state;
-          }
-
-          const currentItems =
-            state.cartsByUser[email] ?? [];
+          const currentItems = state.items;
 
           const normalizedItem: CartItem = {
             ...newItem,
@@ -51,80 +46,58 @@ export const useCartStore = create<CartStore>()(
             quantity: Number(newItem.quantity),
           };
 
-          const existingItemIndex =
-            currentItems.findIndex(
-              (item) =>
-                item.cartItemId ===
-                normalizedItem.cartItemId
-            );
+          const existingItemIndex = currentItems.findIndex(
+            (item) => item.cartItemId === normalizedItem.cartItemId
+          );
 
           let updatedItems: CartItem[];
 
           if (existingItemIndex !== -1) {
             updatedItems = [...currentItems];
-
             updatedItems[existingItemIndex] = {
               ...updatedItems[existingItemIndex],
               quantity:
-                Number(
-                  updatedItems[existingItemIndex].quantity
-                ) + 1,
+                Number(updatedItems[existingItemIndex].quantity) +
+                Number(normalizedItem.quantity || 1),
             };
           } else {
-            updatedItems = [
-              ...currentItems,
-              normalizedItem,
-            ];
+            updatedItems = [...currentItems, normalizedItem];
           }
 
           return {
-            activeUserEmail: email,
             items: updatedItems,
-            cartsByUser: {
-              ...state.cartsByUser,
-              [email]: updatedItems,
-            },
+            cartsByUser: email
+              ? {
+                  ...state.cartsByUser,
+                  [email]: updatedItems,
+                }
+              : state.cartsByUser,
+            activeUserEmail: email || state.activeUserEmail,
           };
         }),
 
       // Xóa khỏi giỏ
       removeFromCart: (cartItemId) =>
         set((state) => {
-          if (!state.activeUserEmail) {
-            return state;
-          }
-
-          const updatedItems = (
-            state.cartsByUser[
-              state.activeUserEmail
-            ] ?? []
-          ).filter(
-            (item) =>
-              item.cartItemId !== cartItemId
+          const updatedItems = state.items.filter(
+            (item) => item.cartItemId !== cartItemId
           );
 
           return {
             items: updatedItems,
-            cartsByUser: {
-              ...state.cartsByUser,
-              [state.activeUserEmail]:
-                updatedItems,
-            },
+            cartsByUser: state.activeUserEmail
+              ? {
+                  ...state.cartsByUser,
+                  [state.activeUserEmail]: updatedItems,
+                }
+              : state.cartsByUser,
           };
         }),
 
       // Cập nhật số lượng
       updateQuantity: (cartItemId, quantity) =>
         set((state) => {
-          if (!state.activeUserEmail) {
-            return state;
-          }
-
-          const updatedItems = (
-            state.cartsByUser[
-              state.activeUserEmail
-            ] ?? []
-          ).map((item) =>
+          const updatedItems = state.items.map((item) =>
             item.cartItemId === cartItemId
               ? {
                   ...item,
@@ -135,29 +108,36 @@ export const useCartStore = create<CartStore>()(
 
           return {
             items: updatedItems,
+            cartsByUser: state.activeUserEmail
+              ? {
+                  ...state.cartsByUser,
+                  [state.activeUserEmail]: updatedItems,
+                }
+              : state.cartsByUser,
+          };
+        }),
+
+      // Load giỏ hàng của tài khoản (giữ lại các món khách vừa chọn trước khi đăng nhập)
+      loadCartForUser: (email) =>
+        set((state) => {
+          const savedUserItems = state.cartsByUser[email] ?? [];
+          // Nếu khách đã thêm món vào giỏ trước khi đăng nhập, ưu tiên dùng món hiện có
+          const effectiveItems =
+            state.items.length > 0 ? state.items : savedUserItems;
+
+          return {
+            activeUserEmail: email,
+            items: effectiveItems,
             cartsByUser: {
               ...state.cartsByUser,
-              [state.activeUserEmail]:
-                updatedItems,
+              [email]: effectiveItems,
             },
           };
         }),
 
-      // Load giỏ hàng của tài khoản
-      loadCartForUser: (email) =>
-        set((state) => {
-          const userItems = state.cartsByUser[email] ?? [];
-
-          return {
-            activeUserEmail: email,
-            items: userItems,
-          };
-        }),
-      // Đăng xuất thì bỏ tài khoản đang active
-      // nhưng KHÔNG xóa cartsByUser
+      // Đăng xuất thì bỏ tài khoản đang active nhưng vẫn giữ món
       clearActiveCart: () =>
         set({
-          activeUserEmail: null,
           items: [],
         }),
     }),

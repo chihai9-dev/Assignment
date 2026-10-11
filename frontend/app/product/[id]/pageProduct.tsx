@@ -2,7 +2,6 @@
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useCartStore } from "../../../store/cartStore";
-import { useAuthStore } from "../../../store/authStore";
 
 // Định nghĩa kiểu dữ liệu
 interface Product {
@@ -24,7 +23,6 @@ export default function ProductDetail() {
   const params = useParams();
   const router = useRouter();
   const addToCart = useCartStore((state) => state.addToCart);
-  const user = useAuthStore((state) => state.user);
 
   // Các state quản lý dữ liệu và tùy chọn
   const [product, setProduct] = useState<Product | null>(null);
@@ -144,13 +142,6 @@ export default function ProductDetail() {
           <div className="flex gap-4">
           <button
             onClick={() => {
-              // Bắt buộc đăng nhập trước khi được thêm vào giỏ hàng
-              if (!user) {
-                alert("Vui lòng đăng nhập để thêm sản phẩm vào giỏ hàng!");
-                router.push(`/login?redirect=/product/${product.id}`);
-                return;
-              }
-
               const cartItemId = `${product.id}-${selectedSize}-${selectedToppings.join("-")}`;
               addToCart({
                 cartItemId,

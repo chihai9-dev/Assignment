@@ -14,7 +14,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   // Giá trị trả về ở đây sẽ được gắn vào req.user ở mọi route có @UseGuards(JwtAuthGuard)
-  validate(payload: { sub: number; email: string }) {
-    return { userId: payload.sub, email: payload.email };
+  validate(payload: { sub: number; email: string; role?: string }) {
+    return { userId: payload.sub, email: payload.email, role: payload.role };
   }
 }

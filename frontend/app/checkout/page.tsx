@@ -8,9 +8,8 @@ import { useAuthStore } from '../../store/authStore';
 export default function CheckoutPage() {
   const router = useRouter();
 
-  const cartItems = useCartStore((state) => state.items);
   const items = useCartStore((state) => state.items);
-  console.log('CHECKOUT ITEMS:', cartItems);
+  const clearActiveCart = useCartStore((state) => state.clearActiveCart);
   const token = useAuthStore((state) => state.token);
   const [isPaying, setIsPaying] = useState(false);
   const [hasHydrated, setHasHydrated] = useState(false);
@@ -19,8 +18,9 @@ export default function CheckoutPage() {
     setHasHydrated(true);
   }, []);
   const [paymentMethod, setPaymentMethod] = useState<
-  'MOMO' | 'VNPAY' | 'STRIPE'
->('MOMO');
+    'MOMO' | 'VNPAY' | 'STRIPE'
+  >('MOMO');
+  const [voucherCode, setVoucherCode] = useState('');
 
   const totalAmount = items.reduce(
     (sum, item) => sum + Number(item.price) * Number(item.quantity),
@@ -235,6 +235,45 @@ export default function CheckoutPage() {
             </div>
             </button>
 
+            {/* Mã giảm giá */}
+            <div className="mb-5">
+              <label className="block text-sm font-semibold text-gray-700 mb-1.5">
+                Mã ưu đãi / Voucher:
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Nhập mã (BREW10, BREW20, CHAOMUNG)..."
+                  value={voucherCode}
+                  onChange={(e) => setVoucherCode(e.target.value.toUpperCase())}
+                  className="w-full border rounded-xl px-3 py-2 text-sm uppercase focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div className="flex gap-2 mt-2 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setVoucherCode('BREW10')}
+                  className="bg-blue-50 text-blue-700 hover:bg-blue-100 px-2 py-1 rounded-md font-medium"
+                >
+                  BREW10 (-10%)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setVoucherCode('BREW20')}
+                  className="bg-purple-50 text-purple-700 hover:bg-purple-100 px-2 py-1 rounded-md font-medium"
+                >
+                  BREW20 (-20%)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setVoucherCode('CHAOMUNG')}
+                  className="bg-green-50 text-green-700 hover:bg-green-100 px-2 py-1 rounded-md font-medium"
+                >
+                  CHAOMUNG (-15k)
+                </button>
+              </div>
+            </div>
+
             {/* Tổng thanh toán */}
             <div className="bg-gray-100 rounded-xl p-4 mb-5">
 
@@ -281,6 +320,7 @@ export default function CheckoutPage() {
                             qty: Number(item.quantity),
                             price: Number(item.price),
                             })),
+                            voucherCode: voucherCode.trim() || undefined,
                         }),
                         }
                     );
@@ -295,8 +335,9 @@ export default function CheckoutPage() {
                         );
                     }
 
-                    // Lấy ID đơn hàng
+                    // Lấy ID đơn hàng và tổng tiền sau voucher (nếu có)
                     const orderId = Number(orderData.orderId);
+                    const payableAmount = orderData.total !== undefined ? Number(orderData.total) : totalAmount;
 
                     // BƯỚC 2: Chuyển phương thức Mock
                     // MoMo + VNPay -> WALLET
@@ -316,7 +357,7 @@ export default function CheckoutPage() {
                         },
                         body: JSON.stringify({
                             orderId,
-                            amount: totalAmount,
+                            amount: payableAmount,
                             method: backendMethod,
                             idempotencyKey: `payment-${orderId}-${Date.now()}`,
                         }),
@@ -333,12 +374,9 @@ export default function CheckoutPage() {
                         );
                     }
 
-                    // Thanh toán thành công
-                    alert(
-                        `Thanh toán ${paymentMethod} thành công!\nMã đơn hàng: #${orderId}`
-                    );
-
-                    router.push('/');
+                    // Thanh toán thành công: xóa giỏ hàng và chuyển hướng sang trang xác nhận đơn
+                    clearActiveCart();
+                    router.push(`/orders/${orderId}`);
                     } catch (error) {
                     console.error('Lỗi thanh toán:', error);
 

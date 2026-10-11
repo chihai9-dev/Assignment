@@ -3,7 +3,6 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useCartStore } from "../store/cartStore";
-import { useAuthStore } from "../store/authStore";
 
 // Định nghĩa kiểu dữ liệu cho sản phẩm
 interface Product {
@@ -20,7 +19,6 @@ export default function MenuPage() {
   const router = useRouter();
   // Lấy dữ liệu giỏ hàng từ store
   const { items } = useCartStore();
-  const { user } = useAuthStore();
 
   // Tính tổng số lượng sản phẩm đang có trong giỏ
   const totalItems = items.reduce((sum, item) => sum + Number(item.quantity), 0);
@@ -72,21 +70,8 @@ export default function MenuPage() {
         <div className="flex items-center justify-center relative mb-8">
           <h1 className="text-4xl font-bold text-center">BrewLite Menu</h1>
           
-          {/* Thay Link bằng thẻ <a> để có thể dùng onClick tùy chỉnh */}
-          <a 
+          <Link 
             href="/cart"
-            onClick={(e) => {
-              e.preventDefault(); // Ngăn hành vi chuyển trang mặc định
-              
-              // Bắt buộc đăng nhập trước khi vào giỏ hàng
-              if (!user) {
-                alert("Vui lòng đăng nhập để xem hoặc thêm sản phẩm vào giỏ hàng!");
-                router.push(`/login?redirect=/cart`); // Chuyển về trang login và điều hướng lại cart
-                return;
-              }
-              
-              router.push("/cart"); // Nếu đã có user thì chuyển sang giỏ hàng
-            }}
             className="absolute right-0 top-1/2 -translate-y-1/2 text-white hover:text-gray-300 transition-colors cursor-pointer"
           >
             <div className="relative">
@@ -100,7 +85,7 @@ export default function MenuPage() {
                 </span>
               )}
             </div>
-          </a>
+          </Link>
         </div>
         {/* --- Kết thúc phần Header --- */}
 

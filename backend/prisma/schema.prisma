@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
 }
 
 datasource db {
@@ -66,13 +67,19 @@ model Product {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model User {
-  id            BigInt   @id @default(autoincrement())
-  email         String   @unique @db.VarChar(255)
-  passwordHash  String   @db.VarChar(255)
-  loyaltyPoints Int      @default(0)
-  createdAt     DateTime @default(now()) @db.Timestamptz(6)
-  updatedAt     DateTime @default(now()) @updatedAt @db.Timestamptz(6)
+  id            BigInt    @id @default(autoincrement())
+  email         String    @unique @db.VarChar(255)
+  passwordHash  String    @db.VarChar(255)
+  loyaltyPoints Int       @default(0)
+  role          user_role @default(customer)
+  createdAt     DateTime  @default(now()) @db.Timestamptz(6)
+  updatedAt     DateTime  @default(now()) @updatedAt @db.Timestamptz(6)
   Order         Order[]
+}
+
+enum user_role {
+  customer
+  barista
 }
 
 enum order_status {

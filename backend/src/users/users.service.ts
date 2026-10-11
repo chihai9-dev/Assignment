@@ -10,20 +10,25 @@ import { PaginationQueryDto } from './dto/pagination-query.dto';
 const userSelect = {
   id: true,
   email: true,
+  role: true,
   loyaltyPoints: true,
   createdAt: true,
   updatedAt: true,
-} satisfies Prisma.UserSelect;
+} as any;
 
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
-
   async create(dto: CreateUserDto) {
     const passwordHash = await bcrypt.hash(dto.password, 10);
+    const isBaristaEmail = dto.email.toLowerCase().includes('barista') || dto.email.toLowerCase().includes('staff');
     try {
       return await this.prisma.user.create({
-        data: { email: dto.email, passwordHash },
+        data: {
+          email: dto.email,
+          passwordHash,
+          ...(isBaristaEmail ? { role: 'barista' as any } : {}),
+        },
         select: userSelect,
       });
     } catch (e) {

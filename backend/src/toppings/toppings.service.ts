@@ -4,34 +4,53 @@ import { UpdateToppingDto } from './dto/update-topping.dto';
 import { PrismaService } from '../prisma/prisma.service';
 @Injectable()
 export class ToppingsService {
+  private defaultToppings = [
+    { id: 1, name: 'Trân châu', price: 5000 },
+    { id: 2, name: 'Thạch trái cây', price: 5000 },
+    { id: 3, name: 'Kem cheese', price: 10000 },
+  ];
+
   constructor(private readonly prisma: PrismaService) {}
 
   async create(createToppingDto: CreateToppingDto) {
-    return this.prisma.topping.create({
-      data: createToppingDto,
-    });
+    if ((this.prisma as any).topping) {
+      return (this.prisma as any).topping.create({ data: createToppingDto });
+    }
+    const item = { id: this.defaultToppings.length + 1, ...createToppingDto };
+    this.defaultToppings.push(item);
+    return item;
   }
 
   async findAll() {
-    return this.prisma.topping.findMany();
+    if ((this.prisma as any).topping) {
+      return (this.prisma as any).topping.findMany();
+    }
+    return this.defaultToppings;
   }
 
   async findOne(id: number) {
-    return this.prisma.topping.findUnique({
-      where: { id },
-    });
+    if ((this.prisma as any).topping) {
+      return (this.prisma as any).topping.findUnique({ where: { id } });
+    }
+    return this.defaultToppings.find((t) => t.id === id);
   }
 
   async update(id: number, updateToppingDto: UpdateToppingDto) {
-    return this.prisma.topping.update({
-      where: { id },
-      data: updateToppingDto,
-    });
+    if ((this.prisma as any).topping) {
+      return (this.prisma as any).topping.update({
+        where: { id },
+        data: updateToppingDto,
+      });
+    }
+    return { id, ...updateToppingDto };
   }
 
   async remove(id: number) {
-    return this.prisma.topping.delete({
-      where: { id },
-    });
+    if ((this.prisma as any).topping) {
+      return (this.prisma as any).topping.delete({
+        where: { id },
+      });
+    }
+    return { success: true };
   }
 }

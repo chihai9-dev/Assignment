@@ -4,13 +4,17 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-
+import { order_status } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
+import { UsersService } from '../users/users.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 
 @Injectable()
 export class PaymentsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly usersService: UsersService,
+  ) {}
 
   async create(createPaymentDto: CreatePaymentDto) {
     const {
@@ -20,7 +24,7 @@ export class PaymentsService {
       idempotencyKey,
     } = createPaymentDto;
 
-    // 1. Kiểm tra giao dịch trùng
+    // 1. Kiểm tra Idempotency: Giao dịch cùng key đã tồn tại -> Trả về giao dịch trước đó, không trừ tiền 2 lần
     const existingPayment =
       await this.prisma.payment.findUnique({
         where: {
@@ -29,44 +33,60 @@ export class PaymentsService {
       });
 
     if (existingPayment) {
-      throw new ConflictException(
-        'Giao dịch thanh toán này đã được xử lý',
-      );
+      const existingOrder = await this.prisma.order.findUnique({
+        where: { id: BigInt(orderId) as any },
+      });
+      return {
+        payment: existingPayment,
+        order: existingOrder,
+        idempotent: true,
+        message: 'Giao dịch thanh toán đã được xử lý thành công trước đó (Idempotent)',
+      };
     }
 
     // 2. Kiểm tra Order
     const order = await this.prisma.order.findUnique({
       where: {
-        id: Number(orderId),
+        id: BigInt(orderId) as any,
       },
     });
 
     if (!order) {
       throw new NotFoundException(
-        `Không tìm thấy đơn hàng ${orderId}`,
+        `Không tìm thấy đơn hàng #${orderId}`,
       );
     }
 
-    // 3. Không cho thanh toán đơn đã hủy
-    if (order.status === 'CANCELLED') {
+    // 3. Không cho thanh toán đơn đã hủy hoặc đơn đã hoàn thành
+    if (order.status === order_status.CANCELLED) {
       throw new BadRequestException(
         'Không thể thanh toán đơn hàng đã hủy',
       );
     }
-
-    // 4. Kiểm tra số tiền
-    if (Number(order.total) !== amount) {
+    if (order.status === order_status.COMPLETED) {
       throw new BadRequestException(
-        'Số tiền thanh toán không khớp với tổng tiền đơn hàng',
+        'Đơn hàng này đã hoàn thành',
+      );
+    }
+    if (order.status === order_status.PAID) {
+      throw new BadRequestException(
+        'Đơn hàng này đã được thanh toán',
       );
     }
 
-    // 5. Tạo Payment và cập nhật Order
+    // 4. Kiểm tra số tiền thanh toán khớp với tổng đơn
+    if (Number(order.total) !== amount) {
+      throw new BadRequestException(
+        `Số tiền thanh toán (${amount}đ) không khớp với tổng tiền đơn hàng (${Number(order.total)}đ)`,
+      );
+    }
+
+    // 5. Tạo Payment và cập nhật Order sang PAID trong Transaction
     const result = await this.prisma.$transaction(
       async (tx) => {
         const payment = await tx.payment.create({
           data: {
-            orderId: Number(orderId),
+            orderId: BigInt(orderId) as any,
             amount,
             method,
             idempotencyKey,
@@ -76,10 +96,10 @@ export class PaymentsService {
         const updatedOrder =
           await tx.order.update({
             where: {
-              id: Number(orderId),
+              id: BigInt(orderId) as any,
             },
             data: {
-              status: 'PAID',
+              status: order_status.PAID,
             },
           });
 
@@ -90,7 +110,20 @@ export class PaymentsService {
       },
     );
 
-    return result;
+    // 6. Cộng điểm thưởng tích lũy (Loyalty Points) sau khi thanh toán thành công (1 điểm / 10.000đ)
+    const pointsEarned = Math.floor(amount / 10000);
+    if (pointsEarned > 0) {
+      try {
+        await this.usersService.addLoyaltyPoints(Number(order.userId), pointsEarned);
+      } catch (err) {
+        console.error('Lỗi cộng điểm tích lũy:', err);
+      }
+    }
+
+    return {
+      ...result,
+      pointsEarned,
+    };
   }
 
   async findByOrder(orderId: number) {
