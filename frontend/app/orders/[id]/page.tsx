@@ -5,6 +5,16 @@ import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuthStore } from '@/store/authStore';
 
+interface OrderItemTopping {
+  toppingId: number;
+  priceAtTime: number;
+  Topping?: {
+    id: number;
+    name: string;
+    price: number;
+  };
+}
+
 interface OrderItem {
   id: string | number;
   productId: string | number;
@@ -16,6 +26,7 @@ interface OrderItem {
     name: string;
     imageUrl?: string | null;
   };
+  OrderItemTopping?: OrderItemTopping[];
 }
 
 interface Payment {
@@ -218,6 +229,21 @@ export default function OrderConfirmationPage() {
                       <span className="bg-gray-100 px-2 py-0.5 rounded font-medium">Size: {item.size}</span>
                       <span>× {item.qty}</span>
                     </div>
+
+                    {/* Hiển thị Toppings nếu có */}
+                    {item.OrderItemTopping && item.OrderItemTopping.length > 0 && (
+                      <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                        <span className="text-xs text-gray-500 font-medium">Topping:</span>
+                        {item.OrderItemTopping.map((oit) => (
+                          <span
+                            key={oit.toppingId}
+                            className="text-xs bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-md font-medium"
+                          >
+                            +{oit.Topping?.name || `Topping #${oit.toppingId}`}
+                          </span>
+                        ))}
+                      </div>
+                    )}
                   </div>
                   <div className="text-right">
                     <span className="font-bold text-gray-900">

@@ -19,6 +19,10 @@ export class OrderItemDto {
   @IsInt()
   @Min(0)
   price: number;
+
+  @IsOptional()
+  @IsArray()
+  toppings?: string[];
 }
 
 export class CreateOrderDto {

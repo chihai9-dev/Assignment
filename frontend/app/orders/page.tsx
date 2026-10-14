@@ -5,6 +5,16 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
 
+interface OrderItemTopping {
+  toppingId: number;
+  priceAtTime: number;
+  Topping?: {
+    id: number;
+    name: string;
+    price: number;
+  };
+}
+
 interface OrderItem {
   id: string | number;
   productId: string | number;
@@ -16,6 +26,7 @@ interface OrderItem {
     name: string;
     imageUrl?: string | null;
   };
+  OrderItemTopping?: OrderItemTopping[];
 }
 
 interface OrderSummary {
@@ -196,16 +207,28 @@ export default function OrderHistoryPage() {
                     <div className="text-sm text-gray-700 space-y-1">
                       {order.OrderItem && order.OrderItem.length > 0 ? (
                         order.OrderItem.map((item) => (
-                          <div key={item.id} className="flex justify-between items-center text-sm">
-                            <span className="font-medium text-gray-800">
-                              {item.Product?.name || `Món #${item.productId}`}
-                              <span className="text-gray-500 text-xs ml-2 font-normal">
-                                (Size {item.size} × {item.qty})
+                          <div key={item.id} className="py-1">
+                            <div className="flex justify-between items-center text-sm">
+                              <span className="font-medium text-gray-800">
+                                {item.Product?.name || `Món #${item.productId}`}
+                                <span className="text-gray-500 text-xs ml-2 font-normal">
+                                  (Size {item.size} × {item.qty})
+                                </span>
                               </span>
-                            </span>
-                            <span className="text-gray-600 font-semibold">
-                              {Number(item.lineTotal).toLocaleString('vi-VN')}đ
-                            </span>
+                              <span className="text-gray-600 font-semibold">
+                                {Number(item.lineTotal).toLocaleString('vi-VN')}đ
+                              </span>
+                            </div>
+                            {item.OrderItemTopping && item.OrderItemTopping.length > 0 && (
+                              <div className="text-xs text-amber-700 flex flex-wrap gap-1 mt-0.5">
+                                <span>Topping:</span>
+                                {item.OrderItemTopping.map((oit) => (
+                                  <span key={oit.toppingId} className="bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
+                                    +{oit.Topping?.name || `Topping #${oit.toppingId}`}
+                                  </span>
+                                ))}
+                              </div>
+                            )}
                           </div>
                         ))
                       ) : (

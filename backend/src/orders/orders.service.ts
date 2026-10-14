@@ -81,6 +81,22 @@ export class OrdersService {
         }
       }
 
+      // Lấy danh sách Topping từ DB nếu có để lưu vào OrderItemTopping
+      const allToppingNames = new Set<string>();
+      for (const item of createOrderDto.items) {
+        if (item.toppings && Array.isArray(item.toppings)) {
+          item.toppings.forEach((t) => allToppingNames.add(t));
+        }
+      }
+
+      const toppingsMap = new Map<string, { id: number; price: number }>();
+      if (allToppingNames.size > 0 && (tx as any).topping) {
+        const dbToppings = await (tx as any).topping.findMany({
+          where: { name: { in: Array.from(allToppingNames) } },
+        });
+        dbToppings.forEach((t: any) => toppingsMap.set(t.name, { id: t.id, price: t.price }));
+      }
+
       // Tạo đơn hàng với trạng thái PENDING
       return tx.order.create({
         data: {
@@ -88,14 +104,30 @@ export class OrdersService {
           status: order_status.PENDING,
           total: finalTotal,
           OrderItem: {
-            create: createOrderDto.items.map((item) => ({
-              size: item.size as any,
-              qty: item.qty,
-              lineTotal: item.price * item.qty,
-              Product: {
-                connect: { id: BigInt(item.productId) as any },
-              },
-            })),
+            create: createOrderDto.items.map((item) => {
+              const itemToppings = (item.toppings || [])
+                .map((name) => toppingsMap.get(name))
+                .filter(Boolean);
+
+              return {
+                size: item.size as any,
+                qty: item.qty,
+                lineTotal: item.price * item.qty,
+                Product: {
+                  connect: { id: BigInt(item.productId) as any },
+                },
+                ...(itemToppings.length > 0 && (tx as any).orderItemTopping
+                  ? {
+                      OrderItemTopping: {
+                        create: itemToppings.map((t) => ({
+                          toppingId: t!.id,
+                          priceAtTime: t!.price,
+                        })),
+                      },
+                    }
+                  : {}),
+              };
+            }),
           },
         },
       });
@@ -193,6 +225,11 @@ export class OrdersService {
         OrderItem: {
           include: {
             Product: true,
+            OrderItemTopping: {
+              include: {
+                Topping: true,
+              },
+            },
           },
         },
       },
@@ -212,6 +249,11 @@ export class OrdersService {
         OrderItem: {
           include: {
             Product: true,
+            OrderItemTopping: {
+              include: {
+                Topping: true,
+              },
+            },
           },
         },
         Payment: true,
@@ -273,6 +315,11 @@ export class OrdersService {
         OrderItem: {
           include: {
             Product: true,
+            OrderItemTopping: {
+              include: {
+                Topping: true,
+              },
+            },
           },
         },
         Payment: true,
@@ -296,6 +343,11 @@ export class OrdersService {
         OrderItem: {
           include: {
             Product: true,
+            OrderItemTopping: {
+              include: {
+                Topping: true,
+              },
+            },
           },
         },
         User: {

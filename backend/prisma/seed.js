@@ -88,6 +88,24 @@ async function main() {
     console.log('Sản phẩm menu đã tồn tại, bỏ qua bước tạo sản phẩm.');
   }
 
+  // 3. Thêm danh sách Topping nếu chưa có
+  const defaultToppings = [
+    { name: 'Trân châu', price: 5000, isAvailable: true },
+    { name: 'Thạch trái cây', price: 5000, isAvailable: true },
+    { name: 'Kem cheese', price: 10000, isAvailable: true },
+    { name: 'Pudding trứng', price: 8000, isAvailable: true },
+    { name: 'Thạch dừa', price: 5000, isAvailable: true },
+  ];
+
+  for (const t of defaultToppings) {
+    await prisma.topping.upsert({
+      where: { name: t.name },
+      update: { price: t.price, isAvailable: t.isAvailable },
+      create: t,
+    });
+  }
+  console.log(`Đã đồng bộ ${defaultToppings.length} loại topping vào hệ thống.`);
+
   console.log('--- Hoàn tất Seeding thành công! ---');
 }
 

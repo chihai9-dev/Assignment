@@ -10,7 +10,7 @@ export default function CheckoutPage() {
 
   const items = useCartStore((state) => state.items);
   const clearActiveCart = useCartStore((state) => state.clearActiveCart);
-  const token = useAuthStore((state) => state.token);
+  const { token, logout } = useAuthStore();
   const [isPaying, setIsPaying] = useState(false);
   const [hasHydrated, setHasHydrated] = useState(false);
 
@@ -319,6 +319,7 @@ export default function CheckoutPage() {
                             size: item.size,
                             qty: Number(item.quantity),
                             price: Number(item.price),
+                            toppings: item.toppings || [],
                             })),
                             voucherCode: voucherCode.trim() || undefined,
                         }),
@@ -328,6 +329,12 @@ export default function CheckoutPage() {
                     const orderData = await orderResponse.json();
 
                     if (!orderResponse.ok) {
+                        if (orderResponse.status === 401) {
+                            logout();
+                            alert('Phiên đăng nhập đã hết hạn hoặc không hợp lệ. Vui lòng đăng nhập lại để hoàn tất thanh toán!');
+                            router.push('/login?redirect=/checkout');
+                            return;
+                        }
                         throw new Error(
                         Array.isArray(orderData.message)
                             ? orderData.message.join(', ')

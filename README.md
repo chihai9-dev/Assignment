@@ -158,6 +158,17 @@ npm run dev
 ```
 Frontend sẽ lắng nghe tại: `http://localhost:3000`
 
+### 4. Các lệnh quản lý & Cập nhật Cơ sở dữ liệu (Database Management)
+
+Dưới đây là các câu lệnh hữu ích khi làm việc với Database (chạy trong thư mục `backend`):
+
+| Mục đích | Câu lệnh | Khi nào sử dụng? |
+| :--- | :--- | :--- |
+| **Đồng bộ bảng mới** | `npx prisma db push` | Khi chỉnh sửa `prisma/schema.prisma` (thêm cột, thêm bảng, đổi kiểu). |
+| **Nạp dữ liệu mẫu** | `node prisma/seed.js` | Tạo sẵn 6 món cà phê, 5 loại topping và tài khoản test (`customer`, `barista`). |
+| **Xóa sạch & làm mới CSDL** | `npx prisma db push --force-reset`<br>`node prisma/seed.js` | Khi muốn xóa toàn bộ đơn hàng test và đưa CSDL về trạng thái sạch ban đầu. |
+| **Xem & chỉnh sửa dữ liệu (UI)** | `npx prisma studio` | Mở giao diện Web quản trị dữ liệu trực quan tại [http://localhost:5555](http://localhost:5555). |
+
 ---
 
 ## 📡 Danh sách API Endpoints

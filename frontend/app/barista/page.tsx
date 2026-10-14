@@ -5,6 +5,16 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/store/authStore';
 
+interface OrderItemTopping {
+  toppingId: number;
+  priceAtTime: number;
+  Topping?: {
+    id: number;
+    name: string;
+    price: number;
+  };
+}
+
 interface OrderItem {
   id: string | number;
   productId: string | number;
@@ -15,6 +25,7 @@ interface OrderItem {
     id: string | number;
     name: string;
   };
+  OrderItemTopping?: OrderItemTopping[];
 }
 
 interface BaristaOrder {
@@ -365,9 +376,20 @@ export default function BaristaDashboardPage() {
                               <p className="font-bold text-white">
                                 {item.Product?.name || `Món #${item.productId}`}
                               </p>
-                              <span className="inline-block text-xs bg-gray-800 text-amber-300 font-semibold px-2 py-0.5 rounded mt-0.5">
-                                Size: {item.size}
-                              </span>
+                              <div className="flex flex-wrap items-center gap-1.5 mt-1">
+                                <span className="inline-block text-xs bg-gray-800 text-amber-300 font-semibold px-2 py-0.5 rounded">
+                                  Size: {item.size}
+                                </span>
+                                {item.OrderItemTopping && item.OrderItemTopping.length > 0 &&
+                                  item.OrderItemTopping.map((oit) => (
+                                    <span
+                                      key={oit.toppingId}
+                                      className="inline-block text-xs bg-amber-950/80 text-amber-300 border border-amber-600/50 font-bold px-2 py-0.5 rounded shadow-sm"
+                                    >
+                                      ★ {oit.Topping?.name || `Topping #${oit.toppingId}`}
+                                    </span>
+                                  ))}
+                              </div>
                             </div>
                             <div className="text-right">
                               <span className="text-base font-extrabold text-blue-400">

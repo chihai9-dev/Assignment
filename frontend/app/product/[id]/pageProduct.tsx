@@ -11,13 +11,14 @@ interface Product {
   imageUrl: string;
 }
 
-// Bảng giá phụ thu
+interface ToppingItem {
+  id: number;
+  name: string;
+  price: number;
+}
+
+// Bảng giá phụ thu Size
 const SIZE_PRICES = { S: 0, M: 5000, L: 10000 };
-const TOPPING_PRICES = {
-  "Trân châu": 5000,
-  "Thạch trái cây": 5000,
-  "Kem cheese": 10000,
-};
 
 export default function ProductDetail() {
   const params = useParams();
@@ -28,20 +29,36 @@ export default function ProductDetail() {
   const [product, setProduct] = useState<Product | null>(null);
   const [selectedSize, setSelectedSize] = useState<"S" | "M" | "L">("S");
   const [selectedToppings, setSelectedToppings] = useState<string[]>([]);
+  const [toppingsList, setToppingsList] = useState<ToppingItem[]>([
+    { id: 1, name: "Trân châu", price: 5000 },
+    { id: 2, name: "Thạch trái cây", price: 5000 },
+    { id: 3, name: "Kem cheese", price: 10000 },
+    { id: 4, name: "Pudding trứng", price: 8000 },
+    { id: 5, name: "Thạch dừa", price: 5000 },
+  ]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Gọi API lấy chi tiết 1 sản phẩm
   useEffect(() => {
-  fetch(`http://localhost:3001/api/products/${params.id}`)
-    .then((res) => res.json())
-    .then((data) => {
-      // Trích xuất đúng dữ liệu sản phẩm từ Object trả về
-      const productData = data.data ? data.data : data;
-      setProduct(productData);
-      setIsLoading(false);
-    })
-    .catch(() => setIsLoading(false));
-}, [params.id]);
+    fetch(`http://localhost:3001/api/products/${params.id}`)
+      .then((res) => res.json())
+      .then((data) => {
+        const productData = data.data ? data.data : data;
+        setProduct(productData);
+        setIsLoading(false);
+      })
+      .catch(() => setIsLoading(false));
+
+    // Lấy danh sách Topping từ DB
+    fetch('http://localhost:3001/api/toppings')
+      .then((res) => res.json())
+      .then((data) => {
+        if (Array.isArray(data) && data.length > 0) {
+          setToppingsList(data);
+        }
+      })
+      .catch(() => {});
+  }, [params.id]);
 
   // Hàm xử lý chọn/bỏ chọn topping
   const handleToppingChange = (topping: string) => {
@@ -66,11 +83,11 @@ export default function ProductDetail() {
     );
 
   // Lô-gic tính tổng tiền: Giá gốc + Giá size + Tổng giá topping
-  const toppingsTotal = selectedToppings.reduce(
-    (total, t) => total + TOPPING_PRICES[t as keyof typeof TOPPING_PRICES],
-    0,
-  );
-  const finalPrice =Number(product.price) +Number(SIZE_PRICES[selectedSize]) +Number(toppingsTotal);
+  const toppingsTotal = selectedToppings.reduce((total, toppingName) => {
+    const t = toppingsList.find((item) => item.name === toppingName);
+    return total + (t ? Number(t.price) : 0);
+  }, 0);
+  const finalPrice = Number(product.price) + Number(SIZE_PRICES[selectedSize]) + Number(toppingsTotal);
 
   return (
     <main className="p-8 w-full min-h-screen bg-[#fff4c5] text-black">
@@ -112,19 +129,19 @@ export default function ProductDetail() {
             Thêm Topping (Tùy chọn)
           </h3>
           <div className="flex flex-col gap-3">
-            {Object.entries(TOPPING_PRICES).map(([topping, price]) => (
+            {toppingsList.map((t) => (
               <label
-                key={topping}
+                key={t.id}
                 className="flex items-center gap-2 cursor-pointer border p-3 rounded-lg bg-white hover:border-blue-500 has-[:checked]:border-blue-500 transition"
               >
                 <input
                   type="checkbox"
-                  checked={selectedToppings.includes(topping)}
-                  onChange={() => handleToppingChange(topping)}
+                  checked={selectedToppings.includes(t.name)}
+                  onChange={() => handleToppingChange(t.name)}
                   className="w-4 h-4 text-blue-600 rounded"
                 />
                 <span className="font-medium">
-                  {topping} (+{price.toLocaleString("vi-VN")}đ)
+                  {t.name} (+{Number(t.price).toLocaleString("vi-VN")}đ)
                 </span>
               </label>
             ))}
