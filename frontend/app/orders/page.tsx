@@ -50,7 +50,7 @@ const statusBadgeMap: Record<string, { label: string; className: string }> = {
 
 export default function OrderHistoryPage() {
   const router = useRouter();
-  const { token, user } = useAuthStore();
+  const { token, user, logout } = useAuthStore();
   const [orders, setOrders] = useState<OrderSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -72,6 +72,11 @@ export default function OrderHistoryPage() {
         });
 
         if (!res.ok) {
+          if (res.status === 401) {
+            logout();
+            setError('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại để xem lịch sử đơn hàng.');
+            return;
+          }
           const errData = await res.json().catch(() => ({}));
           throw new Error(errData.message || 'Không thể tải lịch sử đơn hàng');
         }
@@ -86,7 +91,7 @@ export default function OrderHistoryPage() {
     };
 
     fetchOrders();
-  }, [token]);
+  }, [token, logout]);
 
   // Chưa đăng nhập
   if (!token) {
@@ -141,8 +146,14 @@ export default function OrderHistoryPage() {
         </div>
 
         {error && (
-          <div className="bg-red-100 border border-red-300 text-red-800 p-4 rounded-xl text-sm">
-            {error}
+          <div className="bg-red-100 border border-red-300 text-red-800 p-5 rounded-2xl text-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow">
+            <span className="font-medium">{error}</span>
+            <button
+              onClick={() => router.push('/login?redirect=/orders')}
+              className="bg-red-600 hover:bg-red-700 text-white font-semibold px-4 py-2 rounded-lg text-xs transition whitespace-nowrap self-start sm:self-auto"
+            >
+              Đăng nhập lại ngay
+            </button>
           </div>
         )}
 

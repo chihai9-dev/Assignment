@@ -62,7 +62,7 @@ export default function OrderConfirmationPage() {
   const router = useRouter();
   const orderId = params?.id as string;
 
-  const { token, user } = useAuthStore();
+  const { token, user, logout } = useAuthStore();
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -86,6 +86,11 @@ export default function OrderConfirmationPage() {
         });
 
         if (!res.ok) {
+          if (res.status === 401) {
+            logout();
+            setError('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại để xem đơn hàng.');
+            return;
+          }
           const errData = await res.json().catch(() => ({}));
           throw new Error(errData.message || 'Không thể tải thông tin đơn hàng');
         }

@@ -27,10 +27,15 @@ export class AuthService {
       throw new UnauthorizedException('Sai email hoặc mật khẩu');
     }
 
-    const payload = { sub: user.id, email: user.email };
+    const payload = { sub: Number(user.id), email: user.email, role: (user as any).role };
     return {
       access_token: await this.jwtService.signAsync(payload),
-      user: { id: user.id, email: user.email, loyaltyPoints: user.loyaltyPoints },
+      user: {
+        id: Number(user.id),
+        email: user.email,
+        role: (user as any).role,
+        loyaltyPoints: user.loyaltyPoints,
+      },
     };
   }
 }

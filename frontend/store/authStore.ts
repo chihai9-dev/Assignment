@@ -4,6 +4,7 @@ import { persist } from 'zustand/middleware';
 export interface AuthUser {
   id: number;
   email: string;
+  role?: string;
   loyaltyPoints?: number;
 }
 

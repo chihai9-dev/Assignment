@@ -66,7 +66,7 @@ const statusBadgeMap: Record<string, { label: string; badgeClass: string; border
 
 export default function BaristaDashboardPage() {
   const router = useRouter();
-  const { token, user } = useAuthStore();
+  const { token, user, logout } = useAuthStore();
   const [orders, setOrders] = useState<BaristaOrder[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -90,6 +90,10 @@ export default function BaristaDashboardPage() {
       });
 
       if (!res.ok) {
+        if (res.status === 401) {
+          logout();
+          throw new Error('Phiên đăng nhập đã hết hạn hoặc không có quyền truy cập. Vui lòng đăng nhập lại tài khoản Barista.');
+        }
         const errData = await res.json().catch(() => ({}));
         throw new Error(errData.message || 'Không thể tải hàng đợi pha chế');
       }
@@ -102,7 +106,7 @@ export default function BaristaDashboardPage() {
     } finally {
       if (!isSilent) setLoading(false);
     }
-  }, [token]);
+  }, [token, logout]);
 
   // Initial load
   useEffect(() => {
@@ -284,8 +288,14 @@ export default function BaristaDashboardPage() {
         </div>
 
         {error && (
-          <div className="bg-red-900/50 border border-red-700 text-red-200 p-4 rounded-xl text-sm">
-            {error}
+          <div className="bg-red-900/50 border border-red-700 text-red-200 p-5 rounded-2xl text-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-lg">
+            <span className="font-medium">{error}</span>
+            <button
+              onClick={() => router.push('/login?redirect=/barista')}
+              className="bg-red-600 hover:bg-red-700 text-white font-bold px-4 py-2 rounded-lg text-xs transition whitespace-nowrap self-start sm:self-auto"
+            >
+              Đăng nhập lại Barista
+            </button>
           </div>
         )}
 
