@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore } from '../../store/authStore';
+import { CoffeeCupIcon, ArrowRightIcon } from '../components/Icons';
 
 interface OrderItemTopping {
   toppingId: number;
@@ -38,20 +39,30 @@ interface OrderSummary {
   OrderItem?: OrderItem[];
 }
 
-const statusBadgeMap: Record<string, { label: string; className: string }> = {
-  PENDING: { label: 'Chờ thanh toán', className: 'bg-yellow-100 text-yellow-800' },
-  PAID: { label: 'Đã thanh toán', className: 'bg-green-100 text-green-800' },
-  PREPARING: { label: 'Đang pha chế', className: 'bg-blue-100 text-blue-800' },
-  READY: { label: 'Sẵn sàng', className: 'bg-purple-100 text-purple-800' },
-  COMPLETED: { label: 'Hoàn thành', className: 'bg-gray-200 text-gray-800' },
-  PAYMENT_FAILED: { label: 'Thanh toán lỗi', className: 'bg-red-100 text-red-800' },
-  CANCELLED: { label: 'Đã hủy', className: 'bg-gray-300 text-gray-600' },
+// Bảng ánh xạ trạng thái sang nhãn tiếng Việt và màu sắc phù hợp quy trình nhận món tại quầy
+const statusBadgeMap: Record<string, { label: string; className: string; category: string }> = {
+  PENDING: { label: 'Chờ thanh toán', className: 'bg-amber-100 text-amber-800', category: 'PROCESSING' },
+  PAID: { label: 'Đã thanh toán', className: 'bg-blue-100 text-blue-800', category: 'PROCESSING' },
+  PREPARING: { label: 'Đang pha chế', className: 'bg-amber-100 text-amber-800', category: 'PROCESSING' },
+  READY: { label: 'Sẵn sàng nhận', className: 'bg-purple-100 text-purple-800', category: 'READY' },
+  COMPLETED: { label: 'Đã hoàn thành', className: 'bg-emerald-100 text-emerald-800', category: 'COMPLETED' },
+  PAYMENT_FAILED: { label: 'Thanh toán lỗi', className: 'bg-red-100 text-red-800', category: 'OTHER' },
+  CANCELLED: { label: 'Đã hủy', className: 'bg-gray-100 text-gray-600', category: 'OTHER' },
 };
+
+// Filter tabs: Tất cả, Đang xử lý, Sẵn sàng nhận, Đã hoàn thành
+const TABS = [
+  { id: 'ALL', label: 'Tất cả' },
+  { id: 'PROCESSING', label: 'Đang xử lý' },
+  { id: 'READY', label: 'Sẵn sàng nhận' },
+  { id: 'COMPLETED', label: 'Đã hoàn thành' },
+];
 
 export default function OrderHistoryPage() {
   const router = useRouter();
-  const { token, user, logout } = useAuthStore();
+  const { token, logout } = useAuthStore();
   const [orders, setOrders] = useState<OrderSummary[]>([]);
+  const [activeTab, setActiveTab] = useState('ALL');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -93,21 +104,30 @@ export default function OrderHistoryPage() {
     fetchOrders();
   }, [token, logout]);
 
+  // Lọc theo Tab đã chọn
+  const filteredOrders = useMemo(() => {
+    if (activeTab === 'ALL') return orders;
+    return orders.filter((o) => {
+      const config = statusBadgeMap[o.status];
+      return config && config.category === activeTab;
+    });
+  }, [orders, activeTab]);
+
   // Chưa đăng nhập
   if (!token) {
     return (
-      <main className="min-h-screen bg-[#8d2727] p-8 text-white flex items-center justify-center">
-        <div className="bg-white text-gray-800 p-8 rounded-2xl shadow-xl max-w-md w-full text-center">
-          <div className="w-16 h-16 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl">
-            🔒
+      <main className="min-h-screen bg-[#FBF8F2] p-8 flex items-center justify-center">
+        <div className="bg-white border border-[#E8DFD8] text-gray-800 p-8 rounded-3xl shadow-sm max-w-md w-full text-center space-y-4">
+          <div className="w-16 h-16 bg-[#F5F0E6] text-[#8D6E63] rounded-full flex items-center justify-center mx-auto text-2xl">
+            ☕
           </div>
-          <h2 className="text-2xl font-bold mb-2">Đăng nhập tài khoản</h2>
-          <p className="text-gray-600 mb-6">
-            Vui lòng đăng nhập để xem lịch sử đơn hàng của bạn.
+          <h2 className="text-2xl font-extrabold text-[#3E2723]">Đăng nhập tài khoản</h2>
+          <p className="text-sm text-[#756C65]">
+            Vui lòng đăng nhập để xem toàn bộ lịch sử đơn hàng của bạn.
           </p>
           <button
             onClick={() => router.push('/login?redirect=/orders')}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition"
+            className="w-full bg-[#3E2723] hover:bg-[#2E1C12] text-white font-bold py-3 rounded-xl transition text-sm cursor-pointer shadow-md shadow-[#3E2723]/20"
           >
             Đăng nhập ngay
           </button>
@@ -119,153 +139,161 @@ export default function OrderHistoryPage() {
   // Đang tải
   if (loading) {
     return (
-      <main className="min-h-screen bg-[#8d2727] p-8 text-white flex flex-col items-center justify-center">
-        <div className="w-12 h-12 border-4 border-white border-t-transparent rounded-full animate-spin mb-4" />
-        <p className="text-lg font-medium">Đang tải danh sách đơn hàng...</p>
+      <main className="min-h-screen bg-[#FBF8F2] p-8 flex flex-col items-center justify-center">
+        <div className="w-10 h-10 border-4 border-[#8D6E63] border-t-transparent rounded-full animate-spin mb-4" />
+        <p className="text-sm font-medium text-[#756C65]">Đang tải danh sách đơn hàng...</p>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-[#8d2727] py-10 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-4xl mx-auto space-y-6">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 text-white">
-          <div>
-            <h1 className="text-3xl font-extrabold tracking-tight">Lịch sử đơn hàng</h1>
-            <p className="text-white/80 mt-1 text-sm">
-              Xem lại tất cả các đơn hàng bạn đã đặt tại BrewLite
-            </p>
-          </div>
-          <Link
-            href="/"
-            className="self-start sm:self-auto bg-white/20 hover:bg-white/30 text-white px-4 py-2 rounded-lg text-sm font-semibold backdrop-blur transition"
-          >
-            ← Về trang chủ
-          </Link>
+    <main className="min-h-screen bg-[#FBF8F2] py-8 px-4 sm:px-6 lg:px-8 text-[#1F1F1F]">
+      <div className="max-w-5xl mx-auto space-y-6">
+        
+        {/* Tiêu đề & Mô tả */}
+        <div>
+          <h1 className="text-3xl font-extrabold text-[#3E2723] tracking-tight">
+            Lịch sử đơn hàng
+          </h1>
+          <p className="text-xs sm:text-sm text-[#756C65] mt-1">
+            Theo dõi tình trạng chế biến và giao hàng của các đơn đã đặt
+          </p>
         </div>
 
+        {/* Filter Tabs theo đúng mockup: Tất cả | Đang xử lý | Đang giao | Đã giao */}
+        <div className="flex flex-wrap items-center gap-2 pb-2">
+          {TABS.map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                type="button"
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-5 py-2 rounded-full text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+                  isActive
+                    ? 'bg-[#3E2723] text-white shadow-md shadow-[#3E2723]/20'
+                    : 'bg-white text-[#5C4D44] border border-[#E8DFD8] hover:bg-[#F5F0E6] hover:text-[#3E2723]'
+                }`}
+              >
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Lỗi hiển thị nếu có */}
         {error && (
-          <div className="bg-red-100 border border-red-300 text-red-800 p-5 rounded-2xl text-sm flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow">
-            <span className="font-medium">{error}</span>
+          <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-2xl text-xs flex justify-between items-center">
+            <span>{error}</span>
             <button
               onClick={() => router.push('/login?redirect=/orders')}
-              className="bg-red-600 hover:bg-red-700 text-white font-semibold px-4 py-2 rounded-lg text-xs transition whitespace-nowrap self-start sm:self-auto"
+              className="bg-red-600 text-white font-semibold px-3 py-1 rounded-lg text-xs"
             >
-              Đăng nhập lại ngay
+              Đăng nhập lại
             </button>
           </div>
         )}
 
-        {/* Empty state */}
-        {!error && orders.length === 0 && (
-          <div className="bg-white rounded-2xl p-12 text-center shadow-xl">
-            <div className="w-20 h-20 bg-gray-100 text-gray-400 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">
-              ☕
-            </div>
-            <h2 className="text-2xl font-bold text-gray-800 mb-2">Chưa có đơn hàng nào</h2>
-            <p className="text-gray-500 max-w-sm mx-auto mb-6">
-              Bạn chưa thực hiện đơn đặt hàng nào. Hãy khám phá thực đơn cà phê thơm ngon của chúng tôi!
+        {/* Trường hợp chưa có đơn */}
+        {!error && filteredOrders.length === 0 && (
+          <div className="bg-white border border-[#E8DFD8] rounded-3xl p-12 text-center shadow-sm space-y-4">
+            <CoffeeCupIcon className="w-14 h-14 text-[#D7A86E] mx-auto" />
+            <h2 className="text-xl font-extrabold text-[#3E2723]">
+              Chưa có đơn hàng nào
+            </h2>
+            <p className="text-xs sm:text-sm text-[#756C65] max-w-sm mx-auto">
+              {activeTab === 'ALL'
+                ? 'Bạn chưa đặt đơn hàng nào. Hãy khám phá thực đơn cà phê thơm ngon của BrewLite ngay hôm nay!'
+                : `Không có đơn hàng nào trong trạng thái này.`}
             </p>
-            <Link
-              href="/"
-              className="inline-block bg-blue-600 hover:bg-blue-700 text-white font-bold px-6 py-3 rounded-xl transition shadow"
-            >
-              Khám phá thực đơn
-            </Link>
+            <div className="pt-2">
+              <Link
+                href="/#menu"
+                className="inline-block bg-[#3E2723] hover:bg-[#2E1C12] text-white font-bold px-6 py-2.5 rounded-xl transition text-xs shadow-md shadow-[#3E2723]/20"
+              >
+                Khám phá Menu
+              </Link>
+            </div>
           </div>
         )}
 
-        {/* Danh sách đơn hàng */}
-        {orders.length > 0 && (
-          <div className="space-y-4">
-            {orders.map((order) => {
-              const statusConfig = statusBadgeMap[order.status] || {
-                label: order.status,
-                className: 'bg-gray-100 text-gray-800',
-              };
+        {/* BẢNG ĐƠN HÀNG CHUẨN MOCKUP 8. LỊCH SỬ ĐƠN HÀNG */}
+        {filteredOrders.length > 0 && (
+          <div className="bg-white border border-[#E8DFD8] rounded-3xl shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs sm:text-sm">
+                <thead className="bg-[#FDFBF7] border-b border-[#E8DFD8] text-[#5C4D44] font-bold">
+                  <tr>
+                    <th className="py-3.5 px-4 sm:px-6">Mã đơn hàng</th>
+                    <th className="py-3.5 px-4 sm:px-6">Ngày giờ</th>
+                    <th className="py-3.5 px-4 sm:px-6">Trạng thái</th>
+                    <th className="py-3.5 px-4 sm:px-6">Tổng tiền</th>
+                    <th className="py-3.5 px-4 sm:px-6 text-right">Thao tác</th>
+                  </tr>
+                </thead>
 
-              const formattedDate = new Date(order.createdAt).toLocaleString('vi-VN', {
-                day: '2-digit',
-                month: '2-digit',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-              });
+                <tbody className="divide-y divide-[#E8DFD8]/60">
+                  {filteredOrders.map((order) => {
+                    const statusConfig = statusBadgeMap[order.status] || {
+                      label: order.status,
+                      className: 'bg-gray-100 text-gray-800',
+                    };
 
-              return (
-                <div
-                  key={order.id}
-                  onClick={() => router.push(`/orders/${order.id}`)}
-                  className="bg-white rounded-2xl p-6 shadow-md hover:shadow-xl transition cursor-pointer border border-transparent hover:border-blue-400 group"
-                >
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-gray-100 gap-2">
-                    <div className="flex items-center gap-3">
-                      <span className="font-extrabold text-lg text-gray-900">
-                        Đơn #{order.id}
-                      </span>
-                      <span
-                        className={`px-3 py-1 rounded-full text-xs font-bold ${statusConfig.className}`}
+                    const formattedDate = new Date(order.createdAt).toLocaleString('vi-VN', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit',
+                    });
+
+                    return (
+                      <tr
+                        key={order.id}
+                        className="hover:bg-[#FDFBF7] transition-colors"
                       >
-                        {statusConfig.label}
-                      </span>
-                    </div>
-                    <span className="text-xs text-gray-500 font-medium">{formattedDate}</span>
-                  </div>
+                        {/* Mã đơn */}
+                        <td className="py-4 px-4 sm:px-6 font-extrabold text-[#3E2723]">
+                          #BL{String(order.id).padStart(8, '0')}
+                        </td>
 
-                  {/* Tóm tắt các món */}
-                  <div className="py-4">
-                    <div className="text-sm text-gray-700 space-y-1">
-                      {order.OrderItem && order.OrderItem.length > 0 ? (
-                        order.OrderItem.map((item) => (
-                          <div key={item.id} className="py-1">
-                            <div className="flex justify-between items-center text-sm">
-                              <span className="font-medium text-gray-800">
-                                {item.Product?.name || `Món #${item.productId}`}
-                                <span className="text-gray-500 text-xs ml-2 font-normal">
-                                  (Size {item.size} × {item.qty})
-                                </span>
-                              </span>
-                              <span className="text-gray-600 font-semibold">
-                                {Number(item.lineTotal).toLocaleString('vi-VN')}đ
-                              </span>
-                            </div>
-                            {item.OrderItemTopping && item.OrderItemTopping.length > 0 && (
-                              <div className="text-xs text-amber-700 flex flex-wrap gap-1 mt-0.5">
-                                <span>Topping:</span>
-                                {item.OrderItemTopping.map((oit) => (
-                                  <span key={oit.toppingId} className="bg-amber-50 px-1.5 py-0.2 rounded border border-amber-200">
-                                    +{oit.Topping?.name || `Topping #${oit.toppingId}`}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        ))
-                      ) : (
-                        <p className="text-gray-400 text-xs italic">Không có chi tiết sản phẩm</p>
-                      )}
-                    </div>
-                  </div>
+                        {/* Ngày giờ */}
+                        <td className="py-4 px-4 sm:px-6 text-[#5C4D44]">
+                          {formattedDate}
+                        </td>
 
-                  {/* Tổng tiền & Link xem chi tiết */}
-                  <div className="flex justify-between items-center pt-3 border-t border-gray-100">
-                    <div className="text-sm">
-                      <span className="text-gray-500 mr-2">Tổng tiền:</span>
-                      <span className="text-lg font-extrabold text-blue-600">
-                        {Number(order.total).toLocaleString('vi-VN')}đ
-                      </span>
-                    </div>
+                        {/* Trạng thái */}
+                        <td className="py-4 px-4 sm:px-6">
+                          <span
+                            className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${statusConfig.className}`}
+                          >
+                            {statusConfig.label}
+                          </span>
+                        </td>
 
-                    <span className="text-sm font-semibold text-blue-600 group-hover:text-blue-800 flex items-center gap-1 transition">
-                      Xem chi tiết <span className="group-hover:translate-x-1 transition-transform">→</span>
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
+                        {/* Tổng tiền */}
+                        <td className="py-4 px-4 sm:px-6 font-extrabold text-[#3E2723]">
+                          {Number(order.total).toLocaleString('vi-VN')}đ
+                        </td>
+
+                        {/* Thao tác Xem chi tiết */}
+                        <td className="py-4 px-4 sm:px-6 text-right">
+                          <Link
+                            href={`/orders/${order.id}`}
+                            className="inline-block border border-[#8D6E63] text-[#8D6E63] hover:bg-[#3E2723] hover:text-white hover:border-[#3E2723] px-3.5 py-1.5 rounded-full text-xs font-bold transition cursor-pointer"
+                          >
+                            Xem chi tiết
+                          </Link>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         )}
+
       </div>
     </main>
   );
