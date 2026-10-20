@@ -1,12 +1,16 @@
 import { Body, Controller, Get, Post, Request, UseGuards } from '@nestjs/common';
 import { AuthService } from './auth.service';
+import { UsersService } from '../users/users.service';
 import { CreateUserDto } from '../users/dto/create-user.dto';
 import { LoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 
 @Controller('api/auth') // Đồng bộ tiền tố "api" với các controller khác trong dự án
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly usersService: UsersService,
+  ) {}
 
   @Post('register') // POST /api/auth/register
   register(@Body() dto: CreateUserDto) {
@@ -19,8 +23,8 @@ export class AuthController {
   }
 
   @UseGuards(JwtAuthGuard)
-  @Get('me') // GET /api/auth/me - route mẫu để xác nhận guard hoạt động
+  @Get('me') // GET /api/auth/me - trả về thông tin chi tiết người dùng kèm loyaltyPoints
   me(@Request() req: { user: { userId: number; email: string } }) {
-    return req.user;
+    return this.usersService.findOne(Number(req.user.userId));
   }
 }

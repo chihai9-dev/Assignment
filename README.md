@@ -306,9 +306,14 @@ Hệ thống đã triển khai đầy đủ 4 tiêu chí cốt lõi của Task 1
    - Sử dụng Prisma Transaction kết hợp **Optimistic Locking** qua trường `version` và điều kiện `stock: { gte: item.qty }`.
    - Khi nhiều khách đặt mua sản phẩm cùng lúc, giao dịch sau có `version` không khớp sẽ bị chặn và ném `ConflictException` (409) hoặc `BadRequestException` (khi hết tồn kho), đảm bảo không bao giờ bán vượt quá số lượng hàng có sẵn.
 
-4. **Khuyến mãi (Voucher) & Điểm thưởng tích lũy (Loyalty Points)**:
-   - Hỗ trợ mã voucher giảm giá khi đặt hàng (`BREW10` giảm 10%, `BREW20` giảm 20%, `CHAOMUNG` giảm 15.000đ).
-   - Khi đơn chuyển sang `PAID`, hệ thống tự động tích lũy điểm thưởng theo tỷ lệ 1 điểm / 10.000đ vào tài khoản khách hàng.
+4. **Giảm giá theo điểm tích lũy (Loyalty Points Discount) & Tích điểm thưởng**:
+   - Tự động áp dụng giảm giá theo hạng điểm tích lũy (`loyaltyPoints`) của khách hàng:
+     - **Hạng Đồng** (< 20 điểm): 0% giảm giá
+     - **Hạng Bạc** (20 - 49 điểm): Tự động giảm **5%**
+     - **Hạng Vàng** (50 - 99 điểm): Tự động giảm **10%**
+     - **Hạng Kim Cương** (>= 100 điểm): Tự động giảm **15%**
+   - Điểm tích lũy không bị trừ khi giảm giá, giúp khách hàng duy trì và thăng hạng.
+   - Khi đơn chuyển sang `PAID`, hệ thống tự động tích lũy thêm điểm thưởng theo tỷ lệ 1 điểm / 10.000đ vào tài khoản khách hàng.
 
 ### 🏃 Chạy kiểm thử tự động (Unit Tests)
 Toàn bộ 28 tests trong hệ thống (bao gồm 14 tests dành riêng cho Task 10) đều đã sẵn sàng:
@@ -341,8 +346,8 @@ npm test -- src/orders/orders.task10.spec.ts
    Khách hàng có thể thoải mái xem menu, tùy chọn size/toppings và thêm vào giỏ hàng mà **không cần đăng nhập trước**.
 3. **Thanh toán & Đăng nhập**:
    Tại trang Giỏ hàng / Checkout, khi bấm "Thanh toán", nếu chưa đăng nhập hệ thống sẽ yêu cầu đăng nhập. Giỏ hàng được giữ nguyên sau khi đăng nhập thành công.
-4. **Áp mã giảm giá & Thanh toán**:
-   Nhập mã voucher (ví dụ `BREW10`), chọn phương thức Ví điện tử / Thẻ, nhấn Thanh toán. Hệ thống sinh `idempotencyKey` và chuyển đơn sang `PAID`.
+4. **Ưu đãi thành viên theo loyaltyPoints & Thanh toán**:
+   Tại màn hình Checkout, hệ thống tự động nhận diện hạng thành viên và số điểm tích lũy (`loyaltyPoints`) của khách hàng để áp dụng chiết khấu tự động (ví dụ tài khoản `customer@brewlite.com` có 50 điểm -> Hạng Vàng được giảm ngay 10%). Chọn phương thức Ví điện tử (VietQR / MoMo) và nhấn Thanh toán. Hệ thống sinh `idempotencyKey` và chuyển đơn sang `PAID`.
 5. **Xác nhận & Điểm thưởng**:
    Chuyển hướng đến trang xác nhận `/orders/:id`, hiển thị mã đơn, trạng thái và điểm thưởng vừa được tích lũy.
 6. **Barista nhận đơn & Pha chế**:

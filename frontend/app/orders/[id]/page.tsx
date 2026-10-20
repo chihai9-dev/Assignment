@@ -3,7 +3,13 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { useAuthStore } from '@/store/authStore';
+import { useAuthStore } from '../../../store/authStore';
+import {
+  CheckCircleIcon,
+  ArrowRightIcon,
+  CoffeeCupIcon,
+  CoffeeBeanIcon
+} from '../../components/Icons';
 
 interface OrderItemTopping {
   toppingId: number;
@@ -47,14 +53,15 @@ interface OrderDetail {
   Payment?: Payment[];
 }
 
+// Bảng màu trạng thái chuẩn
 const statusBadgeMap: Record<string, { label: string; className: string }> = {
-  PENDING: { label: 'Chờ thanh toán', className: 'bg-yellow-100 text-yellow-800' },
-  PAID: { label: 'Đã thanh toán', className: 'bg-green-100 text-green-800' },
+  PENDING: { label: 'Chờ thanh toán', className: 'bg-amber-100 text-amber-800' },
+  PAID: { label: 'Đã thanh toán', className: 'bg-emerald-100 text-emerald-800' },
   PREPARING: { label: 'Đang pha chế', className: 'bg-blue-100 text-blue-800' },
-  READY: { label: 'Sẵn sàng', className: 'bg-purple-100 text-purple-800' },
-  COMPLETED: { label: 'Hoàn thành', className: 'bg-gray-200 text-gray-800' },
+  READY: { label: 'Sẵn sàng nhận tại quầy', className: 'bg-purple-100 text-purple-800' },
+  COMPLETED: { label: 'Hoàn thành', className: 'bg-gray-100 text-gray-800' },
   PAYMENT_FAILED: { label: 'Thanh toán lỗi', className: 'bg-red-100 text-red-800' },
-  CANCELLED: { label: 'Đã hủy', className: 'bg-gray-300 text-gray-600' },
+  CANCELLED: { label: 'Đã hủy', className: 'bg-gray-200 text-gray-600' },
 };
 
 export default function OrderConfirmationPage() {
@@ -62,7 +69,7 @@ export default function OrderConfirmationPage() {
   const router = useRouter();
   const orderId = params?.id as string;
 
-  const { token, user, logout } = useAuthStore();
+  const { token, logout } = useAuthStore();
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -105,16 +112,18 @@ export default function OrderConfirmationPage() {
     };
 
     fetchOrder();
-  }, [orderId, token]);
+  }, [orderId, token, logout]);
 
   if (!token) {
     return (
-      <main className="min-h-screen bg-[#8d2727] p-8 text-white flex items-center justify-center">
-        <div className="bg-white text-gray-800 p-8 rounded-2xl shadow-xl max-w-md w-full text-center">
-          <p className="text-lg font-semibold mb-4">Vui lòng đăng nhập để xem đơn hàng</p>
+      <main className="min-h-screen bg-[#FBF8F2] p-8 flex items-center justify-center">
+        <div className="bg-white border border-[#E8DFD8] text-gray-800 p-8 rounded-3xl shadow-sm max-w-md w-full text-center space-y-4">
+          <p className="text-base font-semibold text-[#3E2723]">
+            Vui lòng đăng nhập để xem thông tin đơn hàng
+          </p>
           <button
             onClick={() => router.push(`/login?redirect=/orders/${orderId}`)}
-            className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-lg transition"
+            className="w-full bg-[#3E2723] hover:bg-[#2E1C12] text-white font-bold py-3 rounded-xl transition text-sm cursor-pointer"
           >
             Đăng nhập ngay
           </button>
@@ -125,32 +134,32 @@ export default function OrderConfirmationPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-[#8d2727] p-8 text-white flex flex-col items-center justify-center">
-        <div className="w-12 h-12 border-4 border-white border-t-transparent rounded-full animate-spin mb-4" />
-        <p className="text-lg font-medium">Đang tải thông tin đơn hàng...</p>
+      <main className="min-h-screen bg-[#FBF8F2] p-8 flex flex-col items-center justify-center">
+        <div className="w-10 h-10 border-4 border-[#8D6E63] border-t-transparent rounded-full animate-spin mb-4" />
+        <p className="text-sm font-medium text-[#756C65]">Đang tải thông tin đơn hàng...</p>
       </main>
     );
   }
 
   if (error || !order) {
     return (
-      <main className="min-h-screen bg-[#8d2727] p-8 text-white flex items-center justify-center">
-        <div className="bg-white text-gray-800 p-8 rounded-2xl shadow-xl max-w-md w-full text-center">
-          <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4 text-2xl font-bold">
+      <main className="min-h-screen bg-[#FBF8F2] p-8 flex items-center justify-center">
+        <div className="bg-white border border-[#E8DFD8] text-gray-800 p-8 rounded-3xl shadow-sm max-w-md w-full text-center space-y-4">
+          <div className="w-14 h-14 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto text-xl font-bold">
             ✕
           </div>
-          <h2 className="text-2xl font-bold mb-2">Không tìm thấy đơn hàng</h2>
-          <p className="text-gray-600 mb-6">{error || 'Đơn hàng không tồn tại hoặc bạn không có quyền xem.'}</p>
-          <div className="space-y-3">
+          <h2 className="text-xl font-extrabold text-[#3E2723]">Không tìm thấy đơn hàng</h2>
+          <p className="text-xs text-gray-500">{error || 'Đơn hàng không tồn tại hoặc bạn không có quyền xem.'}</p>
+          <div className="space-y-2 pt-2">
             <Link
               href="/orders"
-              className="block w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 rounded-lg transition"
+              className="block w-full bg-[#3E2723] hover:bg-[#2E1C12] text-white font-bold py-2.5 rounded-xl transition text-xs"
             >
               Lịch sử đơn
             </Link>
             <Link
               href="/"
-              className="block w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-3 rounded-lg transition"
+              className="block w-full bg-[#FDFBF7] hover:bg-[#F5F0E6] text-[#5C4D44] font-semibold py-2.5 rounded-xl transition border border-[#E8DFD8] text-xs"
             >
               Về trang chủ
             </Link>
@@ -174,75 +183,138 @@ export default function OrderConfirmationPage() {
   });
 
   return (
-    <main className="min-h-screen bg-[#8d2727] py-10 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-3xl mx-auto space-y-6">
-        {/* Header thành công */}
-        <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-xl text-center">
-          <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
-            <svg
-              className="w-10 h-10"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-              xmlns="http://www.w3.org/2000/svg"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7" />
-            </svg>
+    <main className="min-h-screen bg-[#FBF8F2] py-10 px-4 sm:px-6 lg:px-8 text-[#1F1F1F]">
+      <div className="max-w-4xl mx-auto space-y-8">
+        
+        {/* =========================================================
+            CARD ĐẶT HÀNG THÀNH CÔNG (Theo Mockup 7. Đặt hàng thành công!)
+        ========================================================= */}
+        <div className="bg-white border border-[#E8DFD8] rounded-3xl p-6 sm:p-10 shadow-sm grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
+          
+          {/* CỘT TRÁI: HÌNH ẢNH LY CÀ PHÊ NHƯ MOCKUP */}
+          <div className="md:col-span-5 flex justify-center">
+            <div className="relative w-64 h-72 sm:w-72 sm:h-80 rounded-2xl overflow-hidden shadow-lg border-2 border-[#E8DFD8] bg-[#F5F0E6]">
+              <img
+                src="https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=600&auto=format&fit=crop&q=85"
+                alt="BrewLite Success"
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent flex items-end p-4">
+                <span className="text-xs font-semibold text-white/90">
+                  Cảm ơn bạn đã lựa chọn BrewLite ☕
+                </span>
+              </div>
+            </div>
           </div>
-          <h1 className="text-2xl sm:text-3xl font-extrabold text-gray-900 mb-2">
-            Đặt hàng thành công!
-          </h1>
-          <p className="text-gray-600 mb-6">
-            Cảm ơn bạn đã lựa chọn BrewLite. Đơn hàng của bạn đang được xử lý.
-          </p>
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 border-t border-b border-gray-100 py-4 text-left sm:text-center">
-            <div>
-              <span className="block text-xs uppercase tracking-wider text-gray-500 font-semibold">Mã đơn</span>
-              <span className="text-lg font-bold text-gray-800">#{order.id}</span>
+          {/* CỘT PHẢI: ICON CHECKMARK, TIÊU ĐỀ & THÔNG TIN ĐƠN */}
+          <div className="md:col-span-7 space-y-6">
+            
+            {/* Checkmark icon & Title */}
+            <div className="space-y-2">
+              <div className="w-14 h-14 rounded-full bg-[#D7A86E] text-[#3E2723] flex items-center justify-center shadow-md">
+                <svg className="w-8 h-8 text-[#2E1810]" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-[#3E2723] tracking-tight pt-2">
+                Đặt hàng thành công!
+              </h1>
+              <p className="text-xs sm:text-sm text-[#756C65] leading-relaxed">
+                Cảm ơn bạn đã lựa chọn BrewLite. Chúng tôi sẽ sớm chuẩn bị đơn hàng của bạn.
+              </p>
             </div>
-            <div>
-              <span className="block text-xs uppercase tracking-wider text-gray-500 font-semibold">Trạng thái</span>
-              <span
-                className={`inline-block px-3 py-1 rounded-full text-xs font-bold mt-1 ${statusConfig.className}`}
+
+            {/* Thông tin đơn tóm tắt (Mã đơn hàng, Thời gian, Tổng tiền) */}
+            <div className="bg-[#FDFBF7] border border-[#E8DFD8] rounded-2xl p-4 sm:p-5 space-y-3 text-xs sm:text-sm">
+              <div className="flex justify-between items-center py-1">
+                <span className="text-[#756C65] font-medium">Mã đơn hàng:</span>
+                <span className="font-extrabold text-[#3E2723] text-sm">
+                  #BL{String(order.id).padStart(8, '0')}
+                </span>
+              </div>
+
+              <div className="flex justify-between items-center py-1">
+                <span className="text-[#756C65] font-medium">Thời gian:</span>
+                <span className="font-semibold text-[#2E1810]">
+                  {formattedDate}
+                </span>
+              </div>
+
+              <div className="flex justify-between items-center py-1">
+                <span className="text-[#756C65] font-medium">Trạng thái:</span>
+                <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${statusConfig.className}`}>
+                  {statusConfig.label}
+                </span>
+              </div>
+
+              <hr className="border-[#E8DFD8]" />
+
+              {Number(order.total) >= 10000 && (
+                <div className="flex justify-between items-center px-2.5 py-1.5 bg-emerald-50 rounded-xl border border-emerald-200 text-xs text-emerald-800">
+                  <span className="font-medium">Điểm thưởng tích lũy:</span>
+                  <span className="font-extrabold">+{Math.floor(Number(order.total) / 10000)} điểm</span>
+                </div>
+              )}
+              <div className="flex justify-between items-baseline pt-1">
+                <span className="font-bold text-sm text-[#3E2723]">Tổng tiền:</span>
+                <span className="font-extrabold text-xl text-[#3E2723]">
+                  {Number(order.total).toLocaleString('vi-VN')}đ
+                </span>
+              </div>
+            </div>
+
+            {/* Hai nút hành động chuẩn Mockup */}
+            <div className="flex flex-col sm:flex-row gap-3 pt-2">
+              <Link
+                href="/orders"
+                className="flex-1 bg-[#3E2723] hover:bg-[#2E1C12] text-white font-bold py-3 px-4 rounded-xl text-center text-xs sm:text-sm transition shadow-md shadow-[#3E2723]/20 cursor-pointer"
               >
-                {statusConfig.label}
-              </span>
+                Xem đơn hàng
+              </Link>
+              <Link
+                href="/"
+                className="flex-1 bg-white hover:bg-[#F5F0E6] text-[#3E2723] font-bold py-3 px-4 rounded-xl text-center text-xs sm:text-sm transition border border-[#E8DFD8] cursor-pointer"
+              >
+                Về trang chủ
+              </Link>
             </div>
-            <div>
-              <span className="block text-xs uppercase tracking-wider text-gray-500 font-semibold">Thời gian đặt</span>
-              <span className="text-sm font-medium text-gray-700 mt-1 inline-block">{formattedDate}</span>
-            </div>
+
           </div>
+
         </div>
 
-        {/* Chi tiết đơn hàng */}
-        <div className="bg-white rounded-2xl p-6 sm:p-8 shadow-xl">
-          <h2 className="text-xl font-bold text-gray-900 mb-4 pb-2 border-b">
-            Danh sách món
+        {/* =========================================================
+            CHI TIẾT DANH SÁCH MÓN ĐÃ ĐẶT
+        ========================================================= */}
+        <div className="bg-white border border-[#E8DFD8] rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
+          <h2 className="font-extrabold text-lg text-[#3E2723] pb-3 border-b border-gray-100">
+            Chi tiết món đã đặt
           </h2>
 
-          <div className="divide-y divide-gray-100 mb-6">
+          <div className="divide-y divide-gray-100">
             {order.OrderItem && order.OrderItem.length > 0 ? (
               order.OrderItem.map((item) => (
-                <div key={item.id} className="py-4 flex justify-between items-center">
+                <div key={item.id} className="py-3.5 flex justify-between items-center gap-4 text-xs sm:text-sm">
                   <div>
-                    <h3 className="font-bold text-gray-800">
+                    <h3 className="font-bold text-[#2E1810]">
                       {item.Product?.name || `Sản phẩm #${item.productId}`}
                     </h3>
-                    <div className="flex items-center gap-2 text-xs text-gray-500 mt-1">
-                      <span className="bg-gray-100 px-2 py-0.5 rounded font-medium">Size: {item.size}</span>
+                    <div className="flex items-center gap-2 text-xs text-[#756C65] mt-1">
+                      <span className="bg-[#F5F0E6] text-[#5C4D44] font-semibold px-2 py-0.5 rounded">
+                        Size {item.size}
+                      </span>
                       <span>× {item.qty}</span>
                     </div>
 
-                    {/* Hiển thị Toppings nếu có */}
                     {item.OrderItemTopping && item.OrderItemTopping.length > 0 && (
-                      <div className="flex flex-wrap items-center gap-1.5 mt-2">
-                        <span className="text-xs text-gray-500 font-medium">Topping:</span>
+                      <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                        <span className="text-[11px] text-[#8D6E63] font-medium">Topping:</span>
                         {item.OrderItemTopping.map((oit) => (
                           <span
                             key={oit.toppingId}
-                            className="text-xs bg-amber-50 text-amber-800 border border-amber-200 px-2 py-0.5 rounded-md font-medium"
+                            className="text-[11px] bg-[#FDFBF7] text-[#8D6E63] border border-[#E8DFD8] px-2 py-0.5 rounded font-medium"
                           >
                             +{oit.Topping?.name || `Topping #${oit.toppingId}`}
                           </span>
@@ -250,55 +322,18 @@ export default function OrderConfirmationPage() {
                       </div>
                     )}
                   </div>
-                  <div className="text-right">
-                    <span className="font-bold text-gray-900">
-                      {Number(item.lineTotal).toLocaleString('vi-VN')}đ
-                    </span>
+
+                  <div className="text-right font-extrabold text-[#3E2723]">
+                    {Number(item.lineTotal).toLocaleString('vi-VN')}đ
                   </div>
                 </div>
               ))
             ) : (
-              <p className="text-gray-500 py-4 text-center">Không có món nào trong đơn</p>
+              <p className="text-gray-400 text-xs py-4 text-center">Không có chi tiết sản phẩm</p>
             )}
           </div>
-
-          {/* Thông tin thanh toán */}
-          {order.Payment && order.Payment.length > 0 && (
-            <div className="bg-gray-50 rounded-xl p-4 mb-6">
-              <h3 className="text-sm font-bold text-gray-700 mb-2">Thông tin thanh toán:</h3>
-              {order.Payment.map((p) => (
-                <div key={p.id} className="flex justify-between text-sm text-gray-600">
-                  <span>Phương thức: {p.method === 'WALLET' ? 'Ví điện tử' : p.method === 'CARD' ? 'Thẻ ngân hàng' : p.method}</span>
-                  <span className="font-semibold text-green-700">Đã ghi nhận</span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Tổng cộng */}
-          <div className="flex justify-between items-center pt-4 border-t border-gray-200">
-            <span className="text-lg font-bold text-gray-900">Tổng thanh toán:</span>
-            <span className="text-2xl font-extrabold text-blue-600">
-              {Number(order.total).toLocaleString('vi-VN')}đ
-            </span>
-          </div>
-
-          {/* Nút hành động */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-8">
-            <Link
-              href="/orders"
-              className="w-full text-center bg-blue-600 hover:bg-blue-700 text-white font-bold py-3.5 px-4 rounded-xl transition shadow"
-            >
-              Lịch sử đơn
-            </Link>
-            <Link
-              href="/"
-              className="w-full text-center bg-gray-100 hover:bg-gray-200 text-gray-800 font-bold py-3.5 px-4 rounded-xl transition border border-gray-300"
-            >
-              Về trang chủ
-            </Link>
-          </div>
         </div>
+
       </div>
     </main>
   );

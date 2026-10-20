@@ -24,24 +24,32 @@ export class OrdersService {
       0,
     );
 
-    // 2. Xử lý mã giảm giá / khuyến mãi (Task 10 - Yêu cầu 4)
-    let discountAmount = 0;
-    let appliedVoucher: string | null = null;
-    if (createOrderDto.voucherCode) {
-      const code = createOrderDto.voucherCode.trim().toUpperCase();
-      if (code === 'BREW10') {
-        discountAmount = Math.min(Math.round(rawTotal * 0.1), 50000);
-        appliedVoucher = code;
-      } else if (code === 'BREW20') {
-        discountAmount = Math.min(Math.round(rawTotal * 0.2), 100000);
-        appliedVoucher = code;
-      } else if (code === 'CHAOMUNG') {
-        discountAmount = Math.min(15000, rawTotal);
-        appliedVoucher = code;
-      } else {
-        throw new BadRequestException(`Mã giảm giá "${createOrderDto.voucherCode}" không hợp lệ`);
+    // 2. Xử lý giảm giá theo điểm tích lũy (loyaltyPoints) của User (Hạng thành viên)
+    let loyaltyPoints = 0;
+    try {
+      const user = await this.usersService.findOne(userId);
+      if (user && typeof user.loyaltyPoints === 'number') {
+        loyaltyPoints = user.loyaltyPoints;
       }
+    } catch {
+      loyaltyPoints = 0;
     }
+
+    let discountPercent = 0;
+    let membershipTier = 'Đồng';
+
+    if (loyaltyPoints >= 100) {
+      discountPercent = 15;
+      membershipTier = 'Kim Cương';
+    } else if (loyaltyPoints >= 50) {
+      discountPercent = 10;
+      membershipTier = 'Vàng';
+    } else if (loyaltyPoints >= 20) {
+      discountPercent = 5;
+      membershipTier = 'Bạc';
+    }
+
+    const discountAmount = Math.round((rawTotal * discountPercent) / 100);
     const finalTotal = Math.max(0, rawTotal - discountAmount);
 
     // 3. Sử dụng Transaction + Optimistic Locking để trừ tồn kho an toàn khi đặt đồng thời (Task 10 - Yêu cầu 3)
@@ -139,7 +147,10 @@ export class OrdersService {
       total: finalTotal,
       rawTotal,
       discount: discountAmount,
-      voucher: appliedVoucher,
+      loyaltyPoints,
+      discountPercent,
+      membershipTier,
+      voucher: null,
     };
   }
 
