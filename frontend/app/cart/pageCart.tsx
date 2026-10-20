@@ -4,6 +4,7 @@ import React from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCartStore } from '../../store/cartStore';
+import { useAuthStore } from '../../store/authStore';
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
@@ -24,7 +25,20 @@ export default function CartPage() {
     0
   );
 
-  const discount = 0;
+  const { user } = useAuthStore();
+  const loyaltyPoints = Number(user?.loyaltyPoints || 0);
+  const discountPercent =
+    loyaltyPoints >= 100 ? 15 : loyaltyPoints >= 50 ? 10 : loyaltyPoints >= 20 ? 5 : 0;
+  const membershipTier =
+    loyaltyPoints >= 100
+      ? 'Kim Cương'
+      : loyaltyPoints >= 50
+      ? 'Vàng'
+      : loyaltyPoints >= 20
+      ? 'Bạc'
+      : 'Đồng';
+
+  const discount = Math.round((subtotal * discountPercent) / 100);
   const grandTotal = Math.max(0, subtotal - discount);
 
   if (items.length === 0) {
@@ -184,12 +198,20 @@ export default function CartPage() {
                 </div>
 
                 <div className="flex justify-between text-[#5C4D44]">
-                  <span>Giảm giá</span>
+                  <span>
+                    Giảm giá {user ? `(Hạng ${membershipTier} -${discountPercent}%)` : ''}
+                  </span>
                   <span className="font-semibold text-emerald-600">
-                    -{discount.toLocaleString('vi-VN')}đ
+                    {discount > 0 ? `-${discount.toLocaleString('vi-VN')}đ` : '0đ'}
                   </span>
                 </div>
               </div>
+
+              {!user && (
+                <p className="text-[11px] text-[#8D6E63] bg-[#FDFBF7] p-2.5 rounded-xl border border-[#E8DFD8] leading-relaxed">
+                  💡 <strong>Đăng nhập</strong> để tự động nhận ưu đãi giảm giá theo điểm tích lũy thành viên (lên đến 15%).
+                </p>
+              )}
 
               <hr className="border-[#E8DFD8]" />
 

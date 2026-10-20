@@ -24,18 +24,77 @@ export default function CheckoutPage() {
   const [hasHydrated, setHasHydrated] = useState(false);
   const [isPaying, setIsPaying] = useState(false);
 
-  // Voucher
-  const [voucherCode, setVoucherCode] = useState('');
-  const [voucherDiscount, setVoucherDiscount] = useState(0);
-  const [voucherMessage, setVoucherMessage] = useState('');
-
   // Phương thức thanh toán (2 tùy chọn: VietQR, MoMo)
   type PaymentMethodType = 'VIETQR' | 'MOMO';
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodType>('VIETQR');
 
+  // Lấy loyaltyPoints của user và tự động đồng bộ từ backend khi vào trang checkout
   useEffect(() => {
     setHasHydrated(true);
-  }, []);
+    if (token) {
+      fetch('http://localhost:3001/api/auth/me', {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((freshUser) => {
+          if (freshUser && typeof freshUser.loyaltyPoints === 'number') {
+            useAuthStore.getState().setUser({
+              ...freshUser,
+              id: Number(freshUser.id),
+            });
+          }
+        })
+        .catch(() => {});
+    }
+  }, [token]);
+
+  const loyaltyPoints = Number(user?.loyaltyPoints || 0);
+
+  // Thông tin hạng thành viên và % giảm giá tự động theo loyaltyPoints
+  const membership = useMemo(() => {
+    if (loyaltyPoints >= 100) {
+      return {
+        tier: 'Kim Cương',
+        badgeColor: 'bg-purple-100 text-purple-800 border-purple-200',
+        icon: '💎',
+        discountPercent: 15,
+        nextTier: null,
+        pointsNeeded: 0,
+        description: 'Tự động giảm 15% cho mọi đơn hàng (Hạng cao nhất)',
+      };
+    }
+    if (loyaltyPoints >= 50) {
+      return {
+        tier: 'Vàng',
+        badgeColor: 'bg-amber-100 text-amber-800 border-amber-200',
+        icon: '🏆',
+        discountPercent: 10,
+        nextTier: 'Kim Cương',
+        pointsNeeded: 100 - loyaltyPoints,
+        description: 'Tự động giảm 10% cho mọi đơn hàng',
+      };
+    }
+    if (loyaltyPoints >= 20) {
+      return {
+        tier: 'Bạc',
+        badgeColor: 'bg-slate-100 text-slate-700 border-slate-200',
+        icon: '🥈',
+        discountPercent: 5,
+        nextTier: 'Vàng',
+        pointsNeeded: 50 - loyaltyPoints,
+        description: 'Tự động giảm 5% cho mọi đơn hàng',
+      };
+    }
+    return {
+      tier: 'Đồng',
+      badgeColor: 'bg-[#F5F0E6] text-[#8D6E63] border-[#E8DFD8]',
+      icon: '🥉',
+      discountPercent: 0,
+      nextTier: 'Bạc',
+      pointsNeeded: 20 - loyaltyPoints,
+      description: 'Chưa có ưu đãi giảm giá',
+    };
+  }, [loyaltyPoints]);
 
   // Tính toán chi phí (Không có phí giao hàng vì nhận món trực tiếp tại quầy)
   const subtotal = useMemo(() => {
@@ -45,36 +104,17 @@ export default function CheckoutPage() {
     );
   }, [items]);
 
-  const grandTotal = Math.max(0, subtotal - voucherDiscount);
+  const discountAmount = useMemo(() => {
+    return Math.round((subtotal * membership.discountPercent) / 100);
+  }, [subtotal, membership.discountPercent]);
+
+  const grandTotal = Math.max(0, subtotal - discountAmount);
+  const earnedPointsPreview = Math.floor(grandTotal / 10000);
 
   // Tạo mã nội dung chuyển khoản động
   const transferContent = useMemo(() => {
     return `BrewLite_#ORD${Math.floor(100000 + Math.random() * 900000)}`;
   }, []);
-
-  // Xử lý áp dụng mã voucher
-  const handleApplyVoucher = (code: string) => {
-    const cleanCode = code.trim().toUpperCase();
-    setVoucherCode(cleanCode);
-    if (cleanCode === 'BREW10') {
-      const discount = Math.round(subtotal * 0.1);
-      setVoucherDiscount(discount);
-      setVoucherMessage('Áp dụng mã BREW10: Giảm 10%');
-    } else if (cleanCode === 'BREW20') {
-      const discount = Math.round(subtotal * 0.2);
-      setVoucherDiscount(discount);
-      setVoucherMessage('Áp dụng mã BREW20: Giảm 20%');
-    } else if (cleanCode === 'CHAOMUNG') {
-      setVoucherDiscount(15000);
-      setVoucherMessage('Áp dụng mã CHAOMUNG: Giảm 15.000đ');
-    } else if (cleanCode === '') {
-      setVoucherDiscount(0);
-      setVoucherMessage('');
-    } else {
-      setVoucherDiscount(0);
-      setVoucherMessage('Mã giảm giá không hợp lệ');
-    }
-  };
 
   // Tiến hành thanh toán
   const handleCheckoutSubmit = async () => {
@@ -87,7 +127,7 @@ export default function CheckoutPage() {
     try {
       setIsPaying(true);
 
-      // BƯỚC 1: Tạo Order qua API backend NestJS
+      // BƯỚC 1: Tạo Order qua API backend NestJS (backend tự tính giảm giá theo loyaltyPoints của user)
       const orderResponse = await fetch('http://localhost:3001/api/orders', {
         method: 'POST',
         headers: {
@@ -102,7 +142,6 @@ export default function CheckoutPage() {
             price: Number(item.price),
             toppings: item.toppings || [],
           })),
-          voucherCode: voucherCode.trim() || undefined,
         }),
       });
 
@@ -151,6 +190,12 @@ export default function CheckoutPage() {
             ? paymentData.message.join(', ')
             : paymentData.message || 'Thanh toán không thành công'
         );
+      }
+
+      // Cập nhật lại loyaltyPoints trong store sau khi được cộng điểm thưởng
+      if (paymentData.pointsEarned) {
+        const currentPoints = useAuthStore.getState().user?.loyaltyPoints || 0;
+        useAuthStore.getState().updateLoyaltyPoints(currentPoints + Number(paymentData.pointsEarned));
       }
 
       // Xóa giỏ hàng và chuyển hướng sang trang xác nhận thành công
@@ -500,47 +545,81 @@ export default function CheckoutPage() {
                 ))}
               </div>
 
-              {/* Ô nhập Voucher ưu đãi (Task 10) */}
-              <div className="pt-2 border-t border-gray-100 space-y-2">
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    placeholder="Mã voucher (BREW10, BREW20...)"
-                    value={voucherCode}
-                    onChange={(e) => setVoucherCode(e.target.value.toUpperCase())}
-                    className="flex-1 bg-[#FDFBF7] border border-[#E8DFD8] rounded-xl px-3 py-1.5 text-xs uppercase font-medium focus:outline-none focus:ring-1 focus:ring-[#8D6E63]"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => handleApplyVoucher(voucherCode)}
-                    className="bg-[#8D6E63] hover:bg-[#763A1E] text-white px-3 py-1.5 rounded-xl text-xs font-bold transition cursor-pointer"
-                  >
-                    Áp dụng
-                  </button>
-                </div>
+              {/* PHẦN GIẢM GIÁ THEO LOYALTYPOINTS CỦA USER */}
+              <div className="pt-2 border-t border-gray-100 space-y-3">
+                <div className="bg-[#FDFBF7] border border-[#E8DFD8] rounded-2xl p-4 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                      <span className="text-xl">{membership.icon}</span>
+                      <div>
+                        <span className="text-xs font-bold text-[#3E2723] block">
+                          Ưu đãi thành viên BrewLite
+                        </span>
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span
+                            className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${membership.badgeColor}`}
+                          >
+                            Hạng {membership.tier}
+                          </span>
+                          <span className="text-xs font-bold text-[#8D6E63]">
+                            {loyaltyPoints} điểm
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                    {membership.discountPercent > 0 ? (
+                      <span className="bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-extrabold px-2.5 py-1 rounded-xl">
+                        Giảm {membership.discountPercent}%
+                      </span>
+                    ) : (
+                      <span className="text-[11px] text-gray-500 font-medium">
+                        0% giảm giá
+                      </span>
+                    )}
+                  </div>
 
-                {voucherMessage && (
-                  <p className={`text-[11px] ${voucherDiscount > 0 ? 'text-emerald-600 font-semibold' : 'text-red-500'}`}>
-                    {voucherMessage}
+                  <p className="text-[11px] text-[#756C65] leading-relaxed">
+                    {membership.discountPercent > 0 ? (
+                      <>
+                        Đơn hàng của bạn được{' '}
+                        <strong className="text-emerald-700">
+                          tự động giảm {membership.discountPercent}%
+                        </strong>{' '}
+                        dựa trên điểm tích lũy ({loyaltyPoints} điểm - Hạng {membership.tier}).
+                      </>
+                    ) : (
+                      <>
+                        Bạn đang có <strong>{loyaltyPoints} điểm</strong>. Tích lũy thêm{' '}
+                        <strong className="text-[#8D6E63]">{membership.pointsNeeded} điểm</strong> nữa để lên hạng{' '}
+                        <strong>{membership.nextTier}</strong> và nhận ưu đãi giảm 5% tự động!
+                      </>
+                    )}
                   </p>
-                )}
 
-                {/* Gợi ý mã nhanh */}
-                <div className="flex gap-1.5 text-[10px]">
-                  <button
-                    type="button"
-                    onClick={() => handleApplyVoucher('BREW10')}
-                    className="bg-[#F5F0E6] text-[#8D6E63] hover:bg-[#E8DFD8] px-2 py-0.5 rounded cursor-pointer font-medium"
-                  >
-                    BREW10 (-10%)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleApplyVoucher('CHAOMUNG')}
-                    className="bg-[#F5F0E6] text-[#8D6E63] hover:bg-[#E8DFD8] px-2 py-0.5 rounded cursor-pointer font-medium"
-                  >
-                    CHAOMUNG (-15k)
-                  </button>
+                  {/* Progress bar lên hạng tiếp theo */}
+                  {membership.nextTier && (
+                    <div className="space-y-1 pt-1">
+                      <div className="flex justify-between text-[10px] text-gray-500 font-medium">
+                        <span>Hạng {membership.tier}</span>
+                        <span>Cần thêm {membership.pointsNeeded} điểm lên {membership.nextTier}</span>
+                      </div>
+                      <div className="w-full bg-[#E8DFD8] h-1.5 rounded-full overflow-hidden">
+                        <div
+                          className="bg-[#8D6E63] h-full rounded-full transition-all duration-300"
+                          style={{
+                            width: `${Math.min(
+                              100,
+                              Math.round(
+                                (loyaltyPoints /
+                                  (loyaltyPoints + membership.pointsNeeded)) *
+                                  100
+                              )
+                            )}%`,
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -553,12 +632,27 @@ export default function CheckoutPage() {
                   </span>
                 </div>
 
-                {voucherDiscount > 0 && (
+                {discountAmount > 0 ? (
                   <div className="flex justify-between text-emerald-600 font-medium">
-                    <span>Mã ưu đãi giảm</span>
-                    <span>-{voucherDiscount.toLocaleString('vi-VN')}đ</span>
+                    <span>
+                      Giảm giá thành viên (Hạng {membership.tier} -{membership.discountPercent}%)
+                    </span>
+                    <span className="font-bold">
+                      -{discountAmount.toLocaleString('vi-VN')}đ
+                    </span>
+                  </div>
+                ) : (
+                  <div className="flex justify-between text-gray-400">
+                    <span>Giảm giá thành viên</span>
+                    <span>0đ</span>
                   </div>
                 )}
+
+                {/* Điểm tích lũy nhận được */}
+                <div className="flex justify-between text-[#8D6E63] text-[11px] pt-1.5 border-t border-dashed border-gray-200">
+                  <span>Điểm tích lũy nhận được:</span>
+                  <span className="font-bold">+{earnedPointsPreview} điểm</span>
+                </div>
               </div>
 
               <hr className="border-[#E8DFD8]" />

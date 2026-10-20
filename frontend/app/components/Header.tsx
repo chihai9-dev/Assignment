@@ -160,6 +160,20 @@ export default function Header() {
                       <p className="text-sm font-bold text-[#3E2723] truncate">
                         {user.email}
                       </p>
+                      <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                        <span className="inline-block text-[10px] font-extrabold px-2 py-0.5 bg-[#FDFBF7] text-[#3E2723] rounded border border-[#E8DFD8]">
+                          {(user.loyaltyPoints || 0) >= 100
+                            ? '💎 Kim Cương (-15%)'
+                            : (user.loyaltyPoints || 0) >= 50
+                            ? '🏆 Vàng (-10%)'
+                            : (user.loyaltyPoints || 0) >= 20
+                            ? '🥈 Bạc (-5%)'
+                            : '🥉 Đồng'}
+                        </span>
+                        <span className="text-[11px] font-bold text-[#8D6E63]">
+                          {user.loyaltyPoints ?? 0} điểm
+                        </span>
+                      </div>
                       {user.role && (
                         <span className="inline-block mt-1 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 bg-[#F5F0E6] text-[#8D6E63] rounded">
                           {user.role}

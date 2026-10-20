@@ -285,10 +285,11 @@ describe('Task 10 - Backend Business Logic Tests', () => {
   });
 
   // =========================================================================
-  // Tiêu chí (d): Khuyến mãi (Voucher) và Điểm thưởng tích lũy (Loyalty Points)
+  // Tiêu chí (d): Giảm giá theo điểm tích lũy (Loyalty Points) và Tích điểm
   // =========================================================================
-  describe('4. Khuyến mãi & Điểm thưởng tích lũy (Loyalty)', () => {
-    it('áp dụng mã giảm giá BREW10: giảm đúng 10% tổng đơn hàng', async () => {
+  describe('4. Giảm giá theo loyaltyPoints của User & Tích điểm thưởng', () => {
+    it('tự động giảm đúng 10% cho khách hàng hạng Vàng (tích lũy >= 50 loyaltyPoints)', async () => {
+      mockUsersService.findOne.mockResolvedValue({ id: 1, email: 'gold@brewlite.com', loyaltyPoints: 50 });
       const product = {
         id: BigInt(1),
         name: 'Cà phê sữa',
@@ -308,7 +309,6 @@ describe('Task 10 - Backend Business Logic Tests', () => {
       const result = await ordersService.create(
         {
           items: [{ productId: 1, size: 'M', qty: 2, price: 50000 }], // 100.000đ
-          voucherCode: 'BREW10',
         },
         1,
       );
@@ -316,29 +316,72 @@ describe('Task 10 - Backend Business Logic Tests', () => {
       expect(result.rawTotal).toBe(100000);
       expect(result.discount).toBe(10000); // 10% của 100.000đ
       expect(result.total).toBe(90000);
-      expect(result.voucher).toBe('BREW10');
+      expect(result.discountPercent).toBe(10);
+      expect(result.membershipTier).toBe('Vàng');
     });
 
-    it('báo lỗi khi nhập mã giảm giá không tồn tại', async () => {
+    it('không giảm giá (0%) cho khách hàng mới có dưới 20 loyaltyPoints (Hạng Đồng)', async () => {
+      mockUsersService.findOne.mockResolvedValue({ id: 2, email: 'new@brewlite.com', loyaltyPoints: 10 });
       const product = {
         id: BigInt(1),
-        name: 'Cà phê sữa',
-        price: 50000,
+        name: 'Cà phê đen',
+        price: 40000,
         stock: 10,
         version: 0,
         status: 'active',
       };
       mockPrisma.product.findUnique.mockResolvedValue(product);
+      mockPrisma.product.updateMany.mockResolvedValue({ count: 1 });
+      mockPrisma.order.create.mockImplementation((args: any) => ({
+        id: BigInt(302),
+        total: args.data.total,
+      }));
 
-      await expect(
-        ordersService.create(
-          {
-            items: [{ productId: 1, size: 'M', qty: 1, price: 50000 }],
-            voucherCode: 'MA_SAI_123',
-          },
-          1,
-        ),
-      ).rejects.toThrow(BadRequestException);
+      const result = await ordersService.create(
+        {
+          items: [{ productId: 1, size: 'M', qty: 1, price: 40000 }],
+        },
+        2,
+      );
+
+      expect(result.rawTotal).toBe(40000);
+      expect(result.discount).toBe(0);
+      expect(result.total).toBe(40000);
+      expect(result.discountPercent).toBe(0);
+      expect(result.membershipTier).toBe('Đồng');
+    });
+
+    it('tự động giảm 5% cho khách hàng hạng Bạc (20 - 49 điểm) và 15% cho hạng Kim Cương (>= 100 điểm)', async () => {
+      mockUsersService.findOne.mockResolvedValue({ id: 3, email: 'silver@brewlite.com', loyaltyPoints: 30 });
+      const product = {
+        id: BigInt(1),
+        name: 'Trà sen',
+        price: 100000,
+        stock: 10,
+        version: 0,
+        status: 'active',
+      };
+      mockPrisma.product.findUnique.mockResolvedValue(product);
+      mockPrisma.product.updateMany.mockResolvedValue({ count: 1 });
+      mockPrisma.order.create.mockImplementation((args: any) => ({
+        id: BigInt(303),
+        total: args.data.total,
+      }));
+
+      const silverResult = await ordersService.create(
+        { items: [{ productId: 1, size: 'L', qty: 1, price: 100000 }] },
+        3,
+      );
+      expect(silverResult.discount).toBe(5000); // 5%
+      expect(silverResult.membershipTier).toBe('Bạc');
+
+      mockUsersService.findOne.mockResolvedValue({ id: 4, email: 'diamond@brewlite.com', loyaltyPoints: 120 });
+      const diamondResult = await ordersService.create(
+        { items: [{ productId: 1, size: 'L', qty: 1, price: 100000 }] },
+        4,
+      );
+      expect(diamondResult.discount).toBe(15000); // 15%
+      expect(diamondResult.membershipTier).toBe('Kim Cương');
     });
 
     it('tích điểm thưởng tích lũy (Loyalty Points) cho khách khi đơn thanh toán thành công', async () => {

@@ -251,6 +251,12 @@ export default function OrderConfirmationPage() {
 
               <hr className="border-[#E8DFD8]" />
 
+              {Number(order.total) >= 10000 && (
+                <div className="flex justify-between items-center px-2.5 py-1.5 bg-emerald-50 rounded-xl border border-emerald-200 text-xs text-emerald-800">
+                  <span className="font-medium">Điểm thưởng tích lũy:</span>
+                  <span className="font-extrabold">+{Math.floor(Number(order.total) / 10000)} điểm</span>
+                </div>
+              )}
               <div className="flex justify-between items-baseline pt-1">
                 <span className="font-bold text-sm text-[#3E2723]">Tổng tiền:</span>
                 <span className="font-extrabold text-xl text-[#3E2723]">
