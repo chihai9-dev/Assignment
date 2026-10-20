@@ -6,7 +6,6 @@ import {
   CoffeeCupIcon,
   LocationPinIcon,
   PhoneIcon,
-  CardIcon,
   BankIcon,
 } from './Icons';
 
@@ -199,7 +198,7 @@ export default function Footer() {
               Thanh toán không tiền mặt
             </h4>
             <p className="text-xs text-[#BCAAA4] leading-relaxed">
-              BrewLite tiên phong mô hình gọi món thông minh không dùng tiền mặt, hỗ trợ đa dạng cổng thanh toán:
+              BrewLite tiên phong mô hình gọi món thông minh không dùng tiền mặt, hỗ trợ các phương thức thanh toán điện tử tiện lợi:
             </p>
 
             <div className="grid grid-cols-2 gap-2 pt-1">
@@ -212,30 +211,12 @@ export default function Footer() {
               </div>
 
               <div className="bg-[#2E1810] border border-[#4A2D1F] rounded-xl p-2.5 flex items-center gap-2">
-                <CardIcon className="w-4 h-4 text-[#D7A86E] shrink-0" />
-                <div>
-                  <span className="text-[11px] font-bold text-white block">Thẻ ATM / Visa</span>
-                  <span className="text-[9px] text-[#A8988B] block">Mastercard, JCB</span>
-                </div>
-              </div>
-
-              <div className="bg-[#2E1810] border border-[#4A2D1F] rounded-xl p-2.5 flex items-center gap-2">
                 <span className="w-4 h-4 rounded-full bg-[#A50064] text-white text-[9px] font-black flex items-center justify-center shrink-0">
                   M
                 </span>
                 <div>
                   <span className="text-[11px] font-bold text-white block">Ví MoMo</span>
                   <span className="text-[9px] text-[#A8988B] block">Quét mã tiện lợi</span>
-                </div>
-              </div>
-
-              <div className="bg-[#2E1810] border border-[#4A2D1F] rounded-xl p-2.5 flex items-center gap-2">
-                <span className="w-4 h-4 rounded-full bg-[#005BAA] text-white text-[9px] font-black flex items-center justify-center shrink-0">
-                  V
-                </span>
-                <div>
-                  <span className="text-[11px] font-bold text-white block">VNPAY-QR</span>
-                  <span className="text-[9px] text-[#A8988B] block">Ưu đãi giảm giá</span>
                 </div>
               </div>
             </div>

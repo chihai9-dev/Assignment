@@ -8,13 +8,11 @@ import { useAuthStore } from '../../store/authStore';
 import {
   ArrowLeftIcon,
   BankIcon,
-  CardIcon,
   BagIcon,
   TrashIcon,
   PlusIcon,
   MinusIcon,
   InfoIcon,
-  CoffeeBeanIcon
 } from '../components/Icons';
 
 export default function CheckoutPage() {
@@ -31,17 +29,9 @@ export default function CheckoutPage() {
   const [voucherDiscount, setVoucherDiscount] = useState(0);
   const [voucherMessage, setVoucherMessage] = useState('');
 
-  // Phương thức thanh toán (4 tùy chọn chuẩn: VietQR, Thẻ, MoMo, VNPAY)
-  type PaymentMethodType = 'VIETQR' | 'CARD' | 'MOMO' | 'VNPAY';
+  // Phương thức thanh toán (2 tùy chọn: VietQR, MoMo)
+  type PaymentMethodType = 'VIETQR' | 'MOMO';
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodType>('VIETQR');
-
-  // Thông tin form thẻ ATM / Visa
-  const [cardData, setCardData] = useState({
-    number: '',
-    name: '',
-    expiry: '',
-    cvv: '',
-  });
 
   useEffect(() => {
     setHasHydrated(true);
@@ -137,7 +127,7 @@ export default function CheckoutPage() {
         orderData.total !== undefined ? Number(orderData.total) : grandTotal;
 
       // BƯỚC 2: Gọi thanh toán idempotent qua POST /api/payments
-      const backendMethod = paymentMethod === 'CARD' ? 'CARD' : 'WALLET';
+      const backendMethod = 'WALLET'; // VietQR và MoMo đều xử lý qua luồng ví/chuyển khoản điện tử WALLET
 
       const paymentResponse = await fetch('http://localhost:3001/api/payments', {
         method: 'POST',
@@ -237,7 +227,7 @@ export default function CheckoutPage() {
                 Phương thức thanh toán
               </h2>
 
-              {/* LƯỚI 4 PHƯƠNG THỨC THANH TOÁN (Khớp 100% hình ảnh yêu cầu) */}
+              {/* LƯỚI 2 PHƯƠNG THỨC THANH TOÁN (VietQR Pro & Ví MoMo) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 
                 {/* 1. VietQR Pro */}
@@ -274,39 +264,7 @@ export default function CheckoutPage() {
                   </div>
                 </button>
 
-                {/* 2. Thẻ ATM / Visa */}
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethod('CARD')}
-                  className={`p-4 rounded-2xl border text-left transition-all duration-200 cursor-pointer flex items-center gap-3.5 ${
-                    paymentMethod === 'CARD'
-                      ? 'border-2 border-[#8D6E63] bg-[#FDFBF7] shadow-sm ring-1 ring-[#8D6E63]/20'
-                      : 'border-[#E8DFD8] bg-white hover:border-[#D7A86E] hover:bg-[#FAF5EE]/50'
-                  }`}
-                >
-                  <div className="shrink-0">
-                    <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                      paymentMethod === 'CARD' ? 'border-[#3E2723] bg-white' : 'border-gray-300 bg-white'
-                    }`}>
-                      {paymentMethod === 'CARD' && <span className="w-2.5 h-2.5 rounded-full bg-[#3E2723]" />}
-                    </span>
-                  </div>
-
-                  <div className="w-10 h-10 rounded-xl bg-[#F5F0E6] flex items-center justify-center shrink-0 text-[#8D6E63]">
-                    <CardIcon className="w-5 h-5" />
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-                    <span className="font-extrabold text-sm sm:text-base text-[#3E2723]">
-                      Thẻ ATM / Visa
-                    </span>
-                    <p className="text-xs text-[#756C65] mt-0.5">
-                      Mastercard, JCB
-                    </p>
-                  </div>
-                </button>
-
-                {/* 3. Ví MoMo */}
+                {/* 2. Ví MoMo */}
                 <button
                   type="button"
                   onClick={() => setPaymentMethod('MOMO')}
@@ -336,40 +294,6 @@ export default function CheckoutPage() {
                     </span>
                     <p className="text-xs text-[#756C65] mt-0.5">
                       Quét mã tiện lợi
-                    </p>
-                  </div>
-                </button>
-
-                {/* 4. VNPAY-QR */}
-                <button
-                  type="button"
-                  onClick={() => setPaymentMethod('VNPAY')}
-                  className={`p-4 rounded-2xl border text-left transition-all duration-200 cursor-pointer flex items-center gap-3.5 ${
-                    paymentMethod === 'VNPAY'
-                      ? 'border-2 border-[#8D6E63] bg-[#FDFBF7] shadow-sm ring-1 ring-[#8D6E63]/20'
-                      : 'border-[#E8DFD8] bg-white hover:border-[#D7A86E] hover:bg-[#FAF5EE]/50'
-                  }`}
-                >
-                  <div className="shrink-0">
-                    <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                      paymentMethod === 'VNPAY' ? 'border-[#3E2723] bg-white' : 'border-gray-300 bg-white'
-                    }`}>
-                      {paymentMethod === 'VNPAY' && <span className="w-2.5 h-2.5 rounded-full bg-[#3E2723]" />}
-                    </span>
-                  </div>
-
-                  <div className="w-10 h-10 rounded-xl bg-[#F0F7FF] flex items-center justify-center shrink-0">
-                    <span className="w-6 h-6 rounded-full bg-[#005BAA] text-white text-xs font-black flex items-center justify-center shadow-sm">
-                      V
-                    </span>
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-                    <span className="font-extrabold text-sm sm:text-base text-[#3E2723]">
-                      VNPAY-QR
-                    </span>
-                    <p className="text-xs text-[#756C65] mt-0.5">
-                      Ưu đãi giảm giá
                     </p>
                   </div>
                 </button>
@@ -438,80 +362,7 @@ export default function CheckoutPage() {
                 </div>
               )}
 
-              {/* Chi tiết 2: Thẻ ATM / Visa */}
-              {paymentMethod === 'CARD' && (
-                <div className="bg-[#FDFBF7] border border-[#E8DFD8] rounded-2xl p-4 sm:p-6 shadow-inner space-y-4">
-                  <div className="flex items-center justify-between pb-2 border-b border-[#E8DFD8]">
-                    <div className="flex items-center gap-2 text-xs font-bold text-[#3E2723]">
-                      <CardIcon className="w-4 h-4 text-[#8D6E63]" />
-                      <span>Thông tin thẻ ATM / Visa / Mastercard / JCB</span>
-                    </div>
-                    <span className="text-[10px] text-green-700 bg-green-50 px-2 py-0.5 rounded border border-green-200 font-semibold">
-                      Bảo mật 256-bit SSL
-                    </span>
-                  </div>
-
-                  <div className="space-y-3.5">
-                    <div>
-                      <label className="block text-xs font-semibold text-[#5C4D44] mb-1">
-                        Số thẻ
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="4111 2222 3333 4444"
-                        maxLength={19}
-                        value={cardData.number}
-                        onChange={(e) => setCardData({ ...cardData, number: e.target.value })}
-                        className="w-full bg-white border border-[#E8DFD8] rounded-xl px-3.5 py-2.5 text-xs text-[#2E1810] font-mono tracking-wider focus:outline-none focus:ring-1 focus:ring-[#8D6E63]"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-[#5C4D44] mb-1">
-                        Tên in trên thẻ (không dấu)
-                      </label>
-                      <input
-                        type="text"
-                        placeholder="NGUYEN VAN A"
-                        value={cardData.name}
-                        onChange={(e) => setCardData({ ...cardData, name: e.target.value.toUpperCase() })}
-                        className="w-full bg-white border border-[#E8DFD8] rounded-xl px-3.5 py-2.5 text-xs text-[#2E1810] uppercase tracking-wide focus:outline-none focus:ring-1 focus:ring-[#8D6E63]"
-                      />
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <label className="block text-xs font-semibold text-[#5C4D44] mb-1">
-                          Ngày hết hạn
-                        </label>
-                        <input
-                          type="text"
-                          placeholder="MM/YY"
-                          maxLength={5}
-                          value={cardData.expiry}
-                          onChange={(e) => setCardData({ ...cardData, expiry: e.target.value })}
-                          className="w-full bg-white border border-[#E8DFD8] rounded-xl px-3.5 py-2.5 text-xs text-[#2E1810] font-mono focus:outline-none focus:ring-1 focus:ring-[#8D6E63]"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-semibold text-[#5C4D44] mb-1">
-                          Mã bảo mật CVV
-                        </label>
-                        <input
-                          type="password"
-                          placeholder="•••"
-                          maxLength={4}
-                          value={cardData.cvv}
-                          onChange={(e) => setCardData({ ...cardData, cvv: e.target.value })}
-                          className="w-full bg-white border border-[#E8DFD8] rounded-xl px-3.5 py-2.5 text-xs text-[#2E1810] font-mono focus:outline-none focus:ring-1 focus:ring-[#8D6E63]"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Chi tiết 3: Ví MoMo */}
+              {/* Chi tiết 2: Ví MoMo */}
               {paymentMethod === 'MOMO' && (
                 <div className="bg-[#FFF8FB] border border-[#F3D1E4] rounded-2xl p-4 sm:p-6 shadow-inner space-y-4">
                   <div className="flex items-center gap-2 text-xs font-bold text-[#A50064] pb-2 border-b border-[#F3D1E4]">
@@ -544,45 +395,6 @@ export default function CheckoutPage() {
                       </div>
                       <span className="text-[11px] font-bold text-[#A50064] mt-2">
                         Quét mã bằng Ví MoMo
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Chi tiết 4: VNPAY-QR */}
-              {paymentMethod === 'VNPAY' && (
-                <div className="bg-[#F0F7FF] border border-[#CBE0F8] rounded-2xl p-4 sm:p-6 shadow-inner space-y-4">
-                  <div className="flex items-center gap-2 text-xs font-bold text-[#005BAA] pb-2 border-b border-[#CBE0F8]">
-                    <span className="w-4 h-4 rounded-full bg-[#005BAA] text-white text-[10px] font-bold flex items-center justify-center">V</span>
-                    <span>Thanh toán VNPAY-QR với 30+ Ứng dụng ngân hàng</span>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-5 items-center">
-                    <div className="sm:col-span-7 space-y-2.5 text-xs text-[#5C4D44]">
-                      <p className="font-semibold text-[#005BAA]">
-                        Hướng dẫn thanh toán VNPAY:
-                      </p>
-                      <ol className="list-decimal list-inside space-y-1.5 text-gray-700">
-                        <li>Mở ứng dụng <strong>Ngân hàng</strong> (VCB, BIDV, MB, Techcombank...).</li>
-                        <li>Chọn tính năng quét <strong>&quot;VNPAY-QR&quot;</strong>.</li>
-                        <li>Quét mã QR và nhập mã giảm giá VNPAY (nếu có).</li>
-                      </ol>
-                      <div className="bg-white p-2.5 rounded-lg border border-[#CBE0F8] text-[11px] text-[#005BAA]">
-                        Số tiền thanh toán: <strong>{grandTotal.toLocaleString('vi-VN')}đ</strong>
-                      </div>
-                    </div>
-
-                    <div className="sm:col-span-5 flex flex-col items-center justify-center p-3 bg-white rounded-xl border border-[#CBE0F8]">
-                      <div className="w-36 h-36 p-1.5 bg-white rounded-lg border border-gray-200 shadow-sm flex items-center justify-center">
-                        <img
-                          src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=VNPAY_QR|BrewLite|${grandTotal}|${transferContent}`}
-                          alt="VNPAY QR Code"
-                          className="w-full h-full object-contain"
-                        />
-                      </div>
-                      <span className="text-[11px] font-bold text-[#005BAA] mt-2">
-                        Quét mã VNPAY-QR
                       </span>
                     </div>
                   </div>
