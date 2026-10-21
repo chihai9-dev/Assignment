@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuthStore } from '../../../store/authStore';
@@ -56,13 +56,16 @@ interface OrderDetail {
 // Bảng màu trạng thái chuẩn
 const statusBadgeMap: Record<string, { label: string; className: string }> = {
   PENDING: { label: 'Chờ thanh toán', className: 'bg-amber-100 text-amber-800' },
-  PAID: { label: 'Đã thanh toán', className: 'bg-emerald-100 text-emerald-800' },
+  PAID: { label: 'Đã thanh toán - Đang pha chế', className: 'bg-emerald-100 text-emerald-800' },
   PREPARING: { label: 'Đang pha chế', className: 'bg-blue-100 text-blue-800' },
   READY: { label: 'Sẵn sàng nhận tại quầy', className: 'bg-purple-100 text-purple-800' },
   COMPLETED: { label: 'Hoàn thành', className: 'bg-gray-100 text-gray-800' },
   PAYMENT_FAILED: { label: 'Thanh toán lỗi', className: 'bg-red-100 text-red-800' },
   CANCELLED: { label: 'Đã hủy', className: 'bg-gray-200 text-gray-600' },
 };
+
+// Các trạng thái chưa thanh toán -> cần polling
+const PENDING_STATUSES = ['PENDING'];
 
 export default function OrderConfirmationPage() {
   const params = useParams();
@@ -73,46 +76,98 @@ export default function OrderConfirmationPage() {
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isConfirming, setIsConfirming] = useState(false);
+  const [confirmMessage, setConfirmMessage] = useState<string | null>(null);
 
+  const fetchOrder = useCallback(async () => {
+    if (!token || !orderId) return null;
+
+    try {
+      const res = await fetch(`http://localhost:3001/api/orders/${orderId}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!res.ok) {
+        if (res.status === 401) {
+          logout();
+          setError('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại để xem đơn hàng.');
+          return null;
+        }
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.message || 'Không thể tải thông tin đơn hàng');
+      }
+
+      const data: OrderDetail = await res.json();
+      setOrder(data);
+      return data;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Lỗi khi tải thông tin đơn hàng');
+      return null;
+    }
+  }, [orderId, token, logout]);
+
+  // Tải đơn hàng lần đầu
   useEffect(() => {
     if (!token) {
       setLoading(false);
       return;
     }
-
     if (!orderId) return;
 
-    const fetchOrder = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const res = await fetch(`http://localhost:3001/api/orders/${orderId}`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+    setLoading(true);
+    fetchOrder().finally(() => setLoading(false));
+  }, [orderId, token, fetchOrder]);
 
-        if (!res.ok) {
-          if (res.status === 401) {
-            logout();
-            setError('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại để xem đơn hàng.');
-            return;
-          }
-          const errData = await res.json().catch(() => ({}));
-          throw new Error(errData.message || 'Không thể tải thông tin đơn hàng');
-        }
+  // Polling tự động mỗi 3 giây khi đơn ở trạng thái PENDING
+  useEffect(() => {
+    if (!order || !PENDING_STATUSES.includes(order.status)) return;
 
-        const data: OrderDetail = await res.json();
-        setOrder(data);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : 'Lỗi khi tải thông tin đơn hàng');
-      } finally {
-        setLoading(false);
+    const interval = setInterval(async () => {
+      const updated = await fetchOrder();
+      if (updated && !PENDING_STATUSES.includes(updated.status)) {
+        clearInterval(interval);
       }
-    };
+    }, 3000);
 
-    fetchOrder();
-  }, [orderId, token, logout]);
+    return () => clearInterval(interval);
+  }, [order?.status, fetchOrder]);
+
+  // Xác nhận thanh toán thủ công (cho trường hợp webhook không gửi được)
+  const handleManualConfirm = async () => {
+    if (!token || !order) return;
+    setIsConfirming(true);
+    setConfirmMessage(null);
+
+    try {
+      const res = await fetch(`http://localhost:3001/api/payments`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          orderId: Number(order.id),
+          amount: Number(order.total),
+          method: 'WALLET',
+          idempotencyKey: `manual-confirm-${order.id}-${Date.now()}`,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setConfirmMessage('✅ Xác nhận thanh toán thành công! Đơn hàng đang được chuẩn bị.');
+        await fetchOrder();
+      } else {
+        setConfirmMessage(`⚠️ ${data.message || 'Không thể xác nhận. Vui lòng thử lại.'}`);
+      }
+    } catch {
+      setConfirmMessage('⚠️ Có lỗi xảy ra. Vui lòng thử lại.');
+    } finally {
+      setIsConfirming(false);
+    }
+  };
 
   if (!token) {
     return (
@@ -248,6 +303,31 @@ export default function OrderConfirmationPage() {
                   {statusConfig.label}
                 </span>
               </div>
+
+              {/* Polling indicator khi đang chờ thanh toán */}
+              {PENDING_STATUSES.includes(order.status) && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-3">
+                  <div className="flex items-center gap-2 text-amber-700 text-xs">
+                    <div className="w-3 h-3 border-2 border-amber-500 border-t-transparent rounded-full animate-spin shrink-0" />
+                    <span className="font-medium">Đang chờ xác nhận thanh toán từ ngân hàng...</span>
+                  </div>
+                  <p className="text-[11px] text-amber-600">
+                    Nếu bạn đã chuyển khoản xong nhưng trạng thái chưa cập nhật, bấm nút bên dưới để xác nhận thủ công.
+                  </p>
+                  {confirmMessage && (
+                    <p className="text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-3 py-2">
+                      {confirmMessage}
+                    </p>
+                  )}
+                  <button
+                    onClick={handleManualConfirm}
+                    disabled={isConfirming}
+                    className="w-full bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-bold py-2 px-4 rounded-lg text-xs transition cursor-pointer"
+                  >
+                    {isConfirming ? 'Đang xác nhận...' : '✅ Tôi đã chuyển khoản - Xác nhận thanh toán'}
+                  </button>
+                </div>
+              )}
 
               <hr className="border-[#E8DFD8]" />
 
