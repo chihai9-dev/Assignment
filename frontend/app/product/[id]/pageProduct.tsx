@@ -251,30 +251,7 @@ export default function ProductDetailPage() {
               />
             </div>
 
-            {/* 3 Thumbnails ảnh phụ */}
-            <div className="grid grid-cols-3 gap-3">
-              {thumbnails.map((imgUrl, idx) => {
-                const isSelected = (activeImage || product?.imageUrl) === imgUrl;
-                return (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => setActiveImage(imgUrl)}
-                    className={`aspect-square rounded-xl overflow-hidden border-2 transition-all cursor-pointer ${
-                      isSelected
-                        ? "border-[#3E2723] ring-2 ring-[#3E2723]/20"
-                        : "border-[#E8DFD8] hover:border-[#8D6E63] opacity-80 hover:opacity-100"
-                    }`}
-                  >
-                    <img
-                      src={imgUrl}
-                      alt={`Thumbnail ${idx + 1}`}
-                      className="w-full h-full object-cover"
-                    />
-                  </button>
-                );
-              })}
-            </div>
+
           </div>
 
           {/* CỘT PHẢI: TÙY CHỌN & GIÁ */}
@@ -410,42 +387,46 @@ export default function ProductDetailPage() {
 
       </div>
 
-      {/* Toast thông báo thêm giỏ hàng thành công (Cố định ở phía dưới màn hình) */}
-      {isAddedSuccess && (
-        <div className="fixed bottom-20 md:bottom-8 left-1/2 -translate-x-1/2 z-50 max-w-lg w-[calc(100%-2rem)] sm:w-auto animate-in fade-in slide-in-from-bottom-5 duration-300">
-          <div className="bg-[#24130A]/95 backdrop-blur-md border border-[#5A3825] text-white px-5 py-3.5 rounded-2xl shadow-2xl flex items-center justify-between gap-4 sm:gap-6">
-            <div className="flex items-center gap-3 text-xs sm:text-sm">
-              <span className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-black shrink-0 shadow-sm">
-                ✓
-              </span>
-              <div className="leading-tight">
-                <p className="font-bold text-white">Thêm vào giỏ thành công!</p>
-                <p className="text-[#C4B5A5] text-xs mt-0.5">
-                  {quantity}x {product?.name} (Size {selectedSize})
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2 shrink-0">
-              <Link
-                href="/cart"
-                className="bg-[#D7A86E] hover:bg-[#C5965C] text-[#24130A] text-xs font-extrabold px-3.5 py-2 rounded-xl transition-all shadow-sm flex items-center gap-1 cursor-pointer"
-              >
-                <span>Xem giỏ hàng</span>
-                <span>&rarr;</span>
-              </Link>
-              <button
-                type="button"
-                onClick={() => setIsAddedSuccess(false)}
-                className="w-7 h-7 rounded-lg hover:bg-white/10 text-[#C4B5A5] hover:text-white flex items-center justify-center text-xs transition cursor-pointer"
-                aria-label="Đóng thông báo"
-              >
-                ✕
-              </button>
+      {/* Toast thông báo thêm giỏ hàng thành công (Transition trượt từ trên xuống) */}
+      <div
+        className={`fixed top-6 right-4 sm:right-6 md:right-8 z-50 max-w-sm sm:max-w-md w-[calc(100%-2rem)] sm:w-auto transition-all duration-500 ease-out transform ${
+          isAddedSuccess
+            ? 'translate-y-0 opacity-100 pointer-events-auto scale-100 shadow-2xl'
+            : '-translate-y-16 opacity-0 pointer-events-none scale-95 shadow-none'
+        }`}
+      >
+        <div className="bg-[#24130A]/95 backdrop-blur-md border border-[#5A3825] text-white px-5 py-3.5 rounded-2xl shadow-2xl flex items-center justify-between gap-4 sm:gap-6">
+          <div className="flex items-center gap-3 text-xs sm:text-sm">
+            <span className="w-6 h-6 rounded-full bg-emerald-500 text-white flex items-center justify-center text-xs font-black shrink-0 shadow-sm animate-pulse">
+              ✓
+            </span>
+            <div className="leading-tight">
+              <p className="font-bold text-white">Thêm vào giỏ thành công!</p>
+              <p className="text-[#C4B5A5] text-xs mt-0.5">
+                {quantity}x {product?.name} (Size {selectedSize})
+              </p>
             </div>
           </div>
+
+          <div className="flex items-center gap-2 shrink-0">
+            <Link
+              href="/cart"
+              className="bg-[#D7A86E] hover:bg-[#C5965C] text-[#24130A] text-xs font-extrabold px-3.5 py-2 rounded-xl transition-all shadow-sm flex items-center gap-1 cursor-pointer"
+            >
+              <span>Xem giỏ hàng</span>
+              <span>&rarr;</span>
+            </Link>
+            <button
+              type="button"
+              onClick={() => setIsAddedSuccess(false)}
+              className="w-7 h-7 rounded-lg hover:bg-white/10 text-[#C4B5A5] hover:text-white flex items-center justify-center text-xs transition cursor-pointer"
+              aria-label="Đóng thông báo"
+            >
+              ✕
+            </button>
+          </div>
         </div>
-      )}
+      </div>
     </main>
   );
 }

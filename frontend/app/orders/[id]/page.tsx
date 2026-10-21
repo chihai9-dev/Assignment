@@ -4,6 +4,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuthStore } from '../../../store/authStore';
+import { useCartStore } from '../../../store/cartStore';
 import {
   CheckCircleIcon,
   ArrowRightIcon,
@@ -108,7 +109,9 @@ export default function OrderConfirmationPage() {
     }
   }, [orderId, token, logout]);
 
-  // Tải đơn hàng lần đầu
+  const { clearActiveCart } = useCartStore();
+
+  // Tải đơn hàng lần đầu và xóa giỏ hàng vì đơn đã được tạo thành công
   useEffect(() => {
     if (!token) {
       setLoading(false);
@@ -117,8 +120,13 @@ export default function OrderConfirmationPage() {
     if (!orderId) return;
 
     setLoading(true);
-    fetchOrder().finally(() => setLoading(false));
-  }, [orderId, token, fetchOrder]);
+    fetchOrder().then((data) => {
+      // Khi đã vào trang chi tiết đơn hàng (hoặc PayOS redirect về), xóa sạch giỏ hàng
+      if (data) {
+        clearActiveCart();
+      }
+    }).finally(() => setLoading(false));
+  }, [orderId, token, fetchOrder, clearActiveCart]);
 
   // Polling tự động mỗi 3 giây khi đơn ở trạng thái PENDING
   useEffect(() => {

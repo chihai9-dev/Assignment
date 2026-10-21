@@ -12,6 +12,7 @@ import {
 import { PaymentsService } from './payments.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
 import { CreatePayOSLinkDto } from './dto/create-payos-link.dto';
+import { CreateMomoLinkDto } from './dto/create-momo-link.dto';
 
 @Controller('api/payments')
 export class PaymentsController {
@@ -57,5 +58,16 @@ export class PaymentsController {
     @Body() webhookData: any,
   ) {
     return this.paymentsService.handlePayOSWebhook(webhookData);
+  }
+
+  @Post('create-momo-link')
+  createMomoLink(@Body() dto: CreateMomoLinkDto) {
+    return this.paymentsService.createMomoPayment(dto.orderId);
+  }
+
+  @Post('momo-ipn')
+  @HttpCode(HttpStatus.OK)
+  handleMomoIPN(@Body() body: any) {
+    return this.paymentsService.handleMomoIPN(body);
   }
 }

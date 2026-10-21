@@ -9,6 +9,7 @@ import { order_status, payment_method } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
+import * as crypto from 'crypto';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const { PayOS } = require('@payos/node');
@@ -305,4 +306,118 @@ export class PaymentsService implements OnModuleInit {
       data: result,
     };
   }
+
+  //Hàm logic tạo hóa đơn momo
+  
+  async createMomoPayment(orderId: number) {
+  const order = await this.prisma.order.findUnique({
+    where: { id: BigInt(orderId) as any },
+  });
+  if (!order) {
+    throw new NotFoundException(`Không tìm thấy đơn hàng #${orderId}`);
+  }
+  const partnerCode = process.env.MOMO_PARTNER_CODE || 'MOMO';
+  const accessKey = process.env.MOMO_ACCESS_KEY || 'F8BBA842ECF85';
+  const secretKey = process.env.MOMO_SECRET_KEY || 'K951B6PE1waDMi640xX08PD3vg6EkVlz';
+  const momoApiUrl = process.env.MOMO_API_URL || 'https://test-payment.momo.vn/v2/gateway/api/create';
+  const amount = Math.round(Number(order.total));
+  const orderInfo = `Thanh toan don hang #${orderId} tai BrewLite`;
+  const requestId = `${partnerCode}-${orderId}-${Date.now()}`;
+  const momoOrderId = `BL_${orderId}_${Date.now()}`;
+  
+  // URL nhận kết quả
+  const redirectUrl = `http://localhost:3000/orders/${orderId}`;
+  // Link Webhook nhận thông báo tự động duyệt đơn (qua ngrok)
+  const ipnUrl = `https://cusp-pager-velvet.ngrok-free.dev/api/payments/momo-ipn`;
+  const requestType = 'captureWallet';
+  const extraData = ''; // có thể để trống
+  // Tạo chữ ký HMAC SHA256 chuẩn MoMo
+  const rawSignature = `accessKey=${accessKey}&amount=${amount}&extraData=${extraData}&ipnUrl=${ipnUrl}&orderId=${momoOrderId}&orderInfo=${orderInfo}&partnerCode=${partnerCode}&redirectUrl=${redirectUrl}&requestId=${requestId}&requestType=${requestType}`;
+  
+  const signature = crypto
+    .createHmac('sha256', secretKey)
+    .update(rawSignature)
+    .digest('hex');
+  const requestBody = {
+    partnerCode,
+    partnerName: 'BrewLite Coffee',
+    storeId: 'BrewLiteStore',
+    requestId,
+    amount,
+    orderId: momoOrderId,
+    orderInfo,
+    redirectUrl,
+    ipnUrl,
+    lang: 'vi',
+    requestType,
+    autoCapture: true,
+    extraData,
+    signature,
+  };
+  // Gửi request sang MoMo Sandbox
+  const response = await fetch(momoApiUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(requestBody),
+  });
+  const result = await response.json();
+  if (result.resultCode !== 0) {
+    throw new BadRequestException(result.message || 'Lỗi kết nối tới cổng thanh toán MoMo');
+  }
+  return {
+    orderId,
+    payUrl: result.payUrl,         // Link mở cổng thanh toán MoMo
+    qrCodeUrl: result.qrCodeUrl,   // Link ảnh QR MoMo
+    deeplink: result.deeplink,     // Mở trực tiếp app MoMo trên điện thoại
+  };
+  }
+// Xử lý IPN (Webhook) từ MoMo
+async handleMomoIPN(body: any) {
+    console.log('[MoMo IPN] Received notification:', JSON.stringify(body));
+    const { resultCode, orderId: momoOrderId, amount, transId } = body;
+    // resultCode === 0 là thanh toán thành công
+    if (resultCode === 0) {
+      // Tách lấy id đơn hàng thực tế từ chuỗi BL_{orderId}_{timestamp}
+      const match = momoOrderId?.match(/BL_(\d+)_/);
+      const orderId = match ? Number(match[1]) : null;
+      if (!orderId) {
+        return { message: 'Invalid orderId format' };
+      }
+      const order = await this.prisma.order.findUnique({
+        where: { id: BigInt(orderId) as any },
+      });
+      if (!order || order.status === order_status.PAID || order.status === order_status.COMPLETED) {
+        return { message: 'Order processed or not found' };
+      }
+      const idempotencyKey = `MOMO-${orderId}-${transId || Date.now()}`;
+      // Cập nhật trạng thái đơn sang PAID
+      await this.prisma.$transaction(async (tx) => {
+        await tx.payment.create({
+          data: {
+            orderId: BigInt(orderId) as any,
+            amount: Number(amount),
+            method: payment_method.WALLET,
+            idempotencyKey,
+          },
+        });
+        await tx.order.update({
+          where: { id: BigInt(orderId) as any },
+          data: { status: order_status.PAID },
+        });
+      });
+      // Cộng điểm tích lũy
+      const pointsEarned = Math.floor(Number(amount) / 10000);
+      if (pointsEarned > 0) {
+        try {
+          await this.usersService.addLoyaltyPoints(Number(order.userId), pointsEarned);
+        } catch (err) {
+          console.error('Lỗi cộng điểm tích lũy:', err);
+        }
+      }
+      console.log(`[MoMo IPN] Đơn hàng #${orderId} đã duyệt thanh toán MoMo thành công!`);
+    }
+    // MoMo yêu cầu server trả về HTTP 204 No Content hoặc 200
+    return { message: 'Received' };
+  }
 }
+

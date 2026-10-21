@@ -27,6 +27,11 @@ export default function CheckoutPage() {
   // Phương thức thanh toán (2 tùy chọn: VietQR, MoMo)
   type PaymentMethodType = 'VIETQR' | 'MOMO';
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodType>('VIETQR');
+  const [showMomoModal, setShowMomoModal] = useState(false);
+  const [createdOrderData, setCreatedOrderData] = useState<{ id: number; total: number } | null>(null);
+  const [payosPaymentData, setPayosPaymentData] = useState<{ qrCode?: string; accountNumber?: string; accountName?: string; description?: string; amount?: number } | null>(null);
+  const [pollCount, setPollCount] = useState(0);
+  const [autoDetected, setAutoDetected] = useState(false);
 
   // Lấy loyaltyPoints của user và tự động đồng bộ từ backend khi vào trang checkout
   useEffect(() => {
@@ -183,46 +188,37 @@ export default function CheckoutPage() {
           );
         }
 
-        // Xóa giỏ hàng và chuyển hướng tới cổng thanh toán VietQR chuẩn PayOS
-        clearActiveCart();
+        // Chuyển hướng tới cổng thanh toán VietQR chuẩn PayOS (chưa xóa giỏ hàng, chỉ xóa khi thanh toán thành công)
         window.location.href = payosData.checkoutUrl;
         return;
       }
 
-      // BƯỚC 2B: Nếu chọn MoMo hoặc phương thức khác -> Thanh toán trực tiếp qua API WALLET
-      const backendMethod = 'WALLET';
+      // BƯỚC 2B: Nếu chọn MoMo -> Tạo link PayOS để có mã QR & Lời nhắn đồng bộ, tự động nhận tiền 100%
+      if (paymentMethod === 'MOMO') {
+        try {
+          const payosResponse = await fetch('http://localhost:3001/api/payments/create-payos-link', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ orderId }),
+          });
 
-      const paymentResponse = await fetch('http://localhost:3001/api/payments', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          orderId,
-          amount: payableAmount,
-          method: backendMethod,
-          idempotencyKey: `payment-${orderId}-${Date.now()}`,
-        }),
-      });
+          if (payosResponse.ok) {
+            const payosData = await payosResponse.json();
+            setPayosPaymentData(payosData);
+          }
+        } catch (e) {
+          console.error('Không thể tạo PayOS link cho MoMo:', e);
+        }
 
-      const paymentData = await paymentResponse.json();
-
-      if (!paymentResponse.ok) {
-        throw new Error(
-          Array.isArray(paymentData.message)
-            ? paymentData.message.join(', ')
-            : paymentData.message || 'Thanh toán không thành công'
-        );
+        setCreatedOrderData({ id: orderId, total: payableAmount });
+        setShowMomoModal(true);
+        return;
       }
 
-      // Cập nhật lại loyaltyPoints trong store sau khi được cộng điểm thưởng
-      if (paymentData.pointsEarned) {
-        const currentPoints = useAuthStore.getState().user?.loyaltyPoints || 0;
-        useAuthStore.getState().updateLoyaltyPoints(currentPoints + Number(paymentData.pointsEarned));
-      }
-
-      // Xóa giỏ hàng và chuyển hướng sang trang xác nhận thành công
+      // BƯỚC 2C: Dự phòng thanh toán
       clearActiveCart();
       router.push(`/orders/${orderId}`);
     } catch (error) {
@@ -237,9 +233,77 @@ export default function CheckoutPage() {
     }
   };
 
+  // Tự động Polling kiểm tra khi tiền về (không cần bấm nút, tự động nhảy trang)
+  useEffect(() => {
+    if (!showMomoModal || !createdOrderData?.id || !token) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`http://localhost:3001/api/orders/${createdOrderData.id}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const order = await res.json();
+          // Khi Webhook PayOS/Ngân hàng báo tiền về -> Trạng thái đổi sang PAID
+          if (order.status === 'PAID' || order.status === 'PREPARING' || order.status === 'COMPLETED') {
+            clearInterval(interval);
+            setShowMomoModal(false);
+            clearActiveCart();
+            router.push(`/orders/${createdOrderData.id}`);
+          }
+        }
+      } catch (err) {
+        console.error('Lỗi polling MoMo:', err);
+      }
+    }, 2500);
+
+    return () => clearInterval(interval);
+  }, [showMomoModal, createdOrderData?.id, token, router, clearActiveCart]);
+
+  // Xác nhận sau khi khách hàng đã quét mã chuyển tiền MoMo thật
+  const handleConfirmMomoPaid = async () => {
+    if (!createdOrderData || !token) return;
+
+    try {
+      setIsPaying(true);
+      const paymentResponse = await fetch('http://localhost:3001/api/payments', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          orderId: createdOrderData.id,
+          amount: createdOrderData.total,
+          method: 'WALLET',
+          idempotencyKey: `momo-p2p-${createdOrderData.id}-${Date.now()}`,
+        }),
+      });
+
+      const paymentData = await paymentResponse.json();
+      if (!paymentResponse.ok) {
+        throw new Error(paymentData.message || 'Không thể xác nhận thanh toán');
+      }
+
+      if (paymentData.pointsEarned) {
+        const currentPoints = useAuthStore.getState().user?.loyaltyPoints || 0;
+        useAuthStore.getState().updateLoyaltyPoints(currentPoints + Number(paymentData.pointsEarned));
+      }
+
+      setShowMomoModal(false);
+      clearActiveCart();
+      router.push(`/orders/${createdOrderData.id}`);
+    } catch (err: any) {
+      alert(err.message || 'Lỗi xác nhận thanh toán MoMo');
+    } finally {
+      setIsPaying(false);
+    }
+  };
+
+
   if (!hasHydrated) return null;
 
-  if (items.length === 0) {
+    if (items.length === 0) {
     return (
       <main className="min-h-screen bg-[#FBF8F2] flex items-center justify-center p-6 text-center">
         <div className="bg-white border border-[#E8DFD8] rounded-3xl p-8 max-w-md w-full shadow-sm space-y-4">
@@ -412,59 +476,76 @@ export default function CheckoutPage() {
                       </p>
                     </div>
 
-                    <div className="sm:col-span-5 flex flex-col items-center justify-center p-3 bg-white rounded-xl border border-[#E8DFD8]">
-                      <div className="w-36 h-36 p-1.5 bg-white rounded-lg border border-gray-200 shadow-sm flex items-center justify-center">
-                        <img
-                          src={`https://img.vietqr.io/image/970448-0962629594-qr_only.png?amount=${grandTotal}&addInfo=${encodeURIComponent(transferContent)}&accountName=${encodeURIComponent("VO DUONG THANH LE")}`}
-                          alt="VietQR Code"
-                          className="w-full h-full object-contain"
-                          onError={(e) => {
-                            (e.target as HTMLElement).style.display = 'none';
-                          }}
-                        />
+                    <div className="sm:col-span-5 flex flex-col items-center justify-center p-5 bg-[#F5F0E6]/50 rounded-2xl border border-dashed border-[#8D6E63]/30 text-center space-y-2.5">
+                      <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center text-[#8D6E63] shadow-sm mx-auto">
+                        <BankIcon className="w-6 h-6" />
                       </div>
-                      <span className="text-[11px] font-bold text-[#3E2723] mt-2">
-                        Quét mã VietQR 24/7
-                      </span>
+                      <div className="space-y-1">
+                        <span className="text-xs font-bold text-[#3E2723] block">
+                          Tự động sinh mã VietQR
+                        </span>
+                        <p className="text-[11px] text-[#756C65] leading-relaxed">
+                          Nhấn nút <strong className="text-[#3E2723]">&quot;Thanh toán ngay&quot;</strong> bên dưới để lấy mã QR chính thức và tự động duyệt đơn khi chuyển khoản.
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
               )}
 
-              {/* Chi tiết 2: Ví MoMo */}
+              {/* Chi tiết 2: Ví MoMo Cá Nhân */}
               {paymentMethod === 'MOMO' && (
                 <div className="bg-[#FFF8FB] border border-[#F3D1E4] rounded-2xl p-4 sm:p-6 shadow-inner space-y-4">
                   <div className="flex items-center gap-2 text-xs font-bold text-[#A50064] pb-2 border-b border-[#F3D1E4]">
                     <span className="w-4 h-4 rounded-full bg-[#A50064] text-white text-[10px] font-bold flex items-center justify-center">M</span>
-                    <span>Thanh toán siêu tốc qua Ví MoMo</span>
+                    <span>Thông tin chuyển tiền Ví MoMo</span>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-12 gap-5 items-center">
-                    <div className="sm:col-span-7 space-y-2.5 text-xs text-[#5C4D44]">
-                      <p className="font-semibold text-[#A50064]">
-                        Các bước thanh toán qua Ví MoMo:
-                      </p>
-                      <ol className="list-decimal list-inside space-y-1.5 text-gray-700">
-                        <li>Mở ứng dụng <strong>Ví MoMo</strong> trên điện thoại.</li>
-                        <li>Chọn tính năng <strong>&quot;Quét mã&quot;</strong> tại màn hình chính.</li>
-                        <li>Quét mã QR bên cạnh và bấm <strong>&quot;Xác nhận thanh toán&quot;</strong>.</li>
-                      </ol>
-                      <div className="bg-white p-2.5 rounded-lg border border-[#F3D1E4] text-[11px] text-[#A50064]">
-                        Số tiền thanh toán: <strong>{grandTotal.toLocaleString('vi-VN')}đ</strong>
+                    <div className="sm:col-span-7 space-y-2 text-xs text-[#5C4D44]">
+                      <div className="flex justify-between py-1">
+                        <span className="text-gray-500">Ví điện tử:</span>
+                        <span className="font-bold text-[#A50064]">MoMo</span>
                       </div>
+                      <div className="flex justify-between py-1">
+                        <span className="text-gray-500">Chủ ví MoMo:</span>
+                        <span className="font-bold text-[#2E1810]">VO DUONG THANH LE</span>
+                      </div>
+                      <div className="flex justify-between py-1">
+                        <span className="text-gray-500">Số điện thoại:</span>
+                        <span className="font-extrabold text-[#A50064] tracking-wider text-sm">
+                          0962 6295 94
+                        </span>
+                      </div>
+                      <div className="flex justify-between py-1">
+                        <span className="text-gray-500">Số tiền:</span>
+                        <span className="font-extrabold text-[#A50064] text-sm">
+                          {grandTotal.toLocaleString('vi-VN')}đ
+                        </span>
+                      </div>
+                      <div className="flex justify-between py-1.5 bg-[#FFF0F6] px-3 rounded-lg border border-[#F3D1E4]">
+                        <span className="text-gray-600 font-semibold">Lời nhắn:</span>
+                        <span className="font-extrabold text-[#A50064] tracking-wide">
+                          {transferContent}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-gray-400 italic pt-1">
+                        * Mở app MoMo trên điện thoại, quét mã QR bên cạnh để chuyển tiền trực tiếp. Sau khi chuyển xong, bấm nút &quot;Thanh toán ngay&quot; bên dưới để hoàn tất đơn!
+                      </p>
                     </div>
 
-                    <div className="sm:col-span-5 flex flex-col items-center justify-center p-3 bg-white rounded-xl border border-[#F3D1E4]">
-                      <div className="w-36 h-36 p-1.5 bg-white rounded-lg border border-gray-200 shadow-sm flex items-center justify-center">
-                        <img
-                          src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=2|99|0962629594|VO%20DUONG%20THANH%20LE||0|0|${grandTotal}|${encodeURIComponent(transferContent)}|transfer_p2p`}
-                          alt="MoMo QR Code"
-                          className="w-full h-full object-contain"
-                        />
+                    <div className="sm:col-span-5 flex flex-col items-center justify-center p-5 bg-[#FFF0F6]/50 rounded-2xl border border-dashed border-[#A50064]/30 text-center space-y-2.5">
+                      <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center text-[#A50064] shadow-sm mx-auto">
+                        <span className="font-black text-lg">M</span>
                       </div>
-                      <span className="text-[11px] font-bold text-[#A50064] mt-2">
-                        Quét mã bằng Ví MoMo
-                      </span>
+                      <div className="space-y-1">
+                        <span className="text-xs font-bold text-[#A50064] block">
+                          Quét mã MoMo tiền thật
+                        </span>
+                        <p className="text-[11px] text-[#756C65] leading-relaxed">
+                          Nhấn nút <strong className="text-[#A50064]">&quot;Thanh toán ngay&quot;</strong> bên dưới để mở cửa sổ quét mã MoMo và hoàn tất đơn hàng.
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -717,6 +798,100 @@ export default function CheckoutPage() {
         </div>
 
       </div>
+      {/* =========================================================
+          MODAL POPUP QUÉT MÃ MOMO CHUYỂN TIỀN THẬT
+      ========================================================= */}
+      {showMomoModal && createdOrderData && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl p-6 sm:p-8 max-w-md w-full shadow-2xl border border-[#F3D1E4] space-y-5 text-center relative animate-in zoom-in-95 duration-200">
+            {/* Nút đóng góc phải */}
+            <button
+              type="button"
+              onClick={() => setShowMomoModal(false)}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 w-8 h-8 rounded-full flex items-center justify-center bg-gray-100 hover:bg-gray-200 transition cursor-pointer"
+            >
+              ✕
+            </button>
+
+            {/* Icon MoMo */}
+            <div className="w-12 h-12 bg-[#FFF0F6] text-[#A50064] rounded-2xl flex items-center justify-center mx-auto shadow-inner">
+              <span className="font-black text-xl">M</span>
+            </div>
+
+            <div className="space-y-1">
+              <h3 className="text-xl font-extrabold text-[#3E2723]">
+                Quét mã Ví MoMo để thanh toán
+              </h3>
+              <p className="text-xs text-[#756C65]">
+                Dùng App MoMo hoặc Camera điện thoại quét mã QR bên dưới
+              </p>
+            </div>
+
+            {/* Khung ảnh QR MoMo */}
+            <div className="p-4 bg-[#FFF8FB] border border-[#F3D1E4] rounded-2xl flex flex-col items-center justify-center">
+              <div className="w-48 h-48 bg-white p-2 rounded-xl shadow-md border border-pink-100 flex items-center justify-center">
+                <img
+                  src={
+                    payosPaymentData?.accountNumber
+                      ? `https://img.vietqr.io/image/970448-${payosPaymentData.accountNumber}-compact2.png?amount=${createdOrderData.total}&addInfo=${encodeURIComponent(payosPaymentData.description || `BrewLite #${createdOrderData.id}`)}&accountName=${encodeURIComponent(payosPaymentData.accountName || "VO DUONG THANH LE")}`
+                      : `https://img.vietqr.io/image/970448-0962629594-compact2.png?amount=${createdOrderData.total}&addInfo=${encodeURIComponent(`BrewLite #${createdOrderData.id}`)}&accountName=${encodeURIComponent("VO DUONG THANH LE")}`
+                  }
+                  alt="MoMo VietQR"
+                  className="w-full h-full object-contain"
+                />
+              </div>
+              <span className="text-xs font-bold text-[#A50064] mt-2.5">
+                VO DUONG THANH LE — 0962 6295 94
+              </span>
+              <span className="text-xl font-black text-[#A50064] mt-0.5">
+                {createdOrderData.total.toLocaleString('vi-VN')}đ
+              </span>
+            </div>
+
+            {/* Đang tự động nhận diện thanh toán */}
+            <div className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-pink-50 border border-pink-200 text-[11px] text-[#A50064] font-medium">
+              <div className="w-3.5 h-3.5 border-2 border-[#A50064] border-t-transparent rounded-full animate-spin shrink-0" />
+              <span>Đang chờ chuyển tiền... Hệ thống sẽ tự động duyệt đơn khi tiền vào!</span>
+            </div>
+
+            {/* Chi tiết người nhận & Lời nhắn */}
+            <div className="bg-gray-50 p-3 rounded-xl border border-gray-200 text-xs text-left space-y-1.5">
+              <div className="flex justify-between">
+                <span className="text-gray-500">Người nhận:</span>
+                <span className="font-bold text-gray-800">VO DUONG THANH LE</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Số MoMo:</span>
+                <span className="font-bold text-[#A50064]">0962 6295 94</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-500">Nội dung CK (tự động nhận diện):</span>
+                <span className="font-bold text-[#A50064] bg-pink-50 px-1.5 py-0.5 rounded border border-pink-200">{payosPaymentData?.description || `BrewLite #${createdOrderData.id}`}</span>
+              </div>
+            </div>
+
+            {/* Nút bấm xác nhận */}
+            <div className="space-y-2 pt-1">
+              <button
+                type="button"
+                disabled={isPaying}
+                onClick={handleConfirmMomoPaid}
+                className="w-full bg-[#A50064] hover:bg-[#880052] disabled:opacity-50 text-white font-bold py-3.5 px-4 rounded-xl transition shadow-lg shadow-[#A50064]/25 text-sm cursor-pointer"
+              >
+                {isPaying ? 'Đang xác nhận...' : '✅ Tôi đã chuyển tiền MoMo thành công'}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowMomoModal(false)}
+                className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2.5 rounded-xl transition text-xs cursor-pointer"
+              >
+                Hủy / Đổi phương thức
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
     </main>
   );
 }
