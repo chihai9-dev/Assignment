@@ -165,8 +165,32 @@ export default function CheckoutPage() {
       const payableAmount =
         orderData.total !== undefined ? Number(orderData.total) : grandTotal;
 
-      // BƯỚC 2: Gọi thanh toán idempotent qua POST /api/payments
-      const backendMethod = 'WALLET'; // VietQR và MoMo đều xử lý qua luồng ví/chuyển khoản điện tử WALLET
+      // BƯỚC 2A: Nếu chọn VietQR -> Tạo link thanh toán PayOS và chuyển hướng để quét mã thực tế
+      if (paymentMethod === 'VIETQR') {
+        const payosResponse = await fetch('http://localhost:3001/api/payments/create-payos-link', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ orderId }),
+        });
+
+        const payosData = await payosResponse.json();
+        if (!payosResponse.ok) {
+          throw new Error(
+            payosData.message || 'Không thể tạo link thanh toán VietQR qua PayOS'
+          );
+        }
+
+        // Xóa giỏ hàng và chuyển hướng tới cổng thanh toán VietQR chuẩn PayOS
+        clearActiveCart();
+        window.location.href = payosData.checkoutUrl;
+        return;
+      }
+
+      // BƯỚC 2B: Nếu chọn MoMo hoặc phương thức khác -> Thanh toán trực tiếp qua API WALLET
+      const backendMethod = 'WALLET';
 
       const paymentResponse = await fetch('http://localhost:3001/api/payments', {
         method: 'POST',
@@ -359,16 +383,16 @@ export default function CheckoutPage() {
                     <div className="sm:col-span-7 space-y-2 text-xs text-[#5C4D44]">
                       <div className="flex justify-between py-1">
                         <span className="text-gray-500">Ngân hàng:</span>
-                        <span className="font-bold text-[#2E1810]">Vietcombank</span>
+                        <span className="font-bold text-[#2E1810]">OCB (Ngân hàng Phương Đông)</span>
                       </div>
                       <div className="flex justify-between py-1">
                         <span className="text-gray-500">Chủ tài khoản:</span>
-                        <span className="font-bold text-[#2E1810]">BrewLite Coffee</span>
+                        <span className="font-bold text-[#2E1810]">VO DUONG THANH LE</span>
                       </div>
                       <div className="flex justify-between py-1">
                         <span className="text-gray-500">Số tài khoản:</span>
                         <span className="font-extrabold text-[#3E2723] tracking-wider text-sm">
-                          1234 5678 9012
+                          0962 6295 94
                         </span>
                       </div>
                       <div className="flex justify-between py-1">
@@ -391,7 +415,7 @@ export default function CheckoutPage() {
                     <div className="sm:col-span-5 flex flex-col items-center justify-center p-3 bg-white rounded-xl border border-[#E8DFD8]">
                       <div className="w-36 h-36 p-1.5 bg-white rounded-lg border border-gray-200 shadow-sm flex items-center justify-center">
                         <img
-                          src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=00020101021238540010A0000007270124000697043601121234567890120208QRIBFTTA5303704540${grandTotal}5802VN62250821${transferContent}6304`}
+                          src={`https://img.vietqr.io/image/970448-0962629594-qr_only.png?amount=${grandTotal}&addInfo=${encodeURIComponent(transferContent)}&accountName=${encodeURIComponent("VO DUONG THANH LE")}`}
                           alt="VietQR Code"
                           className="w-full h-full object-contain"
                           onError={(e) => {
@@ -433,7 +457,7 @@ export default function CheckoutPage() {
                     <div className="sm:col-span-5 flex flex-col items-center justify-center p-3 bg-white rounded-xl border border-[#F3D1E4]">
                       <div className="w-36 h-36 p-1.5 bg-white rounded-lg border border-gray-200 shadow-sm flex items-center justify-center">
                         <img
-                          src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=2|99|0901234567|BrewLite%20Coffee|contact@brewlite.vn|0|0|${grandTotal}|${transferContent}|transfer_p2p`}
+                          src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=2|99|0962629594|VO%20DUONG%20THANH%20LE||0|0|${grandTotal}|${encodeURIComponent(transferContent)}|transfer_p2p`}
                           alt="MoMo QR Code"
                           className="w-full h-full object-contain"
                         />
