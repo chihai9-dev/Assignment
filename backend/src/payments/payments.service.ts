@@ -99,15 +99,20 @@ export class PaymentsService {
       price: Math.round(Number(item.lineTotal) / item.qty),
     }));
 
+    const itemsSum = items.reduce((sum, it) => sum + it.price * it.quantity, 0);
+    const paymentPayload: any = {
+      orderCode,
+      amount,
+      description,
+      cancelUrl,
+      returnUrl,
+    };
+    if (itemsSum === amount) {
+      paymentPayload.items = items;
+    }
+
     try {
-      const paymentLink = await this.payos.paymentRequests.create({
-        orderCode,
-        amount,
-        description,
-        cancelUrl,
-        returnUrl,
-        items,
-      });
+      const paymentLink = await this.payos.paymentRequests.create(paymentPayload);
 
       return {
         success: true,
