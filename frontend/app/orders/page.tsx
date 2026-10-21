@@ -60,7 +60,7 @@ const TABS = [
 
 export default function OrderHistoryPage() {
   const router = useRouter();
-  const { token, logout } = useAuthStore();
+  const { token, user, logout } = useAuthStore();
   const [orders, setOrders] = useState<OrderSummary[]>([]);
   const [activeTab, setActiveTab] = useState('ALL');
   const [loading, setLoading] = useState(true);
@@ -153,10 +153,15 @@ export default function OrderHistoryPage() {
         {/* Tiêu đề & Mô tả */}
         <div>
           <h1 className="text-3xl font-extrabold text-[#3E2723] tracking-tight">
-            Lịch sử đơn hàng
+            Lịch sử đơn hàng của bạn
           </h1>
           <p className="text-xs sm:text-sm text-[#756C65] mt-1">
-            Theo dõi tình trạng chế biến và giao hàng của các đơn đã đặt
+            Theo dõi tình trạng chế biến và giao hàng của các đơn bạn đã đặt
+            {user?.email && (
+              <span className="ml-2 font-medium text-[#8D6E63]">
+                • Tài khoản: {user.email}
+              </span>
+            )}
           </p>
         </div>
 

@@ -72,7 +72,7 @@ export default function OrderConfirmationPage() {
   const router = useRouter();
   const orderId = params?.id as string;
 
-  const { token, logout } = useAuthStore();
+  const { token, user, logout } = useAuthStore();
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -95,18 +95,33 @@ export default function OrderConfirmationPage() {
           setError('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại để xem đơn hàng.');
           return null;
         }
+        if (res.status === 403) {
+          setError('Khách hàng chỉ có quyền xem đơn mình đã mua, không có quyền xem lịch sử đơn của người khác.');
+          return null;
+        }
         const errData = await res.json().catch(() => ({}));
         throw new Error(errData.message || 'Không thể tải thông tin đơn hàng');
       }
 
       const data: OrderDetail = await res.json();
+
+      // Kiểm tra bảo mật bổ sung: Nếu là khách hàng thì chỉ xem đơn của chính mình
+      if (user && Number(data.userId) !== Number(user.id)) {
+        const isStaff = user.role === 'barista' || user.email?.toLowerCase().includes('barista');
+        if (!isStaff) {
+          setError('Khách hàng chỉ có quyền xem đơn mình đã mua, không có quyền xem lịch sử đơn của người khác.');
+          setOrder(null);
+          return null;
+        }
+      }
+
       setOrder(data);
       return data;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Lỗi khi tải thông tin đơn hàng');
       return null;
     }
-  }, [orderId, token, logout]);
+  }, [orderId, token, user, logout]);
 
   // Tải đơn hàng lần đầu
   useEffect(() => {
@@ -197,20 +212,25 @@ export default function OrderConfirmationPage() {
   }
 
   if (error || !order) {
+    const isForbidden = error?.includes('quyền') || error?.includes('người khác');
     return (
       <main className="min-h-screen bg-[#FBF8F2] p-8 flex items-center justify-center">
         <div className="bg-white border border-[#E8DFD8] text-gray-800 p-8 rounded-3xl shadow-sm max-w-md w-full text-center space-y-4">
-          <div className="w-14 h-14 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto text-xl font-bold">
-            ✕
+          <div className={`w-14 h-14 ${isForbidden ? 'bg-amber-100 text-amber-700' : 'bg-red-50 text-red-600'} rounded-full flex items-center justify-center mx-auto text-xl font-bold`}>
+            {isForbidden ? '🔒' : '✕'}
           </div>
-          <h2 className="text-xl font-extrabold text-[#3E2723]">Không tìm thấy đơn hàng</h2>
-          <p className="text-xs text-gray-500">{error || 'Đơn hàng không tồn tại hoặc bạn không có quyền xem.'}</p>
+          <h2 className="text-xl font-extrabold text-[#3E2723]">
+            {isForbidden ? 'Không có quyền truy cập' : 'Không tìm thấy đơn hàng'}
+          </h2>
+          <p className="text-xs text-gray-600 leading-relaxed">
+            {error || 'Đơn hàng không tồn tại hoặc bạn không có quyền xem.'}
+          </p>
           <div className="space-y-2 pt-2">
             <Link
               href="/orders"
               className="block w-full bg-[#3E2723] hover:bg-[#2E1C12] text-white font-bold py-2.5 rounded-xl transition text-xs"
             >
-              Lịch sử đơn
+              Về lịch sử đơn của bạn
             </Link>
             <Link
               href="/"
