@@ -338,18 +338,50 @@ export class OrdersService {
     });
   }
 
-  // Lấy hàng đợi đơn hàng cho Barista (các đơn PAID, PREPARING, READY đang được xử lý)
-  async findBaristaQueue() {
-    return this.prisma.order.findMany({
-      where: {
-        status: {
-          in: [
-            order_status.PAID,
-            order_status.PREPARING,
-            order_status.READY,
-          ],
-        },
+  // Lấy hàng đợi đơn hàng:
+  // - Nếu là Barista / Quản lý: lấy toàn bộ đơn hàng trong hàng đợi (PAID, PREPARING, READY)
+  // - Nếu là Khách hàng: CHỈ lấy đơn hàng của chính mình (không xem được đơn người khác)
+  async findBaristaQueue(userId?: number) {
+    let isCustomer = false;
+    let customerUserId: number | null = null;
+
+    if (userId) {
+      try {
+        const user = await this.usersService.findOne(userId);
+        const isBarista =
+          user &&
+          ((user as any).role === 'barista' ||
+            (user as any).email?.toLowerCase().includes('barista') ||
+            (user as any).email?.toLowerCase().includes('staff') ||
+            (user as any).email?.toLowerCase().includes('admin'));
+
+        if (!isBarista) {
+          isCustomer = true;
+          customerUserId = userId;
+        }
+      } catch {
+        isCustomer = true;
+        customerUserId = userId;
+      }
+    }
+
+    const whereClause: any = {
+      status: {
+        in: [
+          order_status.PAID,
+          order_status.PREPARING,
+          order_status.READY,
+          ...(isCustomer ? [order_status.COMPLETED] : []),
+        ],
       },
+    };
+
+    if (isCustomer && customerUserId) {
+      whereClause.userId = BigInt(customerUserId);
+    }
+
+    return this.prisma.order.findMany({
+      where: whereClause,
       include: {
         OrderItem: {
           include: {
@@ -369,12 +401,12 @@ export class OrdersService {
         },
       },
       orderBy: {
-        createdAt: 'asc',
+        createdAt: isCustomer ? 'desc' : 'asc',
       },
     });
   }
 
-  // Barista cập nhật trạng thái đơn hàng (kiểm tra quyền barista từ DB)
+  // Barista cập nhật trạng thái đơn hàng (kiểm tra quyền barista từ DB, khách hàng không có quyền)
   async baristaUpdateStatus(orderId: number, newStatus: string, userId: number) {
     const user = await this.usersService.findOne(userId);
     const isBarista =
@@ -382,11 +414,10 @@ export class OrdersService {
       ((user as any).role === 'barista' ||
         (user as any).email?.toLowerCase().includes('barista') ||
         (user as any).email?.toLowerCase().includes('staff') ||
-        (user as any).email?.toLowerCase().includes('admin') ||
-        process.env.NODE_ENV !== 'production');
+        (user as any).email?.toLowerCase().includes('admin'));
 
     if (!isBarista) {
-      throw new ForbiddenException('Chỉ Barista mới có quyền thực hiện thao tác này');
+      throw new ForbiddenException('Khách hàng không có quyền chỉnh sửa trạng thái đơn hàng');
     }
 
     return this.updateStatus(orderId, newStatus);

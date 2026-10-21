@@ -74,6 +74,13 @@ export default function BaristaDashboardPage() {
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
 
+  // Xác định người dùng hiện tại có phải Barista / Nhân viên hay không
+  const isBarista = Boolean(
+    user?.role === 'barista' ||
+    user?.email?.toLowerCase().includes('barista') ||
+    user?.email?.toLowerCase().includes('staff')
+  );
+
   const fetchQueue = useCallback(async (isSilent = false) => {
     if (!token) {
       setLoading(false);
@@ -130,6 +137,10 @@ export default function BaristaDashboardPage() {
     action: 'prepare' | 'ready' | 'complete'
   ) => {
     if (!token) return;
+    if (!isBarista) {
+      alert('Khách hàng không có quyền chỉnh sửa trạng thái đơn hàng!');
+      return;
+    }
     try {
       setUpdatingId(orderId);
       const res = await fetch(
@@ -166,7 +177,7 @@ export default function BaristaDashboardPage() {
           </div>
           <h2 className="text-2xl font-bold mb-2">Barista Dashboard</h2>
           <p className="text-gray-400 mb-6">
-            Vui lòng đăng nhập với tài khoản nhân viên / quản lý để truy cập màn hình pha chế.
+            Vui lòng đăng nhập để theo dõi tiến độ pha chế hoặc quản lý đơn hàng.
           </p>
           <button
             onClick={() => router.push('/login?redirect=/barista')}
@@ -194,15 +205,26 @@ export default function BaristaDashboardPage() {
         {/* Top Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between pb-6 border-b border-gray-800 gap-4">
           <div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
               <span className="text-3xl">☕</span>
               <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">
-                Barista Dashboard - Quản lý đơn hàng
+                {isBarista ? 'Barista Dashboard - Quản lý đơn hàng' : 'Barista Dashboard - Đơn hàng của bạn'}
               </h1>
+              {!isBarista ? (
+                <span className="text-xs bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2.5 py-1 rounded-full font-semibold">
+                  Chế độ Khách hàng (Chỉ xem)
+                </span>
+              ) : (
+                <span className="text-xs bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-2.5 py-1 rounded-full font-semibold">
+                  Tài khoản Barista
+                </span>
+              )}
             </div>
             <p className="text-gray-400 text-sm mt-1">
-              Hàng đợi pha chế thời gian thực • Tự động làm mới mỗi 10 giây (Lần cuối:{' '}
-              {lastUpdated.toLocaleTimeString('vi-VN')})
+              {isBarista
+                ? 'Hàng đợi pha chế thời gian thực • Tự động làm mới mỗi 10 giây'
+                : 'Theo dõi tiến độ pha chế các đơn hàng của bạn thời gian thực • Tự động làm mới mỗi 10 giây'}{' '}
+              (Lần cuối: {lastUpdated.toLocaleTimeString('vi-VN')})
             </p>
           </div>
 
@@ -210,7 +232,7 @@ export default function BaristaDashboardPage() {
             <button
               onClick={() => fetchQueue(false)}
               disabled={loading}
-              className="bg-[#0f3460] hover:bg-[#16213e] text-blue-300 border border-blue-500/30 px-4 py-2 rounded-xl text-sm font-semibold transition flex items-center gap-2 disabled:opacity-50"
+              className="bg-[#0f3460] hover:bg-[#16213e] text-blue-300 border border-blue-500/30 px-4 py-2 rounded-xl text-sm font-semibold transition flex items-center gap-2 disabled:opacity-50 cursor-pointer"
             >
               <svg
                 className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`}
@@ -236,35 +258,53 @@ export default function BaristaDashboardPage() {
           </div>
         </div>
 
+        {/* Customer Read-Only Banner */}
+        {!isBarista && (
+          <div className="bg-amber-950/40 border border-amber-500/40 text-amber-200 px-5 py-4 rounded-2xl text-sm flex items-start sm:items-center gap-3 shadow-md">
+            <span className="text-2xl shrink-0">ℹ️</span>
+            <div>
+              <p className="font-bold text-white text-base">Chế độ xem dành cho Khách hàng</p>
+              <p className="text-xs text-amber-200/90 mt-0.5 leading-relaxed">
+                Bạn chỉ có thể xem tiến độ các đơn hàng của chính mình trong Barista Dashboard. 
+                Khách hàng <strong>không có quyền chỉnh sửa trạng thái đơn hàng</strong> (quyền này chỉ thuộc về nhân viên Barista).
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Status Counters & Tabs */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <button
             onClick={() => setFilterStatus('ALL')}
-            className={`p-4 rounded-xl border text-left transition ${
+            className={`p-4 rounded-xl border text-left transition cursor-pointer ${
               filterStatus === 'ALL'
                 ? 'bg-[#0f3460] border-blue-500 text-white shadow-lg'
                 : 'bg-[#16213e]/70 border-gray-800 text-gray-300 hover:bg-[#16213e]'
             }`}
           >
-            <div className="text-xs uppercase font-bold text-gray-400 tracking-wider">Tất cả trong hàng</div>
+            <div className="text-xs uppercase font-bold text-gray-400 tracking-wider">
+              {isBarista ? 'Tất cả trong hàng' : 'Đơn của bạn'}
+            </div>
             <div className="text-2xl font-black mt-1">{orders.length}</div>
           </button>
 
           <button
             onClick={() => setFilterStatus('PAID')}
-            className={`p-4 rounded-xl border text-left transition ${
+            className={`p-4 rounded-xl border text-left transition cursor-pointer ${
               filterStatus === 'PAID'
                 ? 'bg-emerald-950/60 border-emerald-500 text-white shadow-lg'
                 : 'bg-[#16213e]/70 border-gray-800 text-emerald-400 hover:bg-[#16213e]'
             }`}
           >
-            <div className="text-xs uppercase font-bold text-emerald-400/80 tracking-wider">Chờ nhận đơn</div>
+            <div className="text-xs uppercase font-bold text-emerald-400/80 tracking-wider">
+              {isBarista ? 'Chờ nhận đơn' : 'Chờ pha chế'}
+            </div>
             <div className="text-2xl font-black mt-1 text-emerald-400">{paidCount}</div>
           </button>
 
           <button
             onClick={() => setFilterStatus('PREPARING')}
-            className={`p-4 rounded-xl border text-left transition ${
+            className={`p-4 rounded-xl border text-left transition cursor-pointer ${
               filterStatus === 'PREPARING'
                 ? 'bg-amber-950/60 border-amber-500 text-white shadow-lg'
                 : 'bg-[#16213e]/70 border-gray-800 text-amber-300 hover:bg-[#16213e]'
@@ -276,13 +316,15 @@ export default function BaristaDashboardPage() {
 
           <button
             onClick={() => setFilterStatus('READY')}
-            className={`p-4 rounded-xl border text-left transition ${
+            className={`p-4 rounded-xl border text-left transition cursor-pointer ${
               filterStatus === 'READY'
                 ? 'bg-purple-950/60 border-purple-500 text-white shadow-lg'
                 : 'bg-[#16213e]/70 border-gray-800 text-purple-300 hover:bg-[#16213e]'
             }`}
           >
-            <div className="text-xs uppercase font-bold text-purple-300/80 tracking-wider">Chờ giao khách</div>
+            <div className="text-xs uppercase font-bold text-purple-300/80 tracking-wider">
+              {isBarista ? 'Chờ giao khách' : 'Sẵn sàng nhận'}
+            </div>
             <div className="text-2xl font-black mt-1 text-purple-300">{readyCount}</div>
           </button>
         </div>
@@ -311,14 +353,26 @@ export default function BaristaDashboardPage() {
         {!loading && filteredOrders.length === 0 && (
           <div className="bg-[#16213e]/60 border border-gray-800 rounded-2xl p-16 text-center">
             <div className="w-20 h-20 bg-gray-800/80 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">
-              🎉
+              {isBarista ? '🎉' : '☕'}
             </div>
-            <h2 className="text-xl font-bold text-white mb-2">Hàng đợi trống</h2>
-            <p className="text-gray-400 max-w-md mx-auto">
-              {filterStatus === 'ALL'
-                ? 'Hiện không có đơn hàng nào cần xử lý. Tuyệt vời!'
-                : `Hiện không có đơn hàng nào ở trạng thái ${filterStatus}.`}
+            <h2 className="text-xl font-bold text-white mb-2">
+              {isBarista ? 'Hàng đợi trống' : 'Chưa có đơn hàng nào cần xử lý'}
+            </h2>
+            <p className="text-gray-400 max-w-md mx-auto mb-4">
+              {isBarista
+                ? filterStatus === 'ALL'
+                  ? 'Hiện không có đơn hàng nào cần xử lý. Tuyệt vời!'
+                  : `Hiện không có đơn hàng nào ở trạng thái ${filterStatus}.`
+                : 'Bạn chưa có đơn hàng nào trong hàng đợi pha chế. Đơn hàng đã thanh toán sẽ hiển thị tại đây để bạn theo dõi.'}
             </p>
+            {!isBarista && (
+              <Link
+                href="/"
+                className="inline-block bg-blue-600 hover:bg-blue-500 text-white font-bold px-6 py-2.5 rounded-xl transition text-sm"
+              >
+                Đặt món ngay
+              </Link>
+            )}
           </div>
         )}
 
@@ -424,56 +478,94 @@ export default function BaristaDashboardPage() {
                     </span>
                   </div>
 
-                  {/* Action Buttons */}
+                  {/* Action Buttons: Khách hàng chỉ xem tiến độ, không có quyền chỉnh sửa trạng thái */}
                   <div>
-                    {order.status === 'PAID' && (
-                      <button
-                        onClick={() => handleUpdateStatus(order.id, 'prepare')}
-                        disabled={isUpdating}
-                        className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2 shadow-lg"
-                      >
-                        {isUpdating ? (
-                          <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        ) : (
-                          '🔥'
+                    {isBarista ? (
+                      <>
+                        {order.status === 'PAID' && (
+                          <button
+                            onClick={() => handleUpdateStatus(order.id, 'prepare')}
+                            disabled={isUpdating}
+                            className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-bold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2 shadow-lg cursor-pointer"
+                          >
+                            {isUpdating ? (
+                              <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              '🔥'
+                            )}
+                            <span>Nhận đơn</span>
+                          </button>
                         )}
-                        <span>Nhận đơn</span>
-                      </button>
-                    )}
 
-                    {order.status === 'PREPARING' && (
-                      <button
-                        onClick={() => handleUpdateStatus(order.id, 'ready')}
-                        disabled={isUpdating}
-                        className="w-full bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-bold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2 shadow-lg"
-                      >
-                        {isUpdating ? (
-                          <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        ) : (
-                          '✅'
+                        {order.status === 'PREPARING' && (
+                          <button
+                            onClick={() => handleUpdateStatus(order.id, 'ready')}
+                            disabled={isUpdating}
+                            className="w-full bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white font-bold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2 shadow-lg cursor-pointer"
+                          >
+                            {isUpdating ? (
+                              <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              '✅'
+                            )}
+                            <span>Pha chế xong</span>
+                          </button>
                         )}
-                        <span>Pha chế xong</span>
-                      </button>
-                    )}
 
-                    {order.status === 'READY' && (
-                      <button
-                        onClick={() => handleUpdateStatus(order.id, 'complete')}
-                        disabled={isUpdating}
-                        className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2 shadow-lg"
-                      >
-                        {isUpdating ? (
-                          <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        ) : (
-                          '📦'
+                        {order.status === 'READY' && (
+                          <button
+                            onClick={() => handleUpdateStatus(order.id, 'complete')}
+                            disabled={isUpdating}
+                            className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white font-bold py-3 px-4 rounded-xl transition flex items-center justify-center gap-2 shadow-lg cursor-pointer"
+                          >
+                            {isUpdating ? (
+                              <span className="inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              '📦'
+                            )}
+                            <span>Giao khách</span>
+                          </button>
                         )}
-                        <span>Giao khách</span>
-                      </button>
-                    )}
 
-                    {order.status === 'COMPLETED' && (
-                      <div className="text-center py-2 text-xs text-gray-500 font-semibold">
-                        Đơn đã hoàn thành
+                        {order.status === 'COMPLETED' && (
+                          <div className="text-center py-2 text-xs text-gray-500 font-semibold">
+                            Đơn đã hoàn thành
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      /* Hiển thị tiến độ dành riêng cho Khách hàng (Không có quyền chỉnh sửa trạng thái) */
+                      <div className="bg-[#0f3460]/40 border border-gray-700/60 rounded-xl p-3 text-center space-y-1.5">
+                        <div className="text-xs font-semibold text-gray-200 flex items-center justify-center gap-2">
+                          {order.status === 'PAID' && (
+                            <>
+                              <span className="text-emerald-400 text-sm">⏱️</span>
+                              <span>Đang chờ nhân viên quầy tiếp nhận</span>
+                            </>
+                          )}
+                          {order.status === 'PREPARING' && (
+                            <>
+                              <span className="text-amber-400 text-sm animate-bounce">🔥</span>
+                              <span className="text-amber-200">Barista đang pha chế món của bạn...</span>
+                            </>
+                          )}
+                          {order.status === 'READY' && (
+                            <>
+                              <span className="text-purple-400 text-sm animate-pulse">🎉</span>
+                              <span className="text-purple-300 font-bold">Món đã sẵn sàng! Mời bạn đến quầy nhận món</span>
+                            </>
+                          )}
+                          {order.status === 'COMPLETED' && (
+                            <>
+                              <span className="text-emerald-400 text-sm">✅</span>
+                              <span className="text-gray-300">Đơn hàng đã được giao hoàn tất</span>
+                            </>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-gray-400 flex items-center justify-center gap-1">
+                          <span>🔒</span>
+                          <span>Chỉ xem tiến độ • Không thể chỉnh sửa trạng thái</span>
+                        </p>
                       </div>
                     )}
                   </div>

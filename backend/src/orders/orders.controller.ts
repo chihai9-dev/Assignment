@@ -35,10 +35,14 @@ export class OrdersController {
   }
 
   // Hàng đợi đơn hàng cho Barista (các đơn PAID đang chờ pha chế)
+  // - Nếu là Barista: thấy toàn bộ đơn hàng trong hàng đợi
+  // - Nếu là Khách hàng: chỉ xem đơn hàng của chính mình
   @UseGuards(JwtAuthGuard)
   @Get('barista/queue')
-  getBaristaQueue() {
-    return this.ordersService.findBaristaQueue();
+  getBaristaQueue(
+    @Request() req: { user: { userId: number; email: string; role?: string } },
+  ) {
+    return this.ordersService.findBaristaQueue(Number(req.user.userId));
   }
 
   // Barista nhận pha chế: PAID -> PREPARING
