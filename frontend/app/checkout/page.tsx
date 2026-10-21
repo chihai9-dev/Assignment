@@ -15,6 +15,20 @@ import {
   InfoIcon,
 } from '../components/Icons';
 
+interface PayOSPaymentData {
+  orderId: number;
+  orderCode: number;
+  amount: number;
+  accountName: string;
+  accountNumber: string;
+  bin: string;
+  description: string;
+  checkoutUrl: string;
+  qrCode: string;
+  paymentLinkId?: string;
+  status?: string;
+}
+
 export default function CheckoutPage() {
   const router = useRouter();
 
@@ -24,9 +38,14 @@ export default function CheckoutPage() {
   const [hasHydrated, setHasHydrated] = useState(false);
   const [isPaying, setIsPaying] = useState(false);
 
-  // Phương thức thanh toán (2 tùy chọn: VietQR, MoMo)
+  // Phương thức thanh toán (2 tùy chọn: VietQR Pro, Ví MoMo)
   type PaymentMethodType = 'VIETQR' | 'MOMO';
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethodType>('VIETQR');
+
+  // Trạng thái hiển thị Modal thanh toán QR PayOS
+  const [payOSData, setPayOSData] = useState<PayOSPaymentData | null>(null);
+  const [paymentStatus, setPaymentStatus] = useState<'PENDING' | 'PAID' | 'FAILED'>('PENDING');
+  const [copySuccess, setCopySuccess] = useState<string | null>(null);
 
   // Lấy loyaltyPoints của user và tự động đồng bộ từ backend khi vào trang checkout
   useEffect(() => {
@@ -111,10 +130,49 @@ export default function CheckoutPage() {
   const grandTotal = Math.max(0, subtotal - discountAmount);
   const earnedPointsPreview = Math.floor(grandTotal / 10000);
 
-  // Tạo mã nội dung chuyển khoản động
-  const transferContent = useMemo(() => {
-    return `BrewLite_#ORD${Math.floor(100000 + Math.random() * 900000)}`;
-  }, []);
+  // Lắng nghe trạng thái thanh toán từ PayOS Webhook (Polling mỗi 2.5 giây khi mở Modal QR)
+  useEffect(() => {
+    if (!payOSData || paymentStatus === 'PAID') return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await fetch(`http://localhost:3001/api/payments/status/${payOSData.orderId}`);
+        if (res.ok) {
+          const statusData = await res.json();
+          if (statusData.isPaid || statusData.status === 'PAID') {
+            setPaymentStatus('PAID');
+            clearInterval(interval);
+
+            // Cập nhật điểm tích lũy vào store
+            const currentPoints = useAuthStore.getState().user?.loyaltyPoints || 0;
+            const pointsEarned = Math.floor(payOSData.amount / 10000);
+            useAuthStore.getState().updateLoyaltyPoints(currentPoints + pointsEarned);
+
+            // Xóa giỏ hàng sau khi thanh toán thành công
+            clearActiveCart();
+
+            // Tự động chuyển trang sau 1.5 giây
+            setTimeout(() => {
+              router.push(`/orders/${payOSData.orderId}`);
+            }, 1500);
+          }
+        }
+      } catch (err) {
+        console.error('Lỗi kiểm tra trạng thái PayOS:', err);
+      }
+    }, 2500);
+
+    return () => clearInterval(interval);
+  }, [payOSData, paymentStatus, clearActiveCart, router]);
+
+  // Sao chép thông tin chuyển khoản vào clipboard
+  const handleCopy = (text: string, label: string) => {
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+      setCopySuccess(label);
+      setTimeout(() => setCopySuccess(null), 2000);
+    }
+  };
 
   // Tiến hành thanh toán
   const handleCheckoutSubmit = async () => {
@@ -127,7 +185,7 @@ export default function CheckoutPage() {
     try {
       setIsPaying(true);
 
-      // BƯỚC 1: Tạo Order qua API backend NestJS (backend tự tính giảm giá theo loyaltyPoints của user)
+      // BƯỚC 1: Tạo Order qua API backend NestJS
       const orderResponse = await fetch('http://localhost:3001/api/orders', {
         method: 'POST',
         headers: {
@@ -162,13 +220,9 @@ export default function CheckoutPage() {
       }
 
       const orderId = Number(orderData.orderId);
-      const payableAmount =
-        orderData.total !== undefined ? Number(orderData.total) : grandTotal;
 
-      // BƯỚC 2: Gọi thanh toán idempotent qua POST /api/payments
-      const backendMethod = 'WALLET'; // VietQR và MoMo đều xử lý qua luồng ví/chuyển khoản điện tử WALLET
-
-      const paymentResponse = await fetch('http://localhost:3001/api/payments', {
+      // BƯỚC 2: Gọi PayOS Link để tạo mã QR VietQR / MoMo thật quét được trên điện thoại
+      const payosResponse = await fetch('http://localhost:3001/api/payments/payos-link', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -176,31 +230,25 @@ export default function CheckoutPage() {
         },
         body: JSON.stringify({
           orderId,
-          amount: payableAmount,
-          method: backendMethod,
-          idempotencyKey: `payment-${orderId}-${Date.now()}`,
+          returnUrl: `${window.location.origin}/orders/${orderId}?status=PAID`,
+          cancelUrl: `${window.location.origin}/orders/${orderId}?status=CANCELLED`,
         }),
       });
 
-      const paymentData = await paymentResponse.json();
+      const payosDataResult = await payosResponse.json();
 
-      if (!paymentResponse.ok) {
+      if (!payosResponse.ok) {
         throw new Error(
-          Array.isArray(paymentData.message)
-            ? paymentData.message.join(', ')
-            : paymentData.message || 'Thanh toán không thành công'
+          Array.isArray(payosDataResult.message)
+            ? payosDataResult.message.join(', ')
+            : payosDataResult.message || 'Không thể tạo mã QR PayOS'
         );
       }
 
-      // Cập nhật lại loyaltyPoints trong store sau khi được cộng điểm thưởng
-      if (paymentData.pointsEarned) {
-        const currentPoints = useAuthStore.getState().user?.loyaltyPoints || 0;
-        useAuthStore.getState().updateLoyaltyPoints(currentPoints + Number(paymentData.pointsEarned));
-      }
+      // Mở modal thanh toán QR PayOS
+      setPayOSData(payosDataResult);
+      setPaymentStatus('PENDING');
 
-      // Xóa giỏ hàng và chuyển hướng sang trang xác nhận thành công
-      clearActiveCart();
-      router.push(`/orders/${orderId}`);
     } catch (error) {
       console.error('Lỗi thanh toán:', error);
       alert(
@@ -208,6 +256,48 @@ export default function CheckoutPage() {
           ? error.message
           : 'Có lỗi xảy ra trong quá trình xử lý đơn hàng.'
       );
+    } finally {
+      setIsPaying(false);
+    }
+  };
+
+  // Nút mô phỏng thanh toán thành công (Hỗ trợ demo khi không chuyển khoản tiền thật)
+  const handleMockPaySuccess = async () => {
+    if (!payOSData || !token) return;
+    try {
+      setIsPaying(true);
+      const res = await fetch('http://localhost:3001/api/payments', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          orderId: payOSData.orderId,
+          amount: payOSData.amount,
+          method: 'WALLET',
+          idempotencyKey: `mock-payos-${payOSData.orderId}-${Date.now()}`,
+        }),
+      });
+
+      const resData = await res.json();
+      if (!res.ok) {
+        throw new Error(resData.message || 'Lỗi mô phỏng');
+      }
+
+      setPaymentStatus('PAID');
+      clearActiveCart();
+
+      if (resData.pointsEarned) {
+        const currentPoints = useAuthStore.getState().user?.loyaltyPoints || 0;
+        useAuthStore.getState().updateLoyaltyPoints(currentPoints + Number(resData.pointsEarned));
+      }
+
+      setTimeout(() => {
+        router.push(`/orders/${payOSData.orderId}`);
+      }, 1000);
+    } catch (err: any) {
+      alert(err.message || 'Không thể mô phỏng thanh toán');
     } finally {
       setIsPaying(false);
     }
@@ -257,7 +347,7 @@ export default function CheckoutPage() {
             Thanh toán
           </h1>
           <p className="text-xs sm:text-sm text-[#756C65]">
-            Vui lòng chọn phương thức thanh toán để hoàn tất đơn hàng và nhận món tại quầy
+            Vui lòng chọn phương thức thanh toán để quét mã QR bằng điện thoại và nhận món tại quầy
           </p>
         </div>
 
@@ -304,7 +394,7 @@ export default function CheckoutPage() {
                       </span>
                     </div>
                     <p className="text-xs text-[#756C65] mt-0.5">
-                      Chuyển khoản 24/7
+                      Chuyển khoản 24/7 (PayOS)
                     </p>
                   </div>
                 </button>
@@ -338,7 +428,7 @@ export default function CheckoutPage() {
                       Ví MoMo
                     </span>
                     <p className="text-xs text-[#756C65] mt-0.5">
-                      Quét mã tiện lợi
+                      Quét mã PayOS trên App MoMo
                     </p>
                   </div>
                 </button>
@@ -352,23 +442,23 @@ export default function CheckoutPage() {
                 <div className="bg-[#FDFBF7] border border-[#E8DFD8] rounded-2xl p-4 sm:p-6 shadow-inner space-y-4">
                   <div className="flex items-center gap-2 text-xs font-bold text-[#3E2723] pb-2 border-b border-[#E8DFD8]">
                     <InfoIcon className="w-4 h-4 text-[#8D6E63]" />
-                    <span>Thông tin chuyển khoản VietQR Pro</span>
+                    <span>Cổng thanh toán tự động VietQR Pro (PayOS)</span>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-12 gap-5 items-center">
                     <div className="sm:col-span-7 space-y-2 text-xs text-[#5C4D44]">
                       <div className="flex justify-between py-1">
                         <span className="text-gray-500">Ngân hàng:</span>
-                        <span className="font-bold text-[#2E1810]">Vietcombank</span>
+                        <span className="font-bold text-[#2E1810]">OCB (Ngân hàng Phương Đông)</span>
                       </div>
                       <div className="flex justify-between py-1">
                         <span className="text-gray-500">Chủ tài khoản:</span>
-                        <span className="font-bold text-[#2E1810]">BrewLite Coffee</span>
+                        <span className="font-bold text-[#2E1810]">VO DUONG THANH LE</span>
                       </div>
                       <div className="flex justify-between py-1">
                         <span className="text-gray-500">Số tài khoản:</span>
                         <span className="font-extrabold text-[#3E2723] tracking-wider text-sm">
-                          1234 5678 9012
+                          0962 6295 94
                         </span>
                       </div>
                       <div className="flex justify-between py-1">
@@ -377,26 +467,17 @@ export default function CheckoutPage() {
                           {grandTotal.toLocaleString('vi-VN')}đ
                         </span>
                       </div>
-                      <div className="flex justify-between py-1.5 bg-[#F5F0E6] px-3 rounded-lg border border-[#E8DFD8]">
-                        <span className="text-gray-600 font-semibold">Nội dung:</span>
-                        <span className="font-extrabold text-[#8D6E63] tracking-wide">
-                          {transferContent}
-                        </span>
+                      <div className="p-2.5 bg-emerald-50 rounded-xl border border-emerald-200 text-emerald-800 text-[11px] leading-relaxed">
+                        ✓ Mã QR động kèm nội dung chính xác sẽ hiển thị khi bạn bấm <strong>&quot;Thanh toán ngay&quot;</strong>.
                       </div>
-                      <p className="text-[11px] text-gray-400 italic pt-1">
-                        * Quét mã QR bằng ứng dụng ngân hàng bất kỳ để hoàn tất đơn hàng tự động.
-                      </p>
                     </div>
 
                     <div className="sm:col-span-5 flex flex-col items-center justify-center p-3 bg-white rounded-xl border border-[#E8DFD8]">
-                      <div className="w-36 h-36 p-1.5 bg-white rounded-lg border border-gray-200 shadow-sm flex items-center justify-center">
+                      <div className="w-32 h-32 p-1.5 bg-white rounded-lg border border-gray-200 shadow-sm flex items-center justify-center">
                         <img
-                          src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=00020101021238540010A0000007270124000697043601121234567890120208QRIBFTTA5303704540${grandTotal}5802VN62250821${transferContent}6304`}
-                          alt="VietQR Code"
+                          src={`https://img.vietqr.io/image/970448-0962629594-compact2.png?amount=${grandTotal}&accountName=VO%20DUONG%20THANH%20LE`}
+                          alt="VietQR Pro Preview"
                           className="w-full h-full object-contain"
-                          onError={(e) => {
-                            (e.target as HTMLElement).style.display = 'none';
-                          }}
                         />
                       </div>
                       <span className="text-[11px] font-bold text-[#3E2723] mt-2">
@@ -412,18 +493,19 @@ export default function CheckoutPage() {
                 <div className="bg-[#FFF8FB] border border-[#F3D1E4] rounded-2xl p-4 sm:p-6 shadow-inner space-y-4">
                   <div className="flex items-center gap-2 text-xs font-bold text-[#A50064] pb-2 border-b border-[#F3D1E4]">
                     <span className="w-4 h-4 rounded-full bg-[#A50064] text-white text-[10px] font-bold flex items-center justify-center">M</span>
-                    <span>Thanh toán siêu tốc qua Ví MoMo</span>
+                    <span>Thanh toán siêu tốc bằng cách quét mã trên Ví MoMo</span>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-12 gap-5 items-center">
                     <div className="sm:col-span-7 space-y-2.5 text-xs text-[#5C4D44]">
                       <p className="font-semibold text-[#A50064]">
-                        Các bước thanh toán qua Ví MoMo:
+                        Các bước quét mã trên Ví MoMo:
                       </p>
                       <ol className="list-decimal list-inside space-y-1.5 text-gray-700">
+                        <li>Bấm nút <strong>&quot;Thanh toán ngay&quot;</strong> bên dưới để tạo mã QR đơn hàng.</li>
                         <li>Mở ứng dụng <strong>Ví MoMo</strong> trên điện thoại.</li>
-                        <li>Chọn tính năng <strong>&quot;Quét mã&quot;</strong> tại màn hình chính.</li>
-                        <li>Quét mã QR bên cạnh và bấm <strong>&quot;Xác nhận thanh toán&quot;</strong>.</li>
+                        <li>Bấm chọn biểu tượng <strong>&quot;Quét mã&quot;</strong> ở góc trên màn hình chính MoMo.</li>
+                        <li>Quét mã QR PayOS và bấm <strong>&quot;Chuyển tiền&quot;</strong>. Hệ thống tự động xác nhận sau 1-3s!</li>
                       </ol>
                       <div className="bg-white p-2.5 rounded-lg border border-[#F3D1E4] text-[11px] text-[#A50064]">
                         Số tiền thanh toán: <strong>{grandTotal.toLocaleString('vi-VN')}đ</strong>
@@ -431,15 +513,15 @@ export default function CheckoutPage() {
                     </div>
 
                     <div className="sm:col-span-5 flex flex-col items-center justify-center p-3 bg-white rounded-xl border border-[#F3D1E4]">
-                      <div className="w-36 h-36 p-1.5 bg-white rounded-lg border border-gray-200 shadow-sm flex items-center justify-center">
+                      <div className="w-32 h-32 p-1.5 bg-white rounded-lg border border-gray-200 shadow-sm flex items-center justify-center">
                         <img
-                          src={`https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=2|99|0901234567|BrewLite%20Coffee|contact@brewlite.vn|0|0|${grandTotal}|${transferContent}|transfer_p2p`}
-                          alt="MoMo QR Code"
+                          src={`https://img.vietqr.io/image/970448-0962629594-compact2.png?amount=${grandTotal}&accountName=VO%20DUONG%20THANH%20LE`}
+                          alt="MoMo VietQR Preview"
                           className="w-full h-full object-contain"
                         />
                       </div>
                       <span className="text-[11px] font-bold text-[#A50064] mt-2">
-                        Quét mã bằng Ví MoMo
+                        Ví MoMo quét được 100%
                       </span>
                     </div>
                   </div>
@@ -675,7 +757,7 @@ export default function CheckoutPage() {
                 className="w-full bg-[#763A1E] hover:bg-[#5C2D17] text-white font-bold py-3.5 px-4 rounded-xl transition shadow-lg shadow-[#763A1E]/20 hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 text-center flex items-center justify-center gap-2 cursor-pointer text-sm"
               >
                 <BankIcon className="w-4 h-4 text-[#D7A86E]" />
-                <span>{isPaying ? 'Đang xử lý đơn...' : 'Thanh toán ngay'}</span>
+                <span>{isPaying ? 'Đang tạo mã thanh toán...' : 'Thanh toán ngay'}</span>
               </button>
 
               <div className="text-center pt-1">
@@ -693,6 +775,193 @@ export default function CheckoutPage() {
         </div>
 
       </div>
+
+      {/* =========================================================
+          MODAL THANH TOÁN QR PAYOS (QUÉT BẰNG MOMO VÀ APP NGÂN HÀNG)
+      ========================================================= */}
+      {payOSData && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 overflow-y-auto animate-fadeIn">
+          <div className="bg-white rounded-3xl max-w-lg w-full overflow-hidden shadow-2xl border border-[#E8DFD8] my-8 animate-scaleUp">
+            
+            {/* Header Modal */}
+            <div className={`p-5 text-white ${
+              paymentMethod === 'MOMO' ? 'bg-[#A50064]' : 'bg-[#3E2723]'
+            }`}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2.5">
+                  {paymentMethod === 'MOMO' ? (
+                    <span className="w-8 h-8 rounded-full bg-white text-[#A50064] font-black flex items-center justify-center text-sm shadow">
+                      M
+                    </span>
+                  ) : (
+                    <span className="w-8 h-8 rounded-full bg-[#D7A86E] text-[#3E2723] font-bold flex items-center justify-center text-sm shadow">
+                      QR
+                    </span>
+                  )}
+                  <div>
+                    <h3 className="font-extrabold text-base leading-tight">
+                      {paymentMethod === 'MOMO' ? 'Quét mã bằng Ví MoMo' : 'Quét mã VietQR Pro (PayOS)'}
+                    </h3>
+                    <p className="text-xs text-white/80">
+                      Đơn hàng #BL{String(payOSData.orderId).padStart(6, '0')}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => setPayOSData(null)}
+                  className="w-8 h-8 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center font-bold text-sm transition cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+
+            {/* Nội dung Modal */}
+            <div className="p-6 space-y-5">
+              
+              {/* Trạng thái xác nhận (Pulsing / Thành công) */}
+              {paymentStatus === 'PAID' ? (
+                <div className="p-4 bg-emerald-50 border-2 border-emerald-500 rounded-2xl text-center space-y-2 animate-bounce">
+                  <div className="w-12 h-12 rounded-full bg-emerald-500 text-white flex items-center justify-center mx-auto text-2xl font-bold">
+                    ✓
+                  </div>
+                  <h4 className="font-extrabold text-emerald-800 text-lg">
+                    Thanh toán thành công!
+                  </h4>
+                  <p className="text-xs text-emerald-700">
+                    Cổng PayOS đã xác nhận giao dịch. Đang chuyển tới đơn hàng...
+                  </p>
+                </div>
+              ) : (
+                <div className="flex items-center justify-center gap-2.5 py-2 px-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-800 text-xs font-medium">
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-500 animate-ping" />
+                  <span>Đang chờ bạn quét mã và chuyển tiền trên điện thoại...</span>
+                </div>
+              )}
+
+              {/* Khung hiển thị Mã QR */}
+              {paymentStatus !== 'PAID' && (
+                <div className="flex flex-col items-center justify-center">
+                  <div className="p-3 bg-white rounded-2xl border-2 border-[#E8DFD8] shadow-md relative group">
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(payOSData.qrCode)}`}
+                      alt="PayOS QR Code"
+                      className="w-56 h-56 object-contain rounded-lg"
+                    />
+                    <div className="absolute inset-x-0 bottom-1 flex justify-center">
+                      <span className="text-[10px] bg-white/90 text-gray-600 px-2 py-0.5 rounded shadow text-center font-semibold">
+                        {paymentMethod === 'MOMO' ? 'Mở MoMo để quét' : 'MoMo / App Ngân hàng đều quét được'}
+                      </span>
+                    </div>
+                  </div>
+
+                  <p className="text-xs text-center text-[#756C65] mt-3">
+                    Mở ứng dụng <strong>{paymentMethod === 'MOMO' ? 'Ví MoMo' : 'Ngân hàng / MoMo'}</strong> trên điện thoại & chọn tính năng <strong>Quét mã QR</strong>
+                  </p>
+                </div>
+              )}
+
+              {/* Thông tin chuyển khoản chi tiết */}
+              <div className="bg-[#FDFBF7] border border-[#E8DFD8] rounded-2xl p-4 space-y-2.5 text-xs text-[#5C4D44]">
+                <div className="flex justify-between items-center py-1 border-b border-gray-100">
+                  <span className="text-gray-500">Ngân hàng:</span>
+                  <span className="font-bold text-[#2E1810]">OCB (Ngân hàng Phương Đông)</span>
+                </div>
+
+                <div className="flex justify-between items-center py-1 border-b border-gray-100">
+                  <span className="text-gray-500">Chủ tài khoản:</span>
+                  <span className="font-bold text-[#2E1810]">{payOSData.accountName}</span>
+                </div>
+
+                <div className="flex justify-between items-center py-1 border-b border-gray-100">
+                  <span className="text-gray-500">Số tài khoản:</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-extrabold text-[#3E2723] text-sm tracking-wider">
+                      {payOSData.accountNumber}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(payOSData.accountNumber, 'stk')}
+                      className="text-[11px] font-bold text-[#8D6E63] hover:text-[#3E2723] underline cursor-pointer"
+                    >
+                      {copySuccess === 'stk' ? '✓ Đã chép' : 'Sao chép'}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center py-1 border-b border-gray-100">
+                  <span className="text-gray-500">Số tiền:</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-extrabold text-[#8D6E63] text-base">
+                      {payOSData.amount.toLocaleString('vi-VN')}đ
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(String(payOSData.amount), 'amount')}
+                      className="text-[11px] font-bold text-[#8D6E63] hover:text-[#3E2723] underline cursor-pointer"
+                    >
+                      {copySuccess === 'amount' ? '✓ Đã chép' : 'Sao chép'}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex justify-between items-center py-1 bg-[#F5F0E6] px-2.5 rounded-lg border border-[#E8DFD8]">
+                  <span className="text-gray-700 font-semibold">Nội dung CK:</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-extrabold text-[#3E2723] tracking-wide">
+                      {payOSData.description}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(payOSData.description, 'memo')}
+                      className="text-[11px] font-bold text-[#8D6E63] hover:text-[#3E2723] underline cursor-pointer"
+                    >
+                      {copySuccess === 'memo' ? '✓ Đã chép' : 'Sao chép'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Nút thao tác bổ sung */}
+              <div className="space-y-2 pt-1">
+                {/* Mở cổng PayOS trực tiếp trong tab mới */}
+                <a
+                  href={payOSData.checkoutUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full bg-[#3E2723] hover:bg-[#2E1C12] text-white font-bold py-3 px-4 rounded-xl text-center text-xs sm:text-sm transition flex items-center justify-center gap-2 cursor-pointer shadow-md"
+                >
+                  <span>Mở trang thanh toán PayOS</span>
+                  <span className="text-xs">↗</span>
+                </a>
+
+                {/* Nút mô phỏng thanh toán khi test / demo */}
+                <button
+                  type="button"
+                  onClick={handleMockPaySuccess}
+                  disabled={isPaying || paymentStatus === 'PAID'}
+                  className="w-full bg-[#F5F0E6] hover:bg-[#E8DFD8] text-[#5C4D44] font-bold py-2.5 px-4 rounded-xl text-center text-xs transition border border-[#E8DFD8] cursor-pointer"
+                >
+                  ⚡ Mô phỏng thanh toán thành công (Test Demo)
+                </button>
+
+                {/* Nút đóng */}
+                <button
+                  type="button"
+                  onClick={() => setPayOSData(null)}
+                  className="w-full text-center text-xs text-gray-500 hover:text-gray-800 py-1.5 transition cursor-pointer"
+                >
+                  Đóng cửa sổ này
+                </button>
+              </div>
+
+            </div>
+
+          </div>
+        </div>
+      )}
+
     </main>
   );
 }
