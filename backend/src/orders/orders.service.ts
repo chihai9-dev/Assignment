@@ -251,7 +251,8 @@ export class OrdersService {
   }
 
   // Lấy chi tiết đơn hàng theo ID, kèm món, sản phẩm và thanh toán
-  async findOne(id: number) {
+  // Nếu truyền userId: kiểm tra quyền (khách hàng chỉ được xem đơn do chính mình mua)
+  async findOne(id: number, userId?: number) {
     const order = await this.prisma.order.findUnique({
       where: {
         id: BigInt(id) as any,
@@ -275,7 +276,31 @@ export class OrdersService {
       throw new NotFoundException(`Đơn hàng #${id} không tồn tại`);
     }
 
+    if (userId !== undefined) {
+      const isOwner = Number(order.userId) === userId;
+      if (!isOwner) {
+        const user = await this.usersService.findOne(userId);
+        const isStaff =
+          user &&
+          ((user as any).role === 'barista' ||
+            (user as any).email?.toLowerCase().includes('barista') ||
+            (user as any).email?.toLowerCase().includes('staff') ||
+            (user as any).email?.toLowerCase().includes('admin'));
+
+        if (!isStaff) {
+          throw new ForbiddenException(
+            'Khách hàng chỉ có quyền xem lịch sử đơn hàng của mình, không có quyền xem đơn hàng của người khác',
+          );
+        }
+      }
+    }
+
     return order;
+  }
+
+  // Alias để controller hoặc các hàm gọi rõ ràng mục đích
+  async findOneForUser(id: number, userId: number) {
+    return this.findOne(id, userId);
   }
 
   // Kiểm tra chuyển đổi trạng thái hợp lệ theo Order State Machine

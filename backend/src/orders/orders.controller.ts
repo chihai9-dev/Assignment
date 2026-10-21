@@ -108,9 +108,13 @@ export class OrdersController {
   }
 
   // Lấy chi tiết đơn hàng theo ID (đặt sau các route cụ thể để tránh conflict routing)
+  // Khách hàng chỉ có quyền xem đơn hàng do chính mình mua, không có quyền xem đơn của người khác
   @UseGuards(JwtAuthGuard)
   @Get(':id')
-  findOne(@Param('id', ParseIntPipe) id: number) {
-    return this.ordersService.findOne(id);
+  findOne(
+    @Param('id', ParseIntPipe) id: number,
+    @Request() req: { user: { userId: number; email: string; role?: string } },
+  ) {
+    return this.ordersService.findOneForUser(id, Number(req.user.userId));
   }
 }

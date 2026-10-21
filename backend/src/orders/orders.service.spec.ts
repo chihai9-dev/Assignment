@@ -133,4 +133,73 @@ describe('OrdersService', () => {
       expect(mockPrisma.order.update).toHaveBeenCalled();
     });
   });
+
+  describe('findOne (Quyền xem chi tiết đơn hàng / Lịch sử đơn)', () => {
+    it('Khách hàng xem đơn hàng của chính mình -> thành công', async () => {
+      const customerId = 10;
+      const orderId = 101;
+
+      mockPrisma.order.findUnique.mockResolvedValue({
+        id: BigInt(orderId),
+        userId: BigInt(customerId),
+        status: order_status.PAID,
+        OrderItem: [],
+        Payment: [],
+      });
+
+      const order = await service.findOne(orderId, customerId);
+
+      expect(order).toBeDefined();
+      expect(Number(order.userId)).toBe(customerId);
+    });
+
+    it('Khách hàng xem đơn hàng của người khác -> ném ForbiddenException', async () => {
+      const currentCustomerId = 10;
+      const otherCustomerId = 99;
+      const orderId = 102;
+
+      mockPrisma.order.findUnique.mockResolvedValue({
+        id: BigInt(orderId),
+        userId: BigInt(otherCustomerId),
+        status: order_status.PAID,
+        OrderItem: [],
+        Payment: [],
+      });
+
+      mockUsersService.findOne.mockResolvedValue({
+        id: currentCustomerId,
+        email: 'customer@brewlite.com',
+        role: 'customer',
+      });
+
+      await expect(
+        service.findOne(orderId, currentCustomerId),
+      ).rejects.toThrow(ForbiddenException);
+    });
+
+    it('Barista có thể xem chi tiết đơn hàng của bất kỳ khách hàng nào để xử lý pha chế', async () => {
+      const baristaId = 2;
+      const customerId = 99;
+      const orderId = 103;
+
+      mockPrisma.order.findUnique.mockResolvedValue({
+        id: BigInt(orderId),
+        userId: BigInt(customerId),
+        status: order_status.PREPARING,
+        OrderItem: [],
+        Payment: [],
+      });
+
+      mockUsersService.findOne.mockResolvedValue({
+        id: baristaId,
+        email: 'barista@brewlite.com',
+        role: 'barista',
+      });
+
+      const order = await service.findOne(orderId, baristaId);
+
+      expect(order).toBeDefined();
+      expect(Number(order.id)).toBe(orderId);
+    });
+  });
 });
