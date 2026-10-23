@@ -13,6 +13,12 @@ export interface Product {
   imageUrl: string;
   description?: string;
   categoryId?: number;
+  category?: Category | null;
+}
+
+export interface Category {
+  id: number;
+  name: string;
 }
 
 export interface ToppingItem {
