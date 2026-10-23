@@ -3,26 +3,14 @@
 import Link from "next/link";
 import { useEffect, useState, useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCartStore } from "../store/cartStore";
+import { useProducts } from "./hooks/useProducts";
 import {
   CoffeeCupIcon,
-  TruckIcon,
   CardIcon,
   PlusIcon,
   ArrowRightIcon,
   SearchIcon,
-  CoffeeBeanIcon
 } from "./components/Icons";
-
-// Kiểu dữ liệu sản phẩm
-interface Product {
-  id: number;
-  name: string;
-  price: number;
-  imageUrl: string;
-  category?: string;
-  stock?: number;
-}
 
 // Danh mục menu chuẩn theo mockup
 const CATEGORIES = [
@@ -33,59 +21,14 @@ const CATEGORIES = [
   { id: "OTHER", label: "Khác" },
 ];
 
-// Dữ liệu mẫu dự phòng chuẩn theo đúng Mockup Screen 2 (Bảng giao diện)
-const DEFAULT_PRODUCTS: Product[] = [
-  {
-    id: 1,
-    name: "Cà phê sữa",
-    price: 30000,
-    imageUrl: "https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=600&auto=format&fit=crop&q=80",
-    category: "COFFEE",
-  },
-  {
-    id: 2,
-    name: "Cà phê đen",
-    price: 25000,
-    imageUrl: "https://images.unsplash.com/photo-1551030173-122aabc4489c?w=600&auto=format&fit=crop&q=80",
-    category: "COFFEE",
-  },
-  {
-    id: 3,
-    name: "Bạc xỉu",
-    price: 35000,
-    imageUrl: "https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=600&auto=format&fit=crop&q=80",
-    category: "COFFEE",
-  },
-  {
-    id: 4,
-    name: "Trà đào",
-    price: 40000,
-    imageUrl: "https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=600&auto=format&fit=crop&q=80",
-    category: "TEA",
-  },
-  {
-    id: 5,
-    name: "Trà sữa",
-    price: 45000,
-    imageUrl: "https://images.unsplash.com/photo-1576092768241-dec231879fc3?w=600&auto=format&fit=crop&q=80",
-    category: "MILKTEA",
-  },
-  {
-    id: 6,
-    name: "Matcha latte",
-    price: 45000,
-    imageUrl: "https://images.unsplash.com/photo-1536256263959-770b48d82b0a?w=600&auto=format&fit=crop&q=80",
-    category: "OTHER",
-  },
-];
-
 function HomeContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const [products, setProducts] = useState<Product[]>(DEFAULT_PRODUCTS);
+
+  // Gọi danh sách sản phẩm từ custom hook dùng chung
+  const { products: apiProducts, isLoading } = useProducts();
+
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
   const [searchTerm, setSearchTerm] = useState<string>("");
-  const [isLoading, setIsLoading] = useState<boolean>(true);
 
   // Nhận search query từ URL nếu có
   useEffect(() => {
@@ -95,40 +38,31 @@ function HomeContent() {
     }
   }, [searchParams]);
 
-  // Tải danh sách món từ backend
-  useEffect(() => {
-    fetch("http://localhost:3001/api/products")
-      .then((res) => {
-        if (!res.ok) throw new Error("API network error");
-        return res.json();
-      })
-      .then((data) => {
-        const productList: Product[] = Array.isArray(data) ? data : data.data || [];
-        if (productList.length > 0) {
-          // Gán phân loại thông minh theo tên món
-          const mapped = productList.map((p) => {
-            const lower = p.name.toLowerCase();
-            let cat = "OTHER";
-            if (lower.includes("cà phê") || lower.includes("americano") || lower.includes("cappuccino") || lower.includes("bạc xỉu") || lower.includes("espresso")) {
-              cat = "COFFEE";
-            } else if (lower.includes("trà sữa") || lower.includes("oolong") || lower.includes("boba")) {
-              cat = "MILKTEA";
-            } else if (lower.includes("trà")) {
-              cat = "TEA";
-            }
-            return { ...p, category: cat };
-          });
-          setProducts(mapped);
-        }
-      })
-      .catch(() => {
-        // Nếu backend chưa chạy, giữ danh sách sản phẩm mẫu theo đúng mockup
-        console.log("Dùng danh sách sản phẩm mẫu chuẩn giao diện");
-      })
-      .finally(() => {
-        setIsLoading(false);
-      });
-  }, []);
+  // Gán phân loại danh mục thông minh theo tên món từ danh sách API
+  const products = useMemo(() => {
+    return apiProducts.map((p) => {
+      const lower = p.name.toLowerCase();
+      let cat = "OTHER";
+      if (
+        lower.includes("cà phê") ||
+        lower.includes("americano") ||
+        lower.includes("cappuccino") ||
+        lower.includes("bạc xỉu") ||
+        lower.includes("espresso")
+      ) {
+        cat = "COFFEE";
+      } else if (
+        lower.includes("trà sữa") ||
+        lower.includes("oolong") ||
+        lower.includes("boba")
+      ) {
+        cat = "MILKTEA";
+      } else if (lower.includes("trà")) {
+        cat = "TEA";
+      }
+      return { ...p, category: cat };
+    });
+  }, [apiProducts]);
 
   // Lọc sản phẩm theo danh mục và tìm kiếm
   const filteredProducts = useMemo(() => {
@@ -144,7 +78,6 @@ function HomeContent() {
 
   return (
     <main className="w-full min-h-screen bg-[#FBF8F2] text-[#1F1F1F]">
-      
       {/* =========================================================
           1. BANNER HERO SECTION (Bề ngang full 100% trang web - Edge-to-edge)
       ========================================================= */}
@@ -161,7 +94,8 @@ function HomeContent() {
             <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 flex flex-col justify-center">
               <div className="max-w-md sm:max-w-lg md:max-w-xl space-y-3 sm:space-y-4 md:space-y-5 pointer-events-auto select-none pb-6 sm:pb-8">
                 <h1 className="font-black text-white text-3xl sm:text-4xl md:text-5xl lg:text-[54px] tracking-tight leading-[1.08] drop-shadow-lg">
-                  Good Coffee<br />
+                  Good Coffee
+                  <br />
                   Better Days
                 </h1>
 
@@ -174,7 +108,9 @@ function HomeContent() {
                     href="#menu"
                     onClick={(e) => {
                       e.preventDefault();
-                      document.getElementById('menu')?.scrollIntoView({ behavior: 'smooth' });
+                      document
+                        .getElementById("menu")
+                        ?.scrollIntoView({ behavior: "smooth" });
                     }}
                     className="inline-flex items-center gap-2 sm:gap-2.5 px-6 sm:px-7 md:px-8 py-3 sm:py-3.5 rounded-xl sm:rounded-2xl bg-gradient-to-r from-[#C76F26] via-[#B85F18] to-[#974709] hover:from-[#D87D30] hover:to-[#A85312] text-white font-bold text-xs sm:text-sm md:text-base shadow-xl shadow-amber-950/50 hover:shadow-amber-900/70 hover:scale-[1.02] active:scale-[0.98] transition-all duration-200 cursor-pointer border border-amber-400/30 group"
                     title="Khám phá menu"
@@ -192,7 +128,6 @@ function HomeContent() {
 
       {/* Container nội dung chính của trang (Cards, Menu, About) */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-16">
-        
         {/* =========================================================
             3 VALUE PROPOSITIONS (Tính năng nổi bật - Floating Cards)
         ========================================================= */}
@@ -203,7 +138,9 @@ function HomeContent() {
               <CoffeeCupIcon className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="font-bold text-sm sm:text-base text-[#3E2723]">Cà phê chất lượng</h3>
+              <h3 className="font-bold text-sm sm:text-base text-[#3E2723]">
+                Cà phê chất lượng
+              </h3>
               <p className="text-xs sm:text-sm text-[#756C65] mt-0.5 leading-snug">
                 Hương vị tuyệt hảo từ những hạt cà phê chọn lọc
               </p>
@@ -213,13 +150,21 @@ function HomeContent() {
           {/* Card 2 */}
           <div className="bg-white/95 backdrop-blur-sm border border-[#E8DFD8] rounded-2xl p-5 sm:p-6 flex items-center gap-4 shadow-lg hover:shadow-xl transition-all">
             <div className="w-12 h-12 rounded-xl bg-[#F5F0E6] text-[#3E2723] flex items-center justify-center shrink-0">
-              <svg className="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <svg
+                className="w-6 h-6"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+              >
                 <circle cx="12" cy="12" r="10" />
                 <polyline points="12 6 12 12 16 14" />
               </svg>
             </div>
             <div>
-              <h3 className="font-bold text-sm sm:text-base text-[#3E2723]">Nhận nhanh tại quầy</h3>
+              <h3 className="font-bold text-sm sm:text-base text-[#3E2723]">
+                Nhận nhanh tại quầy
+              </h3>
               <p className="text-xs sm:text-sm text-[#756C65] mt-0.5 leading-snug">
                 Không cần xếp hàng, nhận món ngay khi sẵn sàng
               </p>
@@ -232,7 +177,9 @@ function HomeContent() {
               <CardIcon className="w-6 h-6" />
             </div>
             <div>
-              <h3 className="font-bold text-sm sm:text-base text-[#3E2723]">Thanh toán tiện lợi</h3>
+              <h3 className="font-bold text-sm sm:text-base text-[#3E2723]">
+                Thanh toán tiện lợi
+              </h3>
               <p className="text-xs sm:text-sm text-[#756C65] mt-0.5 leading-snug">
                 Ví điện tử, thẻ, QR Chuyển khoản linh hoạt
               </p>
@@ -298,10 +245,19 @@ function HomeContent() {
           </div>
 
           {/* Product Grid (Lưới sản phẩm chuẩn Mockup) */}
-          {filteredProducts.length === 0 ? (
+          {isLoading ? (
+            <div className="text-center py-16 bg-white rounded-2xl border border-[#E8DFD8] p-8">
+              <div className="w-8 h-8 border-4 border-[#3E2723] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+              <p className="text-sm font-semibold text-[#8D6E63]">
+                Đang tải dữ liệu từ cửa hàng...
+              </p>
+            </div>
+          ) : filteredProducts.length === 0 ? (
             <div className="text-center py-16 bg-white rounded-2xl border border-[#E8DFD8] p-8">
               <CoffeeCupIcon className="w-12 h-12 text-[#D7A86E] mx-auto mb-3" />
-              <p className="text-lg font-bold text-[#3E2723]">Không tìm thấy đồ uống phù hợp</p>
+              <p className="text-lg font-bold text-[#3E2723]">
+                Không tìm thấy đồ uống phù hợp
+              </p>
               <p className="text-sm text-[#756C65] mt-1">
                 Hãy thử chọn danh mục khác hoặc xóa từ khóa tìm kiếm.
               </p>
@@ -376,7 +332,10 @@ function HomeContent() {
         {/* =========================================================
             ABOUT SECTION (Về chúng tôi)
         ========================================================= */}
-        <section id="about" className="bg-[#F5F0E6] rounded-3xl p-8 sm:p-12 border border-[#E8DFD8] scroll-mt-24">
+        <section
+          id="about"
+          className="bg-[#F5F0E6] rounded-3xl p-8 sm:p-12 border border-[#E8DFD8] scroll-mt-24"
+        >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
             <div className="space-y-4">
               <span className="text-xs font-bold uppercase tracking-wider text-[#8D6E63]">
@@ -386,7 +345,10 @@ function HomeContent() {
                 Hạt cà phê nguyên bản, trải nghiệm đặt món tiện lợi
               </h2>
               <p className="text-sm text-[#5C4D44] leading-relaxed">
-                BrewLite được sinh ra với sứ mệnh mang lại những ly cà phê nguyên chất tuyệt hảo nhất, cùng với giải pháp thanh toán không dùng tiền mặt hiện đại. Tiết kiệm thời gian, chọn vị yêu thích và thưởng thức từng khoảnh khắc trọn vẹn.
+                BrewLite được sinh ra với sứ mệnh mang lại những ly cà phê
+                nguyên chất tuyệt hảo nhất, cùng với giải pháp thanh toán không
+                dùng tiền mặt hiện đại. Tiết kiệm thời gian, chọn vị yêu thích
+                và thưởng thức từng khoảnh khắc trọn vẹn.
               </p>
               <div className="flex items-center gap-6 pt-2 text-xs font-semibold text-[#3E2723]">
                 <div className="flex items-center gap-2">
@@ -413,7 +375,6 @@ function HomeContent() {
             </div>
           </div>
         </section>
-
       </div>
     </main>
   );
@@ -421,7 +382,13 @@ function HomeContent() {
 
 export default function HomePage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#FBF8F2] flex items-center justify-center text-sm text-[#756C65]">Đang tải...</div>}>
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-[#FBF8F2] flex items-center justify-center text-sm text-[#756C65]">
+          Đang tải...
+        </div>
+      }
+    >
       <HomeContent />
     </Suspense>
   );
