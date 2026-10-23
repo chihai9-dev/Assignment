@@ -1,0 +1,450 @@
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { order_status } from '@prisma/client';
+import { PrismaService } from '../prisma/prisma.service';
+import { UsersService } from '../users/users.service';
+import { CreateOrderDto } from './dto/create-order.dto';
+
+@Injectable()
+export class OrdersService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly usersService: UsersService,
+  ) {}
+
+  async create(createOrderDto: CreateOrderDto, userId: number) {
+    // 1. Tính tổng tiền gốc của đơn hàng
+    const rawTotal = createOrderDto.items.reduce(
+      (sum, item) => sum + item.price * item.qty,
+      0,
+    );
+
+    // 2. Xử lý giảm giá theo điểm tích lũy (loyaltyPoints) của User (Hạng thành viên)
+    let loyaltyPoints = 0;
+    try {
+      const user = await this.usersService.findOne(userId);
+      if (user && typeof user.loyaltyPoints === 'number') {
+        loyaltyPoints = user.loyaltyPoints;
+      }
+    } catch {
+      loyaltyPoints = 0;
+    }
+
+    let discountPercent = 0;
+    let membershipTier = 'Đồng';
+
+    if (loyaltyPoints >= 100) {
+      discountPercent = 15;
+      membershipTier = 'Kim Cương';
+    } else if (loyaltyPoints >= 50) {
+      discountPercent = 10;
+      membershipTier = 'Vàng';
+    } else if (loyaltyPoints >= 20) {
+      discountPercent = 5;
+      membershipTier = 'Bạc';
+    }
+
+    const discountAmount = Math.round((rawTotal * discountPercent) / 100);
+    const finalTotal = Math.max(0, rawTotal - discountAmount);
+
+    // 3. Sử dụng Transaction + Optimistic Locking để trừ tồn kho an toàn khi đặt đồng thời (Task 10 - Yêu cầu 3)
+    const order = await this.prisma.$transaction(async (tx) => {
+      for (const item of createOrderDto.items) {
+        const product = await tx.product.findUnique({
+          where: { id: BigInt(item.productId) as any },
+        });
+
+        if (!product) {
+          throw new NotFoundException(`Sản phẩm #${item.productId} không tồn tại`);
+        }
+
+        if (product.stock < item.qty) {
+          throw new BadRequestException(
+            `Sản phẩm "${product.name}" không đủ số lượng tồn kho (còn ${product.stock}, yêu cầu ${item.qty})`,
+          );
+        }
+
+        // Optimistic locking: kiểm tra version và số lượng tồn kho trong điều kiện update
+        const updateResult = await tx.product.updateMany({
+          where: {
+            id: product.id,
+            version: product.version, // Khóa lạc quan (Optimistic Concurrency Control)
+            stock: { gte: item.qty },
+          },
+          data: {
+            stock: { decrement: item.qty },
+            version: { increment: 1 },
+          },
+        });
+
+        if (updateResult.count === 0) {
+          throw new ConflictException(
+            `Xung đột tồn kho khi nhiều khách đặt đồng thời sản phẩm "${product.name}". Vui lòng thử lại!`,
+          );
+        }
+      }
+
+      // Lấy danh sách Topping từ DB nếu có để lưu vào OrderItemTopping
+      const allToppingNames = new Set<string>();
+      for (const item of createOrderDto.items) {
+        if (item.toppings && Array.isArray(item.toppings)) {
+          item.toppings.forEach((t) => allToppingNames.add(t));
+        }
+      }
+
+      const toppingsMap = new Map<string, { id: number; price: number }>();
+      if (allToppingNames.size > 0 && (tx as any).topping) {
+        const dbToppings = await (tx as any).topping.findMany({
+          where: { name: { in: Array.from(allToppingNames) } },
+        });
+        dbToppings.forEach((t: any) => toppingsMap.set(t.name, { id: t.id, price: t.price }));
+      }
+
+      // Tạo đơn hàng với trạng thái PENDING
+      return tx.order.create({
+        data: {
+          userId: BigInt(userId) as any,
+          status: order_status.PENDING,
+          total: finalTotal,
+          OrderItem: {
+            create: createOrderDto.items.map((item) => {
+              const itemToppings = (item.toppings || [])
+                .map((name) => toppingsMap.get(name))
+                .filter(Boolean);
+
+              return {
+                size: item.size as any,
+                qty: item.qty,
+                lineTotal: item.price * item.qty,
+                Product: {
+                  connect: { id: BigInt(item.productId) as any },
+                },
+                ...(itemToppings.length > 0 && (tx as any).orderItemTopping
+                  ? {
+                      OrderItemTopping: {
+                        create: itemToppings.map((t) => ({
+                          toppingId: t!.id,
+                          priceAtTime: t!.price,
+                        })),
+                      },
+                    }
+                  : {}),
+              };
+            }),
+          },
+        },
+      });
+    });
+
+    return {
+      message: 'Tạo đơn hàng thành công',
+      orderId: order.id,
+      total: finalTotal,
+      rawTotal,
+      discount: discountAmount,
+      loyaltyPoints,
+      discountPercent,
+      membershipTier,
+      voucher: null,
+    };
+  }
+
+  // Hủy đơn hàng và hoàn lại số lượng tồn kho (Order State Machine & Inventory Recovery)
+  async cancelOrder(id: number, userId: number) {
+    const order = await this.findOne(id);
+
+    // Kiểm tra quyền sở hữu đơn hàng
+    if (Number(order.userId) !== userId) {
+      const user = await this.usersService.findOne(userId);
+      const isStaff = user && ((user as any).role === 'barista' || (user as any).email?.includes('barista'));
+      if (!isStaff) {
+        throw new ForbiddenException('Bạn không có quyền hủy đơn hàng này');
+      }
+    }
+
+    this.assertTransition(order.status, order_status.CANCELLED);
+
+    return this.prisma.$transaction(async (tx) => {
+      // Hoàn lại tồn kho cho từng món trong đơn
+      for (const item of order.OrderItem) {
+        await tx.product.update({
+          where: { id: item.productId },
+          data: {
+            stock: { increment: item.qty },
+            version: { increment: 1 },
+          },
+        });
+      }
+
+      return tx.order.update({
+        where: { id: BigInt(id) as any },
+        data: { status: order_status.CANCELLED },
+        include: {
+          OrderItem: { include: { Product: true } },
+          Payment: true,
+        },
+      });
+    });
+  }
+
+  // Thử lại thanh toán sau khi lỗi: PAYMENT_FAILED -> PENDING
+  async retryPayment(id: number, userId: number) {
+    const order = await this.findOne(id);
+    if (Number(order.userId) !== userId) {
+      throw new ForbiddenException('Bạn không có quyền thao tác trên đơn hàng này');
+    }
+
+    this.assertTransition(order.status, order_status.PENDING);
+
+    return this.prisma.order.update({
+      where: { id: BigInt(id) as any },
+      data: { status: order_status.PENDING },
+      include: {
+        OrderItem: { include: { Product: true } },
+        Payment: true,
+      },
+    });
+  }
+
+  // Chuyển đơn sang PAYMENT_FAILED khi thanh toán lỗi
+  async markPaymentFailed(id: number) {
+    const order = await this.findOne(id);
+    this.assertTransition(order.status, order_status.PAYMENT_FAILED);
+
+    return this.prisma.order.update({
+      where: { id: BigInt(id) as any },
+      data: { status: order_status.PAYMENT_FAILED },
+      include: {
+        OrderItem: { include: { Product: true } },
+        Payment: true,
+      },
+    });
+  }
+
+  // Lấy danh sách đơn hàng của một người dùng, kèm theo các món và sản phẩm
+  async findAllByUser(userId: number) {
+    return this.prisma.order.findMany({
+      where: {
+        userId: BigInt(userId) as any,
+      },
+      include: {
+        OrderItem: {
+          include: {
+            Product: true,
+            OrderItemTopping: {
+              include: {
+                Topping: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: {
+        createdAt: 'desc',
+      },
+    });
+  }
+
+  // Lấy chi tiết đơn hàng theo ID, kèm món, sản phẩm và thanh toán
+  // Nếu truyền userId: kiểm tra quyền (khách hàng chỉ được xem đơn do chính mình mua)
+  async findOne(id: number, userId?: number) {
+    const order = await this.prisma.order.findUnique({
+      where: {
+        id: BigInt(id) as any,
+      },
+      include: {
+        OrderItem: {
+          include: {
+            Product: true,
+            OrderItemTopping: {
+              include: {
+                Topping: true,
+              },
+            },
+          },
+        },
+        Payment: true,
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Đơn hàng #${id} không tồn tại`);
+    }
+
+    if (userId !== undefined) {
+      const isOwner = Number(order.userId) === userId;
+      if (!isOwner) {
+        const user = await this.usersService.findOne(userId);
+        const isStaff =
+          user &&
+          ((user as any).role === 'barista' ||
+            (user as any).email?.toLowerCase().includes('barista') ||
+            (user as any).email?.toLowerCase().includes('staff') ||
+            (user as any).email?.toLowerCase().includes('admin'));
+
+        if (!isStaff) {
+          throw new ForbiddenException(
+            'Khách hàng chỉ có quyền xem lịch sử đơn hàng của mình, không có quyền xem đơn hàng của người khác',
+          );
+        }
+      }
+    }
+
+    return order;
+  }
+
+  // Alias để controller hoặc các hàm gọi rõ ràng mục đích
+  async findOneForUser(id: number, userId: number) {
+    return this.findOne(id, userId);
+  }
+
+  // Kiểm tra chuyển đổi trạng thái hợp lệ theo Order State Machine
+  assertTransition(currentStatus: string, newStatus: string): void {
+    const validTransitions: Record<string, string[]> = {
+      [order_status.PENDING]: [
+        order_status.PAID,
+        order_status.PAYMENT_FAILED,
+        order_status.CANCELLED,
+      ],
+      [order_status.PAYMENT_FAILED]: [
+        order_status.PENDING,
+        order_status.CANCELLED,
+      ],
+      [order_status.PAID]: [
+        order_status.PREPARING,
+        order_status.CANCELLED,
+      ],
+      [order_status.PREPARING]: [
+        order_status.READY,
+      ],
+      [order_status.READY]: [
+        order_status.COMPLETED,
+      ],
+    };
+
+    const allowed = validTransitions[currentStatus] ?? [];
+    if (!allowed.includes(newStatus)) {
+      throw new BadRequestException(
+        `Chuyển đổi trạng thái không hợp lệ: không thể chuyển từ ${currentStatus} sang ${newStatus}`,
+      );
+    }
+  }
+
+  // Cập nhật trạng thái đơn hàng có kiểm tra State Machine
+  async updateStatus(id: number, newStatus: string) {
+    const order = await this.findOne(id);
+    this.assertTransition(order.status, newStatus);
+
+    return this.prisma.order.update({
+      where: {
+        id: BigInt(id) as any,
+      },
+      data: {
+        status: newStatus as order_status,
+      },
+      include: {
+        OrderItem: {
+          include: {
+            Product: true,
+            OrderItemTopping: {
+              include: {
+                Topping: true,
+              },
+            },
+          },
+        },
+        Payment: true,
+      },
+    });
+  }
+
+  // Lấy hàng đợi đơn hàng:
+  // - Nếu là Barista / Quản lý: lấy toàn bộ đơn hàng trong hàng đợi (PAID, PREPARING, READY)
+  // - Nếu là Khách hàng: CHỈ lấy đơn hàng của chính mình (không xem được đơn người khác)
+  async findBaristaQueue(userId?: number) {
+    let isCustomer = false;
+    let customerUserId: number | null = null;
+
+    if (userId) {
+      try {
+        const user = await this.usersService.findOne(userId);
+        const isBarista =
+          user &&
+          ((user as any).role === 'barista' ||
+            (user as any).email?.toLowerCase().includes('barista') ||
+            (user as any).email?.toLowerCase().includes('staff') ||
+            (user as any).email?.toLowerCase().includes('admin'));
+
+        if (!isBarista) {
+          isCustomer = true;
+          customerUserId = userId;
+        }
+      } catch {
+        isCustomer = true;
+        customerUserId = userId;
+      }
+    }
+
+    const whereClause: any = {
+      status: {
+        in: [
+          order_status.PAID,
+          order_status.PREPARING,
+          order_status.READY,
+          ...(isCustomer ? [order_status.COMPLETED] : []),
+        ],
+      },
+    };
+
+    if (isCustomer && customerUserId) {
+      whereClause.userId = BigInt(customerUserId);
+    }
+
+    return this.prisma.order.findMany({
+      where: whereClause,
+      include: {
+        OrderItem: {
+          include: {
+            Product: true,
+            OrderItemTopping: {
+              include: {
+                Topping: true,
+              },
+            },
+          },
+        },
+        User: {
+          select: {
+            id: true,
+            email: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: isCustomer ? 'desc' : 'asc',
+      },
+    });
+  }
+
+  // Barista cập nhật trạng thái đơn hàng (kiểm tra quyền barista từ DB, khách hàng không có quyền)
+  async baristaUpdateStatus(orderId: number, newStatus: string, userId: number) {
+    const user = await this.usersService.findOne(userId);
+    const isBarista =
+      user &&
+      ((user as any).role === 'barista' ||
+        (user as any).email?.toLowerCase().includes('barista') ||
+        (user as any).email?.toLowerCase().includes('staff') ||
+        (user as any).email?.toLowerCase().includes('admin'));
+
+    if (!isBarista) {
+      throw new ForbiddenException('Khách hàng không có quyền chỉnh sửa trạng thái đơn hàng');
+    }
+
+    return this.updateStatus(orderId, newStatus);
+  }
+}
