@@ -39,17 +39,20 @@ export class ProductsService {
   async create(createProductDto: CreateProductDto) {
     return this.prisma.product.create({
       data: createProductDto,
+      include: { category: true },
     });
   }
   async findAll() {
     return this.prisma.product.findMany({
       where: {status: 'active'},
       orderBy: { createdAt: 'asc' },
+      include: { category: true },
     });
   }
    async findOne(id: number) {
     const product = await this.prisma.product.findUnique({
       where: { id },
+      include: { category: true },
     });
     if (!product) {
       throw new NotFoundException(`Không tìm thấy sản phẩm với ID: ${id}`);
@@ -62,6 +65,7 @@ export class ProductsService {
     return this.prisma.product.update({
       where: { id },
       data: updateProductDto,
+      include: { category: true },
     });
   }
   async remove(id: number) {

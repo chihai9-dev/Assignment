@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useEffect, useState, useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useProducts } from "./hooks/useProducts";
+import { fetchCategories } from "./services/categoryService";
+import { Category } from "./types";
 import {
   CoffeeCupIcon,
   CardIcon,
@@ -12,23 +14,22 @@ import {
   SearchIcon,
 } from "./components/Icons";
 
-// Danh mục menu chuẩn theo mockup
-const CATEGORIES = [
-  { id: "ALL", label: "Tất cả" },
-  { id: "COFFEE", label: "Cà phê" },
-  { id: "TEA", label: "Trà" },
-  { id: "MILKTEA", label: "Trà sữa" },
-  { id: "OTHER", label: "Khác" },
-];
-
 function HomeContent() {
   const searchParams = useSearchParams();
 
   // Gọi danh sách sản phẩm từ custom hook dùng chung
   const { products: apiProducts, isLoading } = useProducts();
 
-  const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState<number | "ALL">("ALL");
   const [searchTerm, setSearchTerm] = useState<string>("");
+
+  useEffect(() => {
+    fetchCategories().then(setCategories).catch((error) => {
+      console.error("Lỗi khi lấy danh mục:", error);
+      setCategories([]);
+    });
+  }, []);
 
   // Nhận search query từ URL nếu có
   useEffect(() => {
@@ -38,43 +39,19 @@ function HomeContent() {
     }
   }, [searchParams]);
 
-  // Gán phân loại danh mục thông minh theo tên món từ danh sách API
-  const products = useMemo(() => {
-    return apiProducts.map((p) => {
-      const lower = p.name.toLowerCase();
-      let cat = "OTHER";
-      if (
-        lower.includes("cà phê") ||
-        lower.includes("americano") ||
-        lower.includes("cappuccino") ||
-        lower.includes("bạc xỉu") ||
-        lower.includes("espresso")
-      ) {
-        cat = "COFFEE";
-      } else if (
-        lower.includes("trà sữa") ||
-        lower.includes("oolong") ||
-        lower.includes("boba")
-      ) {
-        cat = "MILKTEA";
-      } else if (lower.includes("trà")) {
-        cat = "TEA";
-      }
-      return { ...p, category: cat };
-    });
-  }, [apiProducts]);
-
   // Lọc sản phẩm theo danh mục và tìm kiếm
   const filteredProducts = useMemo(() => {
-    return products.filter((p) => {
+    return apiProducts.filter((p) => {
       const matchCategory =
-        selectedCategory === "ALL" || p.category === selectedCategory;
+        selectedCategory === "ALL" || p.categoryId === selectedCategory;
+      const search = searchTerm.toLowerCase().trim();
       const matchSearch =
         !searchTerm.trim() ||
-        p.name.toLowerCase().includes(searchTerm.toLowerCase().trim());
+        p.name.toLowerCase().includes(search) ||
+        (p.category?.name.toLowerCase().includes(search) ?? false);
       return matchCategory && matchSearch;
     });
-  }, [products, selectedCategory, searchTerm]);
+  }, [apiProducts, selectedCategory, searchTerm]);
 
   return (
     <main className="w-full min-h-screen bg-[#FBF8F2] text-[#1F1F1F]">
@@ -205,7 +182,7 @@ function HomeContent() {
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-[#E8DFD8] pb-5">
             {/* Filter Pills */}
             <div className="flex flex-wrap items-center gap-2">
-              {CATEGORIES.map((cat) => {
+              {[{ id: "ALL" as const, label: "Tất cả" }, ...categories.map((cat) => ({ id: cat.id, label: cat.name }))].map((cat) => {
                 const isActive = selectedCategory === cat.id;
                 return (
                   <button

@@ -138,9 +138,9 @@ NEXT_PUBLIC_API_URL=http://localhost:3001
 cd backend
 npm install
 
-# Khởi tạo schema và migrate cơ sở dữ liệu
+# Tạo schema từ các migration đã có
 npx prisma generate
-npx prisma migrate dev --name init
+npx prisma migrate deploy
 
 # Khởi chạy chế độ Watch (Development)
 npm run start:dev
@@ -164,10 +164,12 @@ Dưới đây là các câu lệnh hữu ích khi làm việc với Database (ch
 
 | Mục đích | Câu lệnh | Khi nào sử dụng? |
 | :--- | :--- | :--- |
-| **Đồng bộ bảng mới** | `npx prisma db push` | Khi chỉnh sửa `prisma/schema.prisma` (thêm cột, thêm bảng, đổi kiểu). |
+| **Tạo migration cho schema mới** | `npx prisma migrate dev --name <ten_thay_doi>` | Sau khi chỉnh sửa `prisma/schema.prisma` (thêm cột, thêm bảng, đổi kiểu). |
 | **Nạp dữ liệu mẫu** | `node prisma/seed.js` | Tạo sẵn 6 món cà phê, 5 loại topping và tài khoản test (`customer`, `barista`). |
 | **Xóa sạch & làm mới CSDL** | `npx prisma db push --force-reset`<br>`node prisma/seed.js` | Khi muốn xóa toàn bộ đơn hàng test và đưa CSDL về trạng thái sạch ban đầu. |
 | **Xem & chỉnh sửa dữ liệu (UI)** | `npx prisma studio` | Mở giao diện Web quản trị dữ liệu trực quan tại [http://localhost:5555](http://localhost:5555). |
+
+Từ thay đổi danh mục sản phẩm, schema được quản lý bằng Prisma Migrate. Với database mới, chạy `npx prisma migrate deploy` để tạo toàn bộ schema. Với database đã có các bảng hiện tại nhưng chưa có lịch sử migration, chạy một lần `npx prisma migrate resolve --applied 20261023150000_init`, sau đó `npx prisma migrate deploy` để thêm bảng danh mục và khóa ngoại cho sản phẩm. Khi phát triển thay đổi schema tiếp theo, dùng `npx prisma migrate dev --name <ten_thay_doi>`.
 
 ---
 

@@ -25,6 +25,7 @@ export async function fetchAllProducts(): Promise<Product[]> {
         : "",
       description: p.description || "",
       categoryId: p.categoryId ? Number(p.categoryId) : undefined,
+      category: p.category ? { id: Number(p.category.id), name: p.category.name } : null,
     }));
   } catch (error) {
     console.error("Lỗi khi lấy danh sách sản phẩm:", error);
