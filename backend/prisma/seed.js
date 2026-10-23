@@ -32,7 +32,18 @@ async function main() {
     },
   });
 
-  // 2. Thêm danh sách món cà phê nếu chưa có
+  // 2. Tạo danh mục đồ uống mặc định (có thể chạy seed nhiều lần)
+  const categoryNames = ['Cà phê', 'Trà', 'Trà sữa', 'Khác'];
+  const categories = {};
+  for (const name of categoryNames) {
+    categories[name] = await prisma.category.upsert({
+      where: { name },
+      update: {},
+      create: { name },
+    });
+  }
+
+  // 3. Thêm sản phẩm mẫu và gán danh mục
   const count = await prisma.product.count();
   if (count === 0) {
     const products = [
@@ -42,6 +53,7 @@ async function main() {
         imageUrl: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=600&auto=format&fit=crop&q=60',
         stock: 100,
         status: 'active',
+        categoryId: categories['Cà phê'].id,
       },
       {
         name: 'Americano',
@@ -49,6 +61,7 @@ async function main() {
         imageUrl: 'https://images.unsplash.com/photo-1551030173-122aabc4489c?w=600&auto=format&fit=crop&q=60',
         stock: 100,
         status: 'active',
+        categoryId: categories['Cà phê'].id,
       },
       {
         name: 'Cappuccino',
@@ -56,6 +69,7 @@ async function main() {
         imageUrl: 'https://images.unsplash.com/photo-1534778101976-62847782c213?w=600&auto=format&fit=crop&q=60',
         stock: 100,
         status: 'active',
+        categoryId: categories['Cà phê'].id,
       },
       {
         name: 'Trà đào cam sả',
@@ -63,6 +77,7 @@ async function main() {
         imageUrl: 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=600&auto=format&fit=crop&q=60',
         stock: 100,
         status: 'active',
+        categoryId: categories['Trà'].id,
       },
       {
         name: 'Bạc xỉu 3 tầng',
@@ -70,6 +85,7 @@ async function main() {
         imageUrl: 'https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=600&auto=format&fit=crop&q=60',
         stock: 100,
         status: 'active',
+        categoryId: categories['Cà phê'].id,
       },
       {
         name: 'Trà sữa Oolong nướng',
@@ -77,6 +93,7 @@ async function main() {
         imageUrl: 'https://images.unsplash.com/photo-1576092768241-dec231879fc3?w=600&auto=format&fit=crop&q=60',
         stock: 100,
         status: 'active',
+        categoryId: categories['Trà sữa'].id,
       },
     ];
 
@@ -86,6 +103,19 @@ async function main() {
     console.log(`Đã thêm ${products.length} sản phẩm mẫu vào menu.`);
   } else {
     console.log('Sản phẩm menu đã tồn tại, bỏ qua bước tạo sản phẩm.');
+  }
+
+  // Đồng bộ danh mục cho các sản phẩm mẫu đã tồn tại từ trước.
+  const productCategories = [
+    ['Cà phê sữa đá', categories['Cà phê'].id],
+    ['Americano', categories['Cà phê'].id],
+    ['Cappuccino', categories['Cà phê'].id],
+    ['Bạc xỉu 3 tầng', categories['Cà phê'].id],
+    ['Trà đào cam sả', categories['Trà'].id],
+    ['Trà sữa Oolong nướng', categories['Trà sữa'].id],
+  ];
+  for (const [name, categoryId] of productCategories) {
+    await prisma.product.updateMany({ where: { name }, data: { categoryId } });
   }
 
   // 3. Thêm danh sách Topping nếu chưa có
