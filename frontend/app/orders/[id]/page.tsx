@@ -249,6 +249,10 @@ export default function OrderConfirmationPage() {
     className: 'bg-gray-100 text-gray-800',
   };
 
+  const primaryProductImage =
+    order.OrderItem?.[0]?.Product?.imageUrl ||
+    'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=600&auto=format&fit=crop&q=85';
+
   const formattedDate = new Date(order.createdAt).toLocaleString('vi-VN', {
     day: '2-digit',
     month: '2-digit',
@@ -270,8 +274,8 @@ export default function OrderConfirmationPage() {
           <div className="md:col-span-5 flex justify-center">
             <div className="relative w-64 h-72 sm:w-72 sm:h-80 rounded-2xl overflow-hidden shadow-lg border-2 border-[#E8DFD8] bg-[#F5F0E6]">
               <img
-                src="https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=600&auto=format&fit=crop&q=85"
-                alt="BrewLite Success"
+                src={primaryProductImage}
+                alt={order.OrderItem?.[0]?.Product?.name || "BrewLite Coffee"}
                 className="w-full h-full object-cover"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent flex items-end p-4">
