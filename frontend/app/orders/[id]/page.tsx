@@ -249,6 +249,90 @@ export default function OrderConfirmationPage() {
     className: 'bg-gray-100 text-gray-800',
   };
 
+  // Cấu hình tiêu đề, thông điệp và biểu tượng tương ứng với trạng thái thực tế trong database
+  const statusHeaderMap: Record<
+    string,
+    { title: string; subtitle: string; iconBg: string; iconSvg: React.ReactNode }
+  > = {
+    PENDING: {
+      title: 'Đang chờ thanh toán',
+      subtitle: 'Đơn hàng đã được tạo trên hệ thống và đang chờ bạn hoàn tất chuyển khoản.',
+      iconBg: 'bg-amber-100 text-amber-800',
+      iconSvg: (
+        <svg className="w-8 h-8 text-amber-800" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      ),
+    },
+    PAID: {
+      title: 'Đặt hàng thành công!',
+      subtitle: 'Đã nhận thanh toán. Đơn hàng của bạn đã chuyển vào hàng đợi để chuẩn bị pha chế.',
+      iconBg: 'bg-[#D7A86E] text-[#3E2723]',
+      iconSvg: (
+        <svg className="w-8 h-8 text-[#2E1810]" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+        </svg>
+      ),
+    },
+    PREPARING: {
+      title: 'Đang pha chế đồ uống',
+      subtitle: 'Barista đang pha chế món theo đơn của bạn. Món sẽ sớm sẵn sàng!',
+      iconBg: 'bg-blue-100 text-blue-800',
+      iconSvg: <CoffeeCupIcon className="w-8 h-8 text-blue-800" />,
+    },
+    READY: {
+      title: 'Đồ uống đã sẵn sàng!',
+      subtitle: 'Món của bạn đã được pha chế xong. Mời bạn đến quầy BrewLite để nhận món.',
+      iconBg: 'bg-purple-100 text-purple-800',
+      iconSvg: (
+        <svg className="w-8 h-8 text-purple-800" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+        </svg>
+      ),
+    },
+    COMPLETED: {
+      title: 'Đơn hàng đã hoàn thành',
+      subtitle: 'Cảm ơn bạn đã thưởng thức đồ uống tại BrewLite. Chúc bạn một ngày tốt lành!',
+      iconBg: 'bg-emerald-100 text-emerald-800',
+      iconSvg: (
+        <svg className="w-8 h-8 text-emerald-800" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      ),
+    },
+    PAYMENT_FAILED: {
+      title: 'Thanh toán không thành công',
+      subtitle: 'Giao dịch thanh toán chưa thể hoàn tất. Bạn có thể kiểm tra hoặc thử lại.',
+      iconBg: 'bg-red-100 text-red-800',
+      iconSvg: (
+        <svg className="w-8 h-8 text-red-800" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+        </svg>
+      ),
+    },
+    CANCELLED: {
+      title: 'Đơn hàng đã bị hủy',
+      subtitle: 'Đơn hàng này đã được hủy và hệ thống đã hoàn trả lại số lượng tồn kho.',
+      iconBg: 'bg-gray-100 text-gray-700',
+      iconSvg: (
+        <svg className="w-8 h-8 text-gray-700" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      ),
+    },
+  };
+
+  const headerInfo = statusHeaderMap[order.status] || {
+    title: `Đơn hàng #${order.id}`,
+    subtitle: 'Thông tin chi tiết đơn hàng của bạn.',
+    iconBg: 'bg-[#D7A86E] text-[#3E2723]',
+    iconSvg: (
+      <svg className="w-8 h-8 text-[#2E1810]" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+      </svg>
+    ),
+  };
+
   const primaryProductImage =
     order.OrderItem?.[0]?.Product?.imageUrl ||
     'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=600&auto=format&fit=crop&q=85';
@@ -289,19 +373,19 @@ export default function OrderConfirmationPage() {
           {/* CỘT PHẢI: ICON CHECKMARK, TIÊU ĐỀ & THÔNG TIN ĐƠN */}
           <div className="md:col-span-7 space-y-6">
             
-            {/* Checkmark icon & Title */}
+            {/* Biểu tượng trạng thái & Tiêu đề tương ứng database */}
             <div className="space-y-2">
-              <div className="w-14 h-14 rounded-full bg-[#D7A86E] text-[#3E2723] flex items-center justify-center shadow-md">
-                <svg className="w-8 h-8 text-[#2E1810]" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
+              <div
+                className={`w-14 h-14 rounded-full ${headerInfo.iconBg} flex items-center justify-center shadow-md`}
+              >
+                {headerInfo.iconSvg}
               </div>
 
               <h1 className="text-2xl sm:text-3xl font-extrabold text-[#3E2723] tracking-tight pt-2">
-                Đặt hàng thành công!
+                {headerInfo.title}
               </h1>
               <p className="text-xs sm:text-sm text-[#756C65] leading-relaxed">
-                Cảm ơn bạn đã lựa chọn BrewLite. Chúng tôi sẽ sớm chuẩn bị đơn hàng của bạn.
+                {headerInfo.subtitle}
               </p>
             </div>
 
