@@ -3,26 +3,14 @@
 import Link from "next/link";
 import { useEffect, useState, useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCartStore } from "../store/cartStore";
+import { useProducts } from "./hooks/useProducts";
 import {
   CoffeeCupIcon,
-  TruckIcon,
   CardIcon,
   PlusIcon,
   ArrowRightIcon,
   SearchIcon,
-  CoffeeBeanIcon,
 } from "./components/Icons";
-
-// Kiểu dữ liệu sản phẩm
-interface Product {
-  id: number;
-  name: string;
-  price: number;
-  imageUrl: string;
-  category?: string;
-  stock?: number;
-}
 
 // Danh mục menu chuẩn theo mockup
 const CATEGORIES = [
@@ -33,65 +21,14 @@ const CATEGORIES = [
   { id: "OTHER", label: "Khác" },
 ];
 
-// Dữ liệu mẫu dự phòng chuẩn theo đúng Mockup Screen 2 (Bảng giao diện)
-const DEFAULT_PRODUCTS: Product[] = [
-  {
-    id: 1,
-    name: "Cà phê sữa",
-    price: 30000,
-    imageUrl:
-      "https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=600&auto=format&fit=crop&q=80",
-    category: "COFFEE",
-  },
-  {
-    id: 2,
-    name: "Cà phê đen",
-    price: 25000,
-    imageUrl:
-      "https://images.unsplash.com/photo-1551030173-122aabc4489c?w=600&auto=format&fit=crop&q=80",
-    category: "COFFEE",
-  },
-  {
-    id: 3,
-    name: "Bạc xỉu",
-    price: 35000,
-    imageUrl:
-      "https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=600&auto=format&fit=crop&q=80",
-    category: "COFFEE",
-  },
-  {
-    id: 4,
-    name: "Trà đào",
-    price: 40000,
-    imageUrl:
-      "https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=600&auto=format&fit=crop&q=80",
-    category: "TEA",
-  },
-  {
-    id: 5,
-    name: "Trà sữa",
-    price: 45000,
-    imageUrl:
-      "https://images.unsplash.com/photo-1576092768241-dec231879fc3?w=600&auto=format&fit=crop&q=80",
-    category: "MILKTEA",
-  },
-  {
-    id: 6,
-    name: "Matcha latte",
-    price: 45000,
-    imageUrl:
-      "https://images.unsplash.com/photo-1536256263959-770b48d82b0a?w=600&auto=format&fit=crop&q=80",
-    category: "OTHER",
-  },
-];
-
 function HomeContent() {
-  const router = useRouter();
   const searchParams = useSearchParams();
-  const [products, setProducts] = useState<Product[]>(DEFAULT_PRODUCTS);
+
+  // Gọi danh sách sản phẩm từ custom hook dùng chung
+  const { products: apiProducts, isLoading } = useProducts();
+
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
   const [searchTerm, setSearchTerm] = useState<string>("");
-  const [isLoading, setIsLoading] = useState<boolean>(true);
 
   // Nhận search query từ URL nếu có
   useEffect(() => {
@@ -101,52 +38,31 @@ function HomeContent() {
     }
   }, [searchParams]);
 
-  // Tải danh sách món từ backend
-  useEffect(() => {
-    fetch("http://localhost:3001/api/products")
-      .then((res) => {
-        if (!res.ok) throw new Error("API network error");
-        return res.json();
-      })
-      .then((data) => {
-        const productList: Product[] = Array.isArray(data)
-          ? data
-          : data.data || [];
-        if (productList.length > 0) {
-          // Gán phân loại thông minh theo tên món
-          const mapped = productList.map((p) => {
-            const lower = p.name.toLowerCase();
-            let cat = "OTHER";
-            if (
-              lower.includes("cà phê") ||
-              lower.includes("americano") ||
-              lower.includes("cappuccino") ||
-              lower.includes("bạc xỉu") ||
-              lower.includes("espresso")
-            ) {
-              cat = "COFFEE";
-            } else if (
-              lower.includes("trà sữa") ||
-              lower.includes("oolong") ||
-              lower.includes("boba")
-            ) {
-              cat = "MILKTEA";
-            } else if (lower.includes("trà")) {
-              cat = "TEA";
-            }
-            return { ...p, category: cat };
-          });
-          setProducts(mapped);
-        }
-      })
-      .catch(() => {
-        // Nếu backend chưa chạy, giữ danh sách sản phẩm mẫu theo đúng mockup
-        console.log("Dùng danh sách sản phẩm mẫu chuẩn giao diện");
-      })
-      .finally(() => {
-        setIsLoading(false);
-      });
-  }, []);
+  // Gán phân loại danh mục thông minh theo tên món từ danh sách API
+  const products = useMemo(() => {
+    return apiProducts.map((p) => {
+      const lower = p.name.toLowerCase();
+      let cat = "OTHER";
+      if (
+        lower.includes("cà phê") ||
+        lower.includes("americano") ||
+        lower.includes("cappuccino") ||
+        lower.includes("bạc xỉu") ||
+        lower.includes("espresso")
+      ) {
+        cat = "COFFEE";
+      } else if (
+        lower.includes("trà sữa") ||
+        lower.includes("oolong") ||
+        lower.includes("boba")
+      ) {
+        cat = "MILKTEA";
+      } else if (lower.includes("trà")) {
+        cat = "TEA";
+      }
+      return { ...p, category: cat };
+    });
+  }, [apiProducts]);
 
   // Lọc sản phẩm theo danh mục và tìm kiếm
   const filteredProducts = useMemo(() => {
@@ -329,7 +245,14 @@ function HomeContent() {
           </div>
 
           {/* Product Grid (Lưới sản phẩm chuẩn Mockup) */}
-          {filteredProducts.length === 0 ? (
+          {isLoading ? (
+            <div className="text-center py-16 bg-white rounded-2xl border border-[#E8DFD8] p-8">
+              <div className="w-8 h-8 border-4 border-[#3E2723] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+              <p className="text-sm font-semibold text-[#8D6E63]">
+                Đang tải dữ liệu từ cửa hàng...
+              </p>
+            </div>
+          ) : filteredProducts.length === 0 ? (
             <div className="text-center py-16 bg-white rounded-2xl border border-[#E8DFD8] p-8">
               <CoffeeCupIcon className="w-12 h-12 text-[#D7A86E] mx-auto mb-3" />
               <p className="text-lg font-bold text-[#3E2723]">

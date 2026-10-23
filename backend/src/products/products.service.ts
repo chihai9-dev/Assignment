@@ -44,7 +44,7 @@ export class ProductsService {
   async findAll() {
     return this.prisma.product.findMany({
       where: {status: 'active'},
-      orderBy: { createdAt: 'desc' },
+      orderBy: { createdAt: 'asc' },
     });
   }
    async findOne(id: number) {
