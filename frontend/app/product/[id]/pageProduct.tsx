@@ -27,52 +27,6 @@ const SIZE_PRICES: Record<"S" | "M" | "L", number> = {
   L: 10000,
 };
 
-// Dữ liệu mẫu đồ uống chuẩn theo Mockup #3
-const SAMPLE_PRODUCTS: Record<string, Product> = {
-  "1": {
-    id: 1,
-    name: "Cà phê sữa",
-    price: 30000,
-    imageUrl: "https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=800&auto=format&fit=crop&q=85",
-    description: "Hương vị cà phê đậm đà kết hợp cùng vị sữa béo ngậy, tạo nên một thức uống kinh điển và khó quên.",
-  },
-  "2": {
-    id: 2,
-    name: "Cà phê đen",
-    price: 25000,
-    imageUrl: "https://images.unsplash.com/photo-1551030173-122aabc4489c?w=800&auto=format&fit=crop&q=85",
-    description: "Cà phê đen đậm vị truyền thống từ hạt cà phê Robusta và Arabica rang mộc, thơm nồng tỉnh táo.",
-  },
-  "3": {
-    id: 3,
-    name: "Bạc xỉu",
-    price: 35000,
-    imageUrl: "https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=800&auto=format&fit=crop&q=85",
-    description: "Sự hòa quyện ngọt ngào giữa sữa tươi, sữa đặc và một chút cà phê nguyên chất thanh nhẹ.",
-  },
-  "4": {
-    id: 4,
-    name: "Trà đào",
-    price: 40000,
-    imageUrl: "https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=800&auto=format&fit=crop&q=85",
-    description: "Trà đen thanh mát kết hợp với những miếng đào giòn tan thơm lừng sảng khoái.",
-  },
-  "5": {
-    id: 5,
-    name: "Trà sữa",
-    price: 45000,
-    imageUrl: "https://images.unsplash.com/photo-1576092768241-dec231879fc3?w=800&auto=format&fit=crop&q=85",
-    description: "Hương trà đậm đà cùng vị béo ngậy êm dịu, ngọt ngào hấp dẫn từ ngụm đầu tiên.",
-  },
-  "6": {
-    id: 6,
-    name: "Matcha latte",
-    price: 45000,
-    imageUrl: "https://images.unsplash.com/photo-1536256263959-770b48d82b0a?w=800&auto=format&fit=crop&q=85",
-    description: "Bột trà xanh Nhật Bản thượng hạng đánh mịn cùng sữa tươi nóng hoặc đá béo ngậy.",
-  },
-};
-
 export default function ProductDetailPage() {
   const params = useParams();
   const router = useRouter();
@@ -80,30 +34,26 @@ export default function ProductDetailPage() {
 
   const productIdStr = String(params?.id || "1");
 
-  const [product, setProduct] = useState<Product | null>(
-    SAMPLE_PRODUCTS[productIdStr] || null
-  );
+  const [product, setProduct] = useState<Product | null>(null);
   const [selectedSize, setSelectedSize] = useState<"S" | "M" | "L">("M");
-  const [selectedToppings, setSelectedToppings] = useState<string[]>(["Trân châu"]);
+  const [selectedToppings, setSelectedToppings] = useState<string[]>([]);
   const [quantity, setQuantity] = useState<number>(1);
   const [activeImage, setActiveImage] = useState<string>("");
   const [isAddedSuccess, setIsAddedSuccess] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
-  // Danh sách Topping chuẩn từ Mockup Screen 3
-  const [toppingsList, setToppingsList] = useState<ToppingItem[]>([
-    { id: 1, name: "Trân châu", price: 5000 },
-    { id: 2, name: "Thạch cà phê", price: 5000 },
-    { id: 3, name: "Nha đam", price: 5000 },
-    { id: 4, name: "Kem cheese", price: 7000 },
-    { id: 5, name: "Pudding trứng", price: 8000 },
-  ]);
+  // Danh sách Topping tải trực tiếp từ cơ sở dữ liệu
+  const [toppingsList, setToppingsList] = useState<ToppingItem[]>([]);
 
-  // Tải chi tiết sản phẩm và toppings từ API
+  // Tải chi tiết sản phẩm và toppings từ database qua API
   useEffect(() => {
+    setIsLoading(true);
+    setLoadError(null);
+
     fetch(`http://localhost:3001/api/products/${productIdStr}`)
       .then((res) => {
-        if (!res.ok) throw new Error("Product fetch error");
+        if (!res.ok) throw new Error("Không tìm thấy đồ uống trong cơ sở dữ liệu");
         return res.json();
       })
       .then((data) => {
@@ -116,41 +66,42 @@ export default function ProductDetailPage() {
             imageUrl: p.imageUrl,
             description:
               p.description ||
-              SAMPLE_PRODUCTS[productIdStr]?.description ||
-              "Hương vị cà phê tuyệt hảo, được pha chế từ nguồn hạt cà phê chọn lọc của BrewLite.",
+              "Hương vị tuyệt hảo, được pha chế từ nguồn nguyên liệu chọn lọc của BrewLite.",
           });
           setActiveImage(p.imageUrl);
+        } else {
+          setProduct(null);
         }
       })
-      .catch(() => {
-        // Fallback to sample product if API is offline
-        const sample = SAMPLE_PRODUCTS[productIdStr] || SAMPLE_PRODUCTS["1"];
-        setProduct(sample);
-        setActiveImage(sample.imageUrl);
+      .catch((err) => {
+        console.error("Lỗi khi tải thông tin sản phẩm từ cơ sở dữ liệu:", err);
+        setProduct(null);
+        setLoadError("Không thể tải thông tin sản phẩm từ cơ sở dữ liệu.");
       })
       .finally(() => {
         setIsLoading(false);
       });
 
-    // Tải danh sách toppings từ backend
+    // Tải danh sách toppings từ database
     fetch("http://localhost:3001/api/toppings")
-      .then((res) => res.json())
-      .then((data) => {
-        if (Array.isArray(data) && data.length > 0) {
-          setToppingsList(data);
-        }
+      .then((res) => {
+        if (!res.ok) throw new Error("Lỗi tải topping từ cơ sở dữ liệu");
+        return res.json();
       })
-      .catch(() => {});
+      .then((data) => {
+        const list = Array.isArray(data) ? data : data.data || [];
+        setToppingsList(list);
+      })
+      .catch((err) => {
+        console.error("Lỗi tải topping:", err);
+        setToppingsList([]);
+      });
   }, [productIdStr]);
 
-  // Gallery hình ảnh phụ (theo Mockup #3 có 3 thumbnail dưới ảnh chính)
+  // Danh sách hình ảnh của món (chỉ dùng ảnh thật từ cơ sở dữ liệu)
   const thumbnails = useMemo(() => {
-    if (!product) return [];
-    return [
-      product.imageUrl,
-      "https://images.unsplash.com/photo-1534778101976-62847782c213?w=400&auto=format&fit=crop&q=80",
-      "https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=400&auto=format&fit=crop&q=80",
-    ];
+    if (!product?.imageUrl) return [];
+    return [product.imageUrl];
   }, [product]);
 
   // Cập nhật topping checkbox
@@ -167,7 +118,7 @@ export default function ProductDetailPage() {
     const sizeExtra = SIZE_PRICES[selectedSize];
     const toppingsExtra = selectedToppings.reduce((sum, name) => {
       const found = toppingsList.find((t) => t.name === name);
-      return sum + (found ? Number(found.price) : 5000);
+      return sum + (found ? Number(found.price) : 0);
     }, 0);
     return base + sizeExtra + toppingsExtra;
   }, [product, selectedSize, selectedToppings, toppingsList]);
@@ -200,13 +151,27 @@ export default function ProductDetailPage() {
     }, 3000);
   };
 
-  if (!product && !isLoading) {
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-[#FBF8F2] flex items-center justify-center p-6 text-center">
+        <div className="bg-white p-8 rounded-2xl border border-[#E8DFD8] shadow-sm max-w-md w-full animate-pulse space-y-4">
+          <div className="w-16 h-16 bg-[#EFE9DF] rounded-full mx-auto" />
+          <div className="h-6 bg-[#EFE9DF] rounded w-3/4 mx-auto" />
+          <div className="h-4 bg-[#EFE9DF] rounded w-1/2 mx-auto" />
+        </div>
+      </div>
+    );
+  }
+
+  if (!product) {
     return (
       <div className="min-h-screen bg-[#FBF8F2] flex items-center justify-center p-6 text-center">
         <div className="bg-white p-8 rounded-2xl border border-[#E8DFD8] shadow-sm max-w-md">
           <CoffeeCupIcon className="w-12 h-12 text-[#8D6E63] mx-auto mb-3" />
           <h2 className="text-xl font-bold text-[#3E2723]">Không tìm thấy đồ uống</h2>
-          <p className="text-sm text-gray-500 mt-2 mb-6">Món bạn tìm kiếm không tồn tại hoặc đã ngừng phục vụ.</p>
+          <p className="text-sm text-gray-500 mt-2 mb-6">
+            {loadError || "Món bạn tìm kiếm không tồn tại trong cơ sở dữ liệu hoặc đã ngừng phục vụ."}
+          </p>
           <Link
             href="/"
             className="inline-block bg-[#3E2723] text-white px-6 py-2.5 rounded-xl font-semibold text-sm hover:bg-[#2E1C12]"
@@ -251,30 +216,32 @@ export default function ProductDetailPage() {
               />
             </div>
 
-            {/* 3 Thumbnails ảnh phụ */}
-            <div className="grid grid-cols-3 gap-3">
-              {thumbnails.map((imgUrl, idx) => {
-                const isSelected = (activeImage || product?.imageUrl) === imgUrl;
-                return (
-                  <button
-                    key={idx}
-                    type="button"
-                    onClick={() => setActiveImage(imgUrl)}
-                    className={`aspect-square rounded-xl overflow-hidden border-2 transition-all cursor-pointer ${
-                      isSelected
-                        ? "border-[#3E2723] ring-2 ring-[#3E2723]/20"
-                        : "border-[#E8DFD8] hover:border-[#8D6E63] opacity-80 hover:opacity-100"
-                    }`}
-                  >
-                    <img
-                      src={imgUrl}
-                      alt={`Thumbnail ${idx + 1}`}
-                      className="w-full h-full object-cover"
-                    />
-                  </button>
-                );
-              })}
-            </div>
+            {/* Thumbnails ảnh phụ (chỉ hiển thị khi có nhiều hơn 1 ảnh) */}
+            {thumbnails.length > 1 && (
+              <div className="grid grid-cols-3 gap-3">
+                {thumbnails.map((imgUrl, idx) => {
+                  const isSelected = (activeImage || product?.imageUrl) === imgUrl;
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => setActiveImage(imgUrl)}
+                      className={`aspect-square rounded-xl overflow-hidden border-2 transition-all cursor-pointer ${
+                        isSelected
+                          ? "border-[#3E2723] ring-2 ring-[#3E2723]/20"
+                          : "border-[#E8DFD8] hover:border-[#8D6E63] opacity-80 hover:opacity-100"
+                      }`}
+                    >
+                      <img
+                        src={imgUrl}
+                        alt={`Thumbnail ${idx + 1}`}
+                        className="w-full h-full object-cover"
+                      />
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* CỘT PHẢI: TÙY CHỌN & GIÁ */}
@@ -334,34 +301,40 @@ export default function ProductDetailPage() {
                   Chọn topping
                 </label>
                 <div className="space-y-2">
-                  {toppingsList.map((topping) => {
-                    const isChecked = selectedToppings.includes(topping.name);
-                    return (
-                      <label
-                        key={topping.id}
-                        className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-colors ${
-                          isChecked
-                            ? "bg-[#F5F0E6]/60 border-[#D7A86E]"
-                            : "bg-[#FDFBF7] border-[#E8DFD8] hover:bg-white"
-                        }`}
-                      >
-                        <div className="flex items-center gap-3">
-                          <input
-                            type="checkbox"
-                            checked={isChecked}
-                            onChange={() => handleToppingToggle(topping.name)}
-                            className="w-4.5 h-4.5 text-[#3E2723] rounded border-gray-300 focus:ring-[#8D6E63] accent-[#3E2723] cursor-pointer"
-                          />
-                          <span className="text-sm font-medium text-[#2E1810]">
-                            {topping.name}
+                  {toppingsList.length === 0 ? (
+                    <div className="p-3 rounded-xl border border-dashed border-[#E8DFD8] text-xs text-gray-500 text-center bg-[#FDFBF7]">
+                      Không có topping khả dụng
+                    </div>
+                  ) : (
+                    toppingsList.map((topping) => {
+                      const isChecked = selectedToppings.includes(topping.name);
+                      return (
+                        <label
+                          key={topping.id}
+                          className={`flex items-center justify-between p-3 rounded-xl border cursor-pointer transition-colors ${
+                            isChecked
+                              ? "bg-[#F5F0E6]/60 border-[#D7A86E]"
+                              : "bg-[#FDFBF7] border-[#E8DFD8] hover:bg-white"
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => handleToppingToggle(topping.name)}
+                              className="w-4.5 h-4.5 text-[#3E2723] rounded border-gray-300 focus:ring-[#8D6E63] accent-[#3E2723] cursor-pointer"
+                            />
+                            <span className="text-sm font-medium text-[#2E1810]">
+                              {topping.name}
+                            </span>
+                          </div>
+                          <span className="text-xs font-semibold text-[#8D6E63]">
+                            +{Number(topping.price).toLocaleString("vi-VN")}đ
                           </span>
-                        </div>
-                        <span className="text-xs font-semibold text-[#8D6E63]">
-                          +{Number(topping.price).toLocaleString("vi-VN")}đ
-                        </span>
-                      </label>
-                    );
-                  })}
+                        </label>
+                      );
+                    })
+                  )}
                 </div>
               </div>
             </div>
