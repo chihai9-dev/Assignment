@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { generateUUIDv4 } from '@/lib/uuid';
 import { useAuthStore } from '../../../store/authStore';
 import {
   CheckCircleIcon,
@@ -166,7 +167,7 @@ export default function OrderConfirmationPage() {
           orderId: Number(order.id),
           amount: Number(order.total),
           method: 'WALLET',
-          idempotencyKey: `manual-confirm-${order.id}-${Date.now()}`,
+          idempotencyKey: generateUUIDv4(),
         }),
       });
 
