@@ -33,59 +33,14 @@ const CATEGORIES = [
   { id: "OTHER", label: "Khác" },
 ];
 
-// Dữ liệu mẫu dự phòng chuẩn theo đúng Mockup Screen 2 (Bảng giao diện)
-const DEFAULT_PRODUCTS: Product[] = [
-  {
-    id: 1,
-    name: "Cà phê sữa",
-    price: 30000,
-    imageUrl: "https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=600&auto=format&fit=crop&q=80",
-    category: "COFFEE",
-  },
-  {
-    id: 2,
-    name: "Cà phê đen",
-    price: 25000,
-    imageUrl: "https://images.unsplash.com/photo-1551030173-122aabc4489c?w=600&auto=format&fit=crop&q=80",
-    category: "COFFEE",
-  },
-  {
-    id: 3,
-    name: "Bạc xỉu",
-    price: 35000,
-    imageUrl: "https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=600&auto=format&fit=crop&q=80",
-    category: "COFFEE",
-  },
-  {
-    id: 4,
-    name: "Trà đào",
-    price: 40000,
-    imageUrl: "https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=600&auto=format&fit=crop&q=80",
-    category: "TEA",
-  },
-  {
-    id: 5,
-    name: "Trà sữa",
-    price: 45000,
-    imageUrl: "https://images.unsplash.com/photo-1576092768241-dec231879fc3?w=600&auto=format&fit=crop&q=80",
-    category: "MILKTEA",
-  },
-  {
-    id: 6,
-    name: "Matcha latte",
-    price: 45000,
-    imageUrl: "https://images.unsplash.com/photo-1536256263959-770b48d82b0a?w=600&auto=format&fit=crop&q=80",
-    category: "OTHER",
-  },
-];
-
 function HomeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [products, setProducts] = useState<Product[]>(DEFAULT_PRODUCTS);
+  const [products, setProducts] = useState<Product[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<string>("ALL");
   const [searchTerm, setSearchTerm] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   // Nhận search query từ URL nếu có
   useEffect(() => {
@@ -95,39 +50,54 @@ function HomeContent() {
     }
   }, [searchParams]);
 
-  // Tải danh sách món từ backend
-  useEffect(() => {
+  // Tải danh sách món từ cơ sở dữ liệu backend
+  const fetchProducts = () => {
+    setIsLoading(true);
+    setLoadError(null);
     fetch("http://localhost:3001/api/products")
       .then((res) => {
-        if (!res.ok) throw new Error("API network error");
+        if (!res.ok) throw new Error("Không thể kết nối đến API máy chủ");
         return res.json();
       })
       .then((data) => {
         const productList: Product[] = Array.isArray(data) ? data : data.data || [];
-        if (productList.length > 0) {
-          // Gán phân loại thông minh theo tên món
-          const mapped = productList.map((p) => {
-            const lower = p.name.toLowerCase();
-            let cat = "OTHER";
-            if (lower.includes("cà phê") || lower.includes("americano") || lower.includes("cappuccino") || lower.includes("bạc xỉu") || lower.includes("espresso")) {
-              cat = "COFFEE";
-            } else if (lower.includes("trà sữa") || lower.includes("oolong") || lower.includes("boba")) {
-              cat = "MILKTEA";
-            } else if (lower.includes("trà")) {
-              cat = "TEA";
-            }
-            return { ...p, category: cat };
-          });
-          setProducts(mapped);
-        }
+        // Gán phân loại thông minh theo tên món
+        const mapped = productList.map((p) => {
+          const lower = p.name.toLowerCase();
+          let cat = "OTHER";
+          if (
+            lower.includes("cà phê") ||
+            lower.includes("americano") ||
+            lower.includes("cappuccino") ||
+            lower.includes("bạc xỉu") ||
+            lower.includes("espresso")
+          ) {
+            cat = "COFFEE";
+          } else if (
+            lower.includes("trà sữa") ||
+            lower.includes("oolong") ||
+            lower.includes("boba")
+          ) {
+            cat = "MILKTEA";
+          } else if (lower.includes("trà")) {
+            cat = "TEA";
+          }
+          return { ...p, category: cat };
+        });
+        setProducts(mapped);
       })
-      .catch(() => {
-        // Nếu backend chưa chạy, giữ danh sách sản phẩm mẫu theo đúng mockup
-        console.log("Dùng danh sách sản phẩm mẫu chuẩn giao diện");
+      .catch((err) => {
+        console.error("Lỗi tải sản phẩm từ cơ sở dữ liệu:", err);
+        setProducts([]);
+        setLoadError("Không thể tải danh sách sản phẩm từ cơ sở dữ liệu. Vui lòng đảm bảo backend đang chạy.");
       })
       .finally(() => {
         setIsLoading(false);
       });
+  };
+
+  useEffect(() => {
+    fetchProducts();
   }, []);
 
   // Lọc sản phẩm theo danh mục và tìm kiếm
@@ -297,23 +267,52 @@ function HomeContent() {
             </div>
           </div>
 
-          {/* Product Grid (Lưới sản phẩm chuẩn Mockup) */}
-          {filteredProducts.length === 0 ? (
+          {/* Product Grid */}
+          {isLoading ? (
+            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
+              {[1, 2, 3, 4, 5, 6].map((i) => (
+                <div
+                  key={i}
+                  className="bg-white rounded-2xl border border-[#E8DFD8] p-4 flex flex-col h-72 animate-pulse"
+                >
+                  <div className="w-full aspect-square bg-[#EFE9DF] rounded-xl mb-4" />
+                  <div className="h-4 bg-[#EFE9DF] rounded w-3/4 mb-2" />
+                  <div className="h-4 bg-[#EFE9DF] rounded w-1/3" />
+                </div>
+              ))}
+            </div>
+          ) : loadError ? (
+            <div className="text-center py-16 bg-white rounded-2xl border border-red-200 p-8">
+              <CoffeeCupIcon className="w-12 h-12 text-amber-700/60 mx-auto mb-3" />
+              <p className="text-lg font-bold text-[#3E2723]">Không thể tải thực đơn từ cơ sở dữ liệu</p>
+              <p className="text-sm text-[#756C65] mt-1">{loadError}</p>
+              <button
+                onClick={fetchProducts}
+                className="mt-4 inline-flex items-center gap-2 bg-[#3E2723] hover:bg-[#2E1C12] text-white px-5 py-2 rounded-xl text-xs font-bold transition shadow-sm"
+              >
+                Thử kết nối lại
+              </button>
+            </div>
+          ) : filteredProducts.length === 0 ? (
             <div className="text-center py-16 bg-white rounded-2xl border border-[#E8DFD8] p-8">
               <CoffeeCupIcon className="w-12 h-12 text-[#D7A86E] mx-auto mb-3" />
               <p className="text-lg font-bold text-[#3E2723]">Không tìm thấy đồ uống phù hợp</p>
               <p className="text-sm text-[#756C65] mt-1">
-                Hãy thử chọn danh mục khác hoặc xóa từ khóa tìm kiếm.
+                {searchTerm || selectedCategory !== "ALL"
+                  ? "Hãy thử chọn danh mục khác hoặc xóa từ khóa tìm kiếm."
+                  : "Chưa có đồ uống nào trong cơ sở dữ liệu."}
               </p>
-              <button
-                onClick={() => {
-                  setSelectedCategory("ALL");
-                  setSearchTerm("");
-                }}
-                className="mt-4 inline-block text-xs font-bold text-[#3E2723] underline"
-              >
-                Xem tất cả món
-              </button>
+              {(searchTerm || selectedCategory !== "ALL") && (
+                <button
+                  onClick={() => {
+                    setSelectedCategory("ALL");
+                    setSearchTerm("");
+                  }}
+                  className="mt-4 inline-block text-xs font-bold text-[#3E2723] underline"
+                >
+                  Xem tất cả món
+                </button>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">

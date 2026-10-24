@@ -46,16 +46,17 @@ const statusBadgeMap: Record<string, { label: string; className: string; categor
   PREPARING: { label: 'Đang pha chế', className: 'bg-amber-100 text-amber-800', category: 'PROCESSING' },
   READY: { label: 'Sẵn sàng nhận', className: 'bg-purple-100 text-purple-800', category: 'READY' },
   COMPLETED: { label: 'Đã hoàn thành', className: 'bg-emerald-100 text-emerald-800', category: 'COMPLETED' },
-  PAYMENT_FAILED: { label: 'Thanh toán lỗi', className: 'bg-red-100 text-red-800', category: 'OTHER' },
-  CANCELLED: { label: 'Đã hủy', className: 'bg-gray-100 text-gray-600', category: 'OTHER' },
+  PAYMENT_FAILED: { label: 'Thanh toán lỗi', className: 'bg-red-100 text-red-800', category: 'CANCELLED' },
+  CANCELLED: { label: 'Đã hủy', className: 'bg-gray-100 text-gray-600', category: 'CANCELLED' },
 };
 
-// Filter tabs: Tất cả, Đang xử lý, Sẵn sàng nhận, Đã hoàn thành
+// Filter tabs tương ứng các nhóm trạng thái đơn hàng trong database
 const TABS = [
   { id: 'ALL', label: 'Tất cả' },
   { id: 'PROCESSING', label: 'Đang xử lý' },
   { id: 'READY', label: 'Sẵn sàng nhận' },
   { id: 'COMPLETED', label: 'Đã hoàn thành' },
+  { id: 'CANCELLED', label: 'Đã hủy' },
 ];
 
 export default function OrderHistoryPage() {
