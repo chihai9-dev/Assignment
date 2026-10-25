@@ -201,7 +201,8 @@ export class PaymentsService implements OnModuleInit {
         orderCode,
         amount,
         description,
-        cancelUrl: 'http://localhost:3000/checkout',
+        cancelUrl: `http://localhost:3000/cart?status=cancelled&reason=payos_timeout&orderId=${orderId}`,
+        expiredAt: Math.floor(Date.now() / 1000) + 5 * 60,
         returnUrl: `http://localhost:3000/orders/${orderId}`,
       });
 

@@ -109,7 +109,7 @@ export default function OrderConfirmationPage() {
     }
   }, [orderId, token, logout]);
 
-  const { clearActiveCart } = useCartStore();
+  const { clearActiveCart, clearCheckoutItems } = useCartStore();
 
   // Tải đơn hàng lần đầu và xóa giỏ hàng vì đơn đã được tạo thành công
   useEffect(() => {

@@ -1,8 +1,8 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useCartStore } from '../../store/cartStore';
 import { useAuthStore } from '../../store/authStore';
 import {
@@ -12,16 +12,67 @@ import {
   MinusIcon,
   TrashIcon,
   CoffeeCupIcon,
-  BagIcon
+  BagIcon,
 } from '../components/Icons';
 
 export default function CartPage() {
   const router = useRouter();
-  const { items, removeFromCart, updateQuantity } = useCartStore();
+  const searchParams = useSearchParams();
 
-  const totalItemsCount = items.reduce((sum, item) => sum + Number(item.quantity), 0);
-  const subtotal = items.reduce(
-    (sum, item) => sum + Number(item.price) * Number(item.quantity),
+  const {
+    items = [],
+    checkoutItems = [],
+    removeFromCart,
+    updateQuantity,
+    startCheckout,
+    restoreCheckoutToCart,
+  } = useCartStore();
+
+  const [noticeMessage, setNoticeMessage] = useState<string | null>(null);
+
+  // Tự động kiểm tra nếu quay về từ PayOS bị hủy hoặc hết hạn đếm ngược
+  useEffect(() => {
+    const status = searchParams.get('status');
+    const reason = searchParams.get('reason');
+
+    if (status === 'cancelled' || status === 'restored' || reason === 'timeout' || reason === 'payos_timeout') {
+      const store = useCartStore.getState();
+      if (typeof restoreCheckoutToCart === 'function') {
+        restoreCheckoutToCart();
+      } else if (store && typeof store.restoreCheckoutToCart === 'function') {
+        store.restoreCheckoutToCart();
+      }
+
+      if (reason === 'timeout') {
+        setNoticeMessage(
+          '⏱️ Đã hết thời gian giữ đơn hàng (5 phút). Các sản phẩm đã được tự động hoàn lại vào giỏ hàng của bạn!'
+        );
+      } else if (status === 'restored') {
+        setNoticeMessage(
+          '↩️ Đã hoàn trả món về giỏ hàng thành công.'
+        );
+      } else {
+        setNoticeMessage(
+          '⚠️ Quá trình thanh toán qua PayOS đã hết hạn hoặc bị hủy. Các sản phẩm đã được tự động hoàn lại vào giỏ hàng.'
+        );
+      }
+      // Dọn sạch query parameters trên thanh địa chỉ URL
+      window.history.replaceState({}, '', '/cart');
+    } else if (items.length === 0 && checkoutItems.length > 0) {
+      // Bảo hiểm: Bất kỳ khi nào vào giỏ hàng mà giỏ trống nhưng còn món giữ ở checkout, tự động phục hồi ngay
+      const store = useCartStore.getState();
+      if (typeof restoreCheckoutToCart === 'function') {
+        restoreCheckoutToCart();
+      } else if (store && typeof store.restoreCheckoutToCart === 'function') {
+        store.restoreCheckoutToCart();
+      }
+    }
+  }, [searchParams, restoreCheckoutToCart, items.length, checkoutItems.length]);
+
+  const safeItems = items || [];
+  const totalItemsCount = safeItems.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
+  const subtotal = safeItems.reduce(
+    (sum, item) => sum + Number(item.price || 0) * Number(item.quantity || 0),
     0
   );
 
@@ -41,10 +92,30 @@ export default function CartPage() {
   const discount = Math.round((subtotal * discountPercent) / 100);
   const grandTotal = Math.max(0, subtotal - discount);
 
-  if (items.length === 0) {
+  // Khi bấm nút Thanh toán: chuyển món sang checkoutItems, làm trống giỏ hàng ngay lập tức và sang checkout
+  const handleProceedToCheckout = () => {
+    if (safeItems.length === 0) return;
+
+    const store = useCartStore.getState();
+    if (typeof startCheckout === 'function') {
+      startCheckout(5);
+    } else if (store && typeof store.startCheckout === 'function') {
+      store.startCheckout(5);
+    }
+
+    router.push('/checkout');
+  };
+
+  if (safeItems.length === 0) {
     return (
       <main className="min-h-screen bg-[#FBF8F2] py-16 px-4 text-center flex items-center justify-center">
         <div className="bg-white border border-[#E8DFD8] rounded-3xl p-8 sm:p-12 max-w-md w-full shadow-sm space-y-5">
+          {noticeMessage && (
+            <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-2xl text-xs sm:text-sm text-amber-900 text-left font-medium leading-relaxed">
+              {noticeMessage}
+            </div>
+          )}
+
           <div className="w-16 h-16 rounded-full bg-[#F5F0E6] text-[#8D6E63] flex items-center justify-center mx-auto">
             <BagIcon className="w-8 h-8" />
           </div>
@@ -71,8 +142,24 @@ export default function CartPage() {
   return (
     <main className="min-h-screen bg-[#FBF8F2] py-8 px-4 sm:px-6 lg:px-8 text-[#1F1F1F]">
       <div className="max-w-6xl mx-auto space-y-6">
-        
-        {/* Nút quay lại & Tiêu đề Giỏ hàng (3) */}
+
+        {/* Thông báo trả hàng về giỏ khi hết thời gian hoặc hủy */}
+        {noticeMessage && (
+          <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start justify-between gap-3 text-amber-900 shadow-sm animate-fade-in">
+            <div className="flex items-center gap-2.5 text-sm font-medium">
+              <span className="text-xl">⚠️</span>
+              <span>{noticeMessage}</span>
+            </div>
+            <button
+              onClick={() => setNoticeMessage(null)}
+              className="text-amber-700 hover:text-amber-950 font-bold text-sm px-2 py-0.5 rounded cursor-pointer"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        {/* Nút quay lại & Tiêu đề Giỏ hàng */}
         <div className="space-y-2">
           <Link
             href="/#menu"
@@ -92,89 +179,85 @@ export default function CartPage() {
           
           {/* CỘT TRÁI: DANH SÁCH MÓN TRONG GIỎ */}
           <div className="lg:col-span-7 xl:col-span-8 space-y-4">
-            {items.map((item) => {
+            {safeItems.map((item) => {
               const itemTotal = Number(item.price) * Number(item.quantity);
               return (
                 <div
                   key={item.cartItemId}
                   className="bg-white border border-[#E8DFD8] rounded-2xl p-4 sm:p-5 flex items-center justify-between gap-4 shadow-sm hover:shadow-md transition-shadow"
                 >
-                  {/* Thumbnail & Info */}
                   <div className="flex items-center gap-4 min-w-0">
-                    <div className="w-20 h-20 rounded-xl overflow-hidden bg-[#F5F0E6] shrink-0 border border-[#E8DFD8]">
-                      <img
-                        src={
-                          item.imageUrl ||
-                          "https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=300&auto=format&fit=crop&q=80"
-                        }
-                        alt={item.name}
-                        className="w-full h-full object-cover"
-                      />
+                    <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden bg-[#F5F0E6] flex-shrink-0 flex items-center justify-center">
+                      {item.imageUrl ? (
+                        <img
+                          src={item.imageUrl}
+                          alt={item.name}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <CoffeeCupIcon className="w-8 h-8 text-[#8D6E63]" />
+                      )}
                     </div>
 
-                    <div className="min-w-0">
-                      <h3 className="font-extrabold text-base text-[#2E1810] truncate">
+                    <div className="space-y-1 min-w-0">
+                      <h3 className="font-bold text-base sm:text-lg text-[#3E2723] truncate">
                         {item.name}
                       </h3>
-                      
-                      <div className="flex flex-wrap items-center gap-1.5 mt-1 text-xs text-[#756C65]">
-                        <span className="bg-[#F5F0E6] text-[#5C4D44] font-semibold px-2 py-0.5 rounded">
+                      <div className="flex flex-wrap gap-1.5 text-xs text-[#756C65]">
+                        <span className="bg-[#F5F0E6] px-2 py-0.5 rounded-md font-medium">
                           Size {item.size}
                         </span>
                         {item.toppings && item.toppings.length > 0 && (
-                          <span className="truncate">
-                            • {item.toppings.join(', ')}
+                          <span className="bg-[#F5F0E6] px-2 py-0.5 rounded-md">
+                            +{item.toppings.join(', ')}
                           </span>
                         )}
                       </div>
-
-                      <p className="font-bold text-[#8D6E63] text-sm mt-1.5">
+                      <p className="font-extrabold text-sm sm:text-base text-[#8D6E63]">
                         {Number(item.price).toLocaleString('vi-VN')}đ
                       </p>
                     </div>
                   </div>
 
-                  {/* Quantity Stepper & Delete Button */}
-                  <div className="flex items-center gap-3 sm:gap-4 shrink-0">
-                    {/* Stepper */}
-                    <div className="flex items-center border border-[#E8DFD8] rounded-xl bg-[#FDFBF7] p-1">
+                  <div className="flex flex-col sm:flex-row items-end sm:items-center gap-3 sm:gap-6 flex-shrink-0">
+                    {/* Bộ tăng giảm số lượng */}
+                    <div className="flex items-center border border-[#E8DFD8] rounded-xl bg-[#FDFBF7] p-1 shadow-inner">
                       <button
                         type="button"
-                        onClick={() => {
-                          if (item.quantity > 1) {
-                            updateQuantity(item.cartItemId, item.quantity - 1);
-                          } else {
-                            removeFromCart(item.cartItemId);
-                          }
-                        }}
-                        className="w-7 h-7 flex items-center justify-center text-[#3E2723] hover:bg-[#F5F0E6] rounded-lg cursor-pointer transition-colors"
-                        title="Giảm số lượng"
+                        onClick={() =>
+                          item.quantity > 1
+                            ? updateQuantity(item.cartItemId, item.quantity - 1)
+                            : removeFromCart(item.cartItemId)
+                        }
+                        className="w-7 h-7 flex items-center justify-center text-[#8D6E63] hover:bg-white hover:text-[#3E2723] rounded-lg transition cursor-pointer"
                       >
                         <MinusIcon className="w-3.5 h-3.5" />
                       </button>
-
-                      <span className="w-7 text-center font-bold text-xs text-[#3E2723]">
+                      <span className="w-8 text-center text-sm font-bold text-[#3E2723]">
                         {item.quantity}
                       </span>
-
                       <button
                         type="button"
                         onClick={() => updateQuantity(item.cartItemId, item.quantity + 1)}
-                        className="w-7 h-7 flex items-center justify-center text-[#3E2723] hover:bg-[#F5F0E6] rounded-lg cursor-pointer transition-colors"
-                        title="Tăng số lượng"
+                        className="w-7 h-7 flex items-center justify-center text-[#8D6E63] hover:bg-white hover:text-[#3E2723] rounded-lg transition cursor-pointer"
                       >
                         <PlusIcon className="w-3.5 h-3.5" />
                       </button>
                     </div>
 
-                    {/* Trash Delete */}
+                    <div className="text-right min-w-[80px]">
+                      <div className="font-black text-sm sm:text-base text-[#3E2723]">
+                        {itemTotal.toLocaleString('vi-VN')}đ
+                      </div>
+                    </div>
+
                     <button
                       type="button"
                       onClick={() => removeFromCart(item.cartItemId)}
-                      className="p-2 text-gray-400 hover:text-red-600 rounded-lg transition-colors cursor-pointer"
-                      title="Xóa món này"
+                      className="text-[#BCAAA4] hover:text-red-600 transition-colors p-1 cursor-pointer"
+                      title="Xóa món"
                     >
-                      <TrashIcon className="w-5 h-5" />
+                      <TrashIcon className="w-4 h-4" />
                     </button>
                   </div>
                 </div>
@@ -182,10 +265,10 @@ export default function CartPage() {
             })}
           </div>
 
-          {/* CỘT PHẢI: TỔNG KẾT ĐƠN HÀNG (Chuẩn Mockup 4. Giỏ hàng) */}
-          <div className="lg:col-span-5 xl:col-span-4 sticky top-24">
-            <div className="bg-white border border-[#E8DFD8] rounded-3xl p-6 sm:p-7 shadow-sm space-y-5">
-              <h2 className="font-extrabold text-xl text-[#3E2723]">
+          {/* CỘT PHẢI: TÓM TẮT ĐƠN HÀNG */}
+          <div className="lg:col-span-5 xl:col-span-4 sticky top-6">
+            <div className="bg-white border border-[#E8DFD8] rounded-3xl p-6 shadow-sm space-y-5">
+              <h2 className="text-lg font-bold text-[#3E2723] pb-3 border-b border-[#E8DFD8]">
                 Tóm tắt đơn hàng
               </h2>
 
@@ -227,7 +310,7 @@ export default function CartPage() {
               {/* Nút thanh toán */}
               <button
                 type="button"
-                onClick={() => router.push('/checkout')}
+                onClick={handleProceedToCheckout}
                 className="w-full bg-[#3E2723] hover:bg-[#2E1C12] text-white font-bold py-3.5 px-4 rounded-xl transition shadow-md shadow-[#3E2723]/20 hover:-translate-y-0.5 active:translate-y-0 text-center flex items-center justify-center gap-2 cursor-pointer"
               >
                 <span>Thanh toán</span>

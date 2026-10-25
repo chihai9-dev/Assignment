@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useCartStore } from '../../store/cartStore';
@@ -18,11 +18,27 @@ import {
 export default function CheckoutPage() {
   const router = useRouter();
 
-  const { items, removeFromCart, updateQuantity, clearActiveCart } = useCartStore();
+  const {
+    items,
+    checkoutItems,
+    checkoutExpiresAt,
+    removeFromCart,
+    updateQuantity,
+    startCheckout,
+    restoreCheckoutToCart,
+    clearCheckoutItems,
+    clearActiveCart,
+  } = useCartStore();
+
   const { token, user, logout } = useAuthStore();
 
   const [hasHydrated, setHasHydrated] = useState(false);
   const [isPaying, setIsPaying] = useState(false);
+
+  // Món đang trong phiên checkout (ưu tiên checkoutItems, nếu rỗng thì fallback items)
+  const activeItems = useMemo(() => {
+    return checkoutItems && checkoutItems.length > 0 ? checkoutItems : items;
+  }, [checkoutItems, items]);
 
   // Phương thức thanh toán (2 tùy chọn: VietQR, MoMo)
   type PaymentMethodType = 'VIETQR' | 'MOMO';
@@ -30,10 +46,11 @@ export default function CheckoutPage() {
   const [showMomoModal, setShowMomoModal] = useState(false);
   const [createdOrderData, setCreatedOrderData] = useState<{ id: number; total: number } | null>(null);
   const [payosPaymentData, setPayosPaymentData] = useState<{ qrCode?: string; accountNumber?: string; accountName?: string; description?: string; amount?: number } | null>(null);
-  const [pollCount, setPollCount] = useState(0);
-  const [autoDetected, setAutoDetected] = useState(false);
 
-  // Lấy loyaltyPoints của user và tự động đồng bộ từ backend khi vào trang checkout
+  // Bộ đếm thời gian giữ đơn hàng (5 phút)
+  const [secondsLeft, setSecondsLeft] = useState<number>(300);
+
+  // Khởi tạo hydrate & sync user
   useEffect(() => {
     setHasHydrated(true);
     if (token) {
@@ -52,6 +69,75 @@ export default function CheckoutPage() {
         .catch(() => {});
     }
   }, [token]);
+
+  // Chỉ kích hoạt một lần duy nhất nếu người dùng vào thẳng /checkout với giỏ hàng có món
+  useEffect(() => {
+    if (!hasHydrated) return;
+    // Không tự động nuốt món khi checkoutItems đang trống
+  }, [hasHydrated]);
+
+  // Xử lý khi hết thời gian giữ đơn hàng (Timeout)
+  const handleTimeout = useCallback(async () => {
+    if (createdOrderData?.id && token) {
+      try {
+        await fetch(`http://localhost:3001/api/orders/${createdOrderData.id}/cancel`, {
+          method: 'PATCH',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      } catch (err) {
+        console.error('Lỗi khi hủy đơn timeout:', err);
+      }
+    }
+
+    (restoreCheckoutToCart ? restoreCheckoutToCart() : useCartStore.getState().restoreCheckoutToCart?.());
+    router.push('/cart?reason=timeout');
+  }, [createdOrderData?.id, token, restoreCheckoutToCart, router]);
+
+  // Vòng lặp đếm ngược mỗi giây (Chỉ đếm khi có phiên checkoutExpiresAt)
+  useEffect(() => {
+    if (!hasHydrated || !checkoutExpiresAt) return;
+
+    const tick = () => {
+      const now = Date.now();
+      const diff = Math.max(0, Math.floor((checkoutExpiresAt - now) / 1000));
+      setSecondsLeft(diff);
+
+      if (diff <= 0) {
+        handleTimeout();
+      }
+    };
+
+    tick();
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  }, [hasHydrated, checkoutExpiresAt, handleTimeout]);
+
+  // Định dạng hiển thị MM:SS
+  const formatTimer = (totalSeconds: number) => {
+    const mins = Math.floor(totalSeconds / 60);
+    const secs = totalSeconds % 60;
+    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+  };
+
+  // Người dùng bấm quay lại giỏ hàng: hoàn trả lại các món vào cart
+  const handleBackToCart = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (createdOrderData?.id && token) {
+      try {
+        await fetch(`http://localhost:3001/api/orders/${createdOrderData.id}/cancel`, {
+          method: 'PATCH',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+      } catch (err) {}
+    }
+    const store = useCartStore.getState();
+    if (typeof restoreCheckoutToCart === 'function') {
+      restoreCheckoutToCart();
+    } else if (store && typeof store.restoreCheckoutToCart === 'function') {
+      store.restoreCheckoutToCart();
+    }
+    router.push('/cart?status=restored');
+  };
 
   const loyaltyPoints = Number(user?.loyaltyPoints || 0);
 
@@ -101,13 +187,13 @@ export default function CheckoutPage() {
     };
   }, [loyaltyPoints]);
 
-  // Tính toán chi phí (Không có phí giao hàng vì nhận món trực tiếp tại quầy)
+  // Tính toán chi phí dựa trên activeItems
   const subtotal = useMemo(() => {
-    return items.reduce(
+    return activeItems.reduce(
       (sum, item) => sum + Number(item.price) * Number(item.quantity),
       0
     );
-  }, [items]);
+  }, [activeItems]);
 
   const discountAmount = useMemo(() => {
     return Math.round((subtotal * membership.discountPercent) / 100);
@@ -132,7 +218,7 @@ export default function CheckoutPage() {
     try {
       setIsPaying(true);
 
-      // BƯỚC 1: Tạo Order qua API backend NestJS (backend tự tính giảm giá theo loyaltyPoints của user)
+      // BƯỚC 1: Tạo Order qua API backend NestJS
       const orderResponse = await fetch('http://localhost:3001/api/orders', {
         method: 'POST',
         headers: {
@@ -140,7 +226,7 @@ export default function CheckoutPage() {
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
-          items: items.map((item) => ({
+          items: activeItems.map((item) => ({
             productId: item.productId,
             size: item.size,
             qty: Number(item.quantity),
@@ -170,7 +256,7 @@ export default function CheckoutPage() {
       const payableAmount =
         orderData.total !== undefined ? Number(orderData.total) : grandTotal;
 
-      // BƯỚC 2A: Nếu chọn VietQR -> Tạo link thanh toán PayOS và chuyển hướng để quét mã thực tế
+      // BƯỚC 2A: Nếu chọn VietQR -> Tạo link PayOS (PayOS tự có đếm ngược 5 phút)
       if (paymentMethod === 'VIETQR') {
         const payosResponse = await fetch('http://localhost:3001/api/payments/create-payos-link', {
           method: 'POST',
@@ -188,12 +274,12 @@ export default function CheckoutPage() {
           );
         }
 
-        // Chuyển hướng tới cổng thanh toán VietQR chuẩn PayOS (chưa xóa giỏ hàng, chỉ xóa khi thanh toán thành công)
+        // Chuyển hướng tới cổng thanh toán PayOS (PayOS sẽ tự đếm ngược 5 phút và redirect về cart nếu hết hạn)
         window.location.href = payosData.checkoutUrl;
         return;
       }
 
-      // BƯỚC 2B: Nếu chọn MoMo -> Tạo link PayOS để có mã QR & Lời nhắn đồng bộ, tự động nhận tiền 100%
+      // BƯỚC 2B: Nếu chọn MoMo
       if (paymentMethod === 'MOMO') {
         try {
           const payosResponse = await fetch('http://localhost:3001/api/payments/create-payos-link', {
@@ -219,6 +305,7 @@ export default function CheckoutPage() {
       }
 
       // BƯỚC 2C: Dự phòng thanh toán
+      (clearCheckoutItems ? clearCheckoutItems() : useCartStore.getState().clearCheckoutItems?.());
       clearActiveCart();
       router.push(`/orders/${orderId}`);
     } catch (error) {
@@ -233,7 +320,7 @@ export default function CheckoutPage() {
     }
   };
 
-  // Tự động Polling kiểm tra khi tiền về (không cần bấm nút, tự động nhảy trang)
+  // Tự động Polling kiểm tra khi tiền về cho MoMo
   useEffect(() => {
     if (!showMomoModal || !createdOrderData?.id || !token) return;
 
@@ -244,10 +331,10 @@ export default function CheckoutPage() {
         });
         if (res.ok) {
           const order = await res.json();
-          // Khi Webhook PayOS/Ngân hàng báo tiền về -> Trạng thái đổi sang PAID
           if (order.status === 'PAID' || order.status === 'PREPARING' || order.status === 'COMPLETED') {
             clearInterval(interval);
             setShowMomoModal(false);
+            clearCheckoutItems();
             clearActiveCart();
             router.push(`/orders/${createdOrderData.id}`);
           }
@@ -258,9 +345,9 @@ export default function CheckoutPage() {
     }, 2500);
 
     return () => clearInterval(interval);
-  }, [showMomoModal, createdOrderData?.id, token, router, clearActiveCart]);
+  }, [showMomoModal, createdOrderData?.id, token, router, clearCheckoutItems, clearActiveCart]);
 
-  // Xác nhận sau khi khách hàng đã quét mã chuyển tiền MoMo thật
+  // Xác nhận chuyển tiền MoMo thành công
   const handleConfirmMomoPaid = async () => {
     if (!createdOrderData || !token) return;
 
@@ -291,6 +378,7 @@ export default function CheckoutPage() {
       }
 
       setShowMomoModal(false);
+      clearCheckoutItems();
       clearActiveCart();
       router.push(`/orders/${createdOrderData.id}`);
     } catch (err: any) {
@@ -300,10 +388,9 @@ export default function CheckoutPage() {
     }
   };
 
-
   if (!hasHydrated) return null;
 
-    if (items.length === 0) {
+  if (activeItems.length === 0) {
     return (
       <main className="min-h-screen bg-[#FBF8F2] flex items-center justify-center p-6 text-center">
         <div className="bg-white border border-[#E8DFD8] rounded-3xl p-8 max-w-md w-full shadow-sm space-y-4">
@@ -312,11 +399,17 @@ export default function CheckoutPage() {
             Không có sản phẩm để thanh toán
           </h2>
           <p className="text-sm text-[#756C65]">
-            Giỏ hàng của bạn đang trống. Vui lòng thêm đồ uống vào giỏ hàng trước khi thanh toán.
+            Phiên thanh toán đã kết thúc hoặc giỏ hàng của bạn đang trống.
           </p>
-          <div className="pt-2">
+          <div className="pt-2 flex flex-col gap-2">
             <Link
-              href="/"
+              href="/cart"
+              className="inline-block bg-[#8D6E63] hover:bg-[#6D4C41] text-white font-bold px-6 py-3 rounded-xl transition text-sm shadow-md"
+            >
+              Xem giỏ hàng
+            </Link>
+            <Link
+              href="/#menu"
               className="inline-block bg-[#3E2723] hover:bg-[#2E1C12] text-white font-bold px-6 py-3 rounded-xl transition text-sm shadow-md shadow-[#3E2723]/20"
             >
               Quay lại Menu
@@ -330,16 +423,65 @@ export default function CheckoutPage() {
   return (
     <main className="min-h-screen bg-[#FBF8F2] py-8 px-4 sm:px-6 lg:px-8 text-[#1F1F1F]">
       <div className="max-w-6xl mx-auto space-y-6">
-        
+
+        {/* =========================================================
+            THANH ĐẾM NGƯỢC THỜI GIAN GIỮ ĐƠN HÀNG (5 PHÚT)
+        ========================================================= */}
+        <div
+          className={`p-4 sm:p-5 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all shadow-sm ${
+            secondsLeft <= 60
+              ? 'bg-red-50 border-red-300 text-red-900 animate-pulse'
+              : 'bg-amber-50/90 border-amber-200 text-amber-900'
+          }`}
+        >
+          <div className="flex items-center gap-3.5">
+            <div
+              className={`w-11 h-11 rounded-2xl flex items-center justify-center font-bold text-xl shadow-inner shrink-0 ${
+                secondsLeft <= 60
+                  ? 'bg-red-200 text-red-900'
+                  : 'bg-[#F5F0E6] text-[#8D6E63]'
+              }`}
+            >
+              ⏱️
+            </div>
+            <div>
+              <p className="font-extrabold text-sm sm:text-base text-[#3E2723]">
+                Thời gian giữ đơn hàng để thanh toán
+              </p>
+              <p className="text-xs text-[#756C65] mt-0.5">
+                Sau khi hết thời gian, đơn sẽ tự hủy và các món được hoàn trả lại giỏ hàng của bạn.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center sm:flex-col sm:items-end justify-between sm:justify-center border-t sm:border-t-0 pt-2 sm:pt-0 border-amber-200 shrink-0">
+            <div
+              className={`font-mono font-black text-2xl sm:text-3xl tracking-wider ${
+                secondsLeft <= 60 ? 'text-red-600' : 'text-[#3E2723]'
+              }`}
+            >
+              {formatTimer(secondsLeft)}
+            </div>
+            <span
+              className={`text-[11px] font-bold ${
+                secondsLeft <= 60 ? 'text-red-600' : 'text-[#8D6E63]'
+              }`}
+            >
+              {secondsLeft <= 60 ? '⚠️ Sắp hết hạn giữ đơn!' : 'Đang giữ món'}
+            </span>
+          </div>
+        </div>
+
         {/* Link quay lại & Tiêu đề thanh toán */}
         <div className="space-y-1.5">
-          <Link
-            href="/cart"
-            className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-[#8D6E63] hover:text-[#3E2723] transition-colors"
+          <button
+            type="button"
+            onClick={handleBackToCart}
+            className="inline-flex items-center gap-1.5 text-xs sm:text-sm font-semibold text-[#8D6E63] hover:text-[#3E2723] transition-colors cursor-pointer"
           >
             <ArrowLeftIcon className="w-4 h-4" />
-            <span>Quay lại giỏ hàng</span>
-          </Link>
+            <span>Quay lại giỏ hàng (Hoàn trả món)</span>
+          </button>
 
           <h1 className="text-3xl sm:text-4xl font-extrabold text-[#3E2723] tracking-tight">
             Thanh toán
@@ -351,10 +493,10 @@ export default function CheckoutPage() {
 
         {/* Layout 2 cột: Phương thức thanh toán (Trái) & Tóm tắt đơn hàng (Phải) */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          
+
           {/* CỘT TRÁI: PHƯƠNG THỨC THANH TOÁN */}
           <div className="lg:col-span-7 xl:col-span-8 space-y-6">
-            
+
             <div className="bg-white border border-[#E8DFD8] rounded-3xl p-6 sm:p-7 shadow-sm space-y-5">
               <h2 className="text-xl font-extrabold text-[#3E2723]">
                 Phương thức thanh toán
@@ -362,7 +504,7 @@ export default function CheckoutPage() {
 
               {/* LƯỚI 2 PHƯƠNG THỨC THANH TOÁN (VietQR Pro & Ví MoMo) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-                
+
                 {/* 1. VietQR Pro */}
                 <button
                   type="button"
@@ -374,10 +516,16 @@ export default function CheckoutPage() {
                   }`}
                 >
                   <div className="shrink-0">
-                    <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                      paymentMethod === 'VIETQR' ? 'border-[#3E2723] bg-white' : 'border-gray-300 bg-white'
-                    }`}>
-                      {paymentMethod === 'VIETQR' && <span className="w-2.5 h-2.5 rounded-full bg-[#3E2723]" />}
+                    <span
+                      className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                        paymentMethod === 'VIETQR'
+                          ? 'border-[#3E2723] bg-white'
+                          : 'border-gray-300 bg-white'
+                      }`}
+                    >
+                      {paymentMethod === 'VIETQR' && (
+                        <span className="w-2.5 h-2.5 rounded-full bg-[#3E2723]" />
+                      )}
                     </span>
                   </div>
 
@@ -392,7 +540,7 @@ export default function CheckoutPage() {
                       </span>
                     </div>
                     <p className="text-xs text-[#756C65] mt-0.5">
-                      Chuyển khoản 24/7
+                      Chuyển khoản 24/7 (Đếm ngược 5 phút)
                     </p>
                   </div>
                 </button>
@@ -408,10 +556,16 @@ export default function CheckoutPage() {
                   }`}
                 >
                   <div className="shrink-0">
-                    <span className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                      paymentMethod === 'MOMO' ? 'border-[#3E2723] bg-white' : 'border-gray-300 bg-white'
-                    }`}>
-                      {paymentMethod === 'MOMO' && <span className="w-2.5 h-2.5 rounded-full bg-[#3E2723]" />}
+                    <span
+                      className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                        paymentMethod === 'MOMO'
+                          ? 'border-[#3E2723] bg-white'
+                          : 'border-gray-300 bg-white'
+                      }`}
+                    >
+                      {paymentMethod === 'MOMO' && (
+                        <span className="w-2.5 h-2.5 rounded-full bg-[#3E2723]" />
+                      )}
                     </span>
                   </div>
 
@@ -434,13 +588,13 @@ export default function CheckoutPage() {
               </div>
 
               {/* CHI TIẾT THEO PHƯƠNG THỨC ĐÃ CHỌN */}
-              
+
               {/* Chi tiết 1: VietQR Pro */}
               {paymentMethod === 'VIETQR' && (
                 <div className="bg-[#FDFBF7] border border-[#E8DFD8] rounded-2xl p-4 sm:p-6 shadow-inner space-y-4">
                   <div className="flex items-center gap-2 text-xs font-bold text-[#3E2723] pb-2 border-b border-[#E8DFD8]">
                     <InfoIcon className="w-4 h-4 text-[#8D6E63]" />
-                    <span>Thông tin chuyển khoản VietQR Pro</span>
+                    <span>Thông tin chuyển khoản VietQR Pro (PayOS)</span>
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-12 gap-5 items-center">
@@ -472,7 +626,7 @@ export default function CheckoutPage() {
                         </span>
                       </div>
                       <p className="text-[11px] text-gray-400 italic pt-1">
-                        * Quét mã QR bằng ứng dụng ngân hàng bất kỳ để hoàn tất đơn hàng tự động.
+                        * Cổng PayOS cũng có đồng hồ đếm ngược 5 phút. Khi hết hạn hoặc bấm Hủy, hệ thống sẽ tự động đưa bạn về giỏ hàng kèm nguyên vẹn các món.
                       </p>
                     </div>
 
@@ -485,7 +639,7 @@ export default function CheckoutPage() {
                           Tự động sinh mã VietQR
                         </span>
                         <p className="text-[11px] text-[#756C65] leading-relaxed">
-                          Nhấn nút <strong className="text-[#3E2723]">&quot;Thanh toán ngay&quot;</strong> bên dưới để lấy mã QR chính thức và tự động duyệt đơn khi chuyển khoản.
+                          Nhấn nút <strong className="text-[#3E2723]">&quot;Thanh toán ngay&quot;</strong> bên dưới để mở giao diện thanh toán PayOS VietQR chính thức.
                         </p>
                       </div>
                     </div>
@@ -493,7 +647,7 @@ export default function CheckoutPage() {
                 </div>
               )}
 
-              {/* Chi tiết 2: Ví MoMo Cá Nhân */}
+              {/* Chi tiết 2: Ví MoMo */}
               {paymentMethod === 'MOMO' && (
                 <div className="bg-[#FFF8FB] border border-[#F3D1E4] rounded-2xl p-4 sm:p-6 shadow-inner space-y-4">
                   <div className="flex items-center gap-2 text-xs font-bold text-[#A50064] pb-2 border-b border-[#F3D1E4]">
@@ -530,7 +684,7 @@ export default function CheckoutPage() {
                         </span>
                       </div>
                       <p className="text-[11px] text-gray-400 italic pt-1">
-                        * Mở app MoMo trên điện thoại, quét mã QR bên cạnh để chuyển tiền trực tiếp. Sau khi chuyển xong, bấm nút &quot;Thanh toán ngay&quot; bên dưới để hoàn tất đơn!
+                        * Quét mã MoMo hoặc chuyển tiền theo lời nhắn để hệ thống tự động ghi nhận đơn.
                       </p>
                     </div>
 
@@ -540,10 +694,10 @@ export default function CheckoutPage() {
                       </div>
                       <div className="space-y-1">
                         <span className="text-xs font-bold text-[#A50064] block">
-                          Quét mã MoMo tiền thật
+                          Quét mã MoMo
                         </span>
                         <p className="text-[11px] text-[#756C65] leading-relaxed">
-                          Nhấn nút <strong className="text-[#A50064]">&quot;Thanh toán ngay&quot;</strong> bên dưới để mở cửa sổ quét mã MoMo và hoàn tất đơn hàng.
+                          Nhấn nút <strong className="text-[#A50064]">&quot;Thanh toán ngay&quot;</strong> bên dưới để mở mã QR MoMo và hoàn tất đơn hàng.
                         </p>
                       </div>
                     </div>
@@ -552,15 +706,16 @@ export default function CheckoutPage() {
               )}
             </div>
 
-            {/* Back link at bottom */}
+            {/* Link quay lại giỏ hàng ở dưới */}
             <div>
-              <Link
-                href="/cart"
-                className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#8D6E63] hover:text-[#3E2723]"
+              <button
+                type="button"
+                onClick={handleBackToCart}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-[#8D6E63] hover:text-[#3E2723] cursor-pointer"
               >
                 <ArrowLeftIcon className="w-3.5 h-3.5" />
-                <span>Về giỏ hàng</span>
-              </Link>
+                <span>Hoàn trả về giỏ hàng</span>
+              </button>
             </div>
 
           </div>
@@ -568,18 +723,18 @@ export default function CheckoutPage() {
           {/* CỘT PHẢI: ĐƠN HÀNG CỦA BẠN & NÚT THANH TOÁN */}
           <div className="lg:col-span-5 xl:col-span-4 sticky top-24">
             <div className="bg-white border border-[#E8DFD8] rounded-3xl p-6 sm:p-7 shadow-sm space-y-6">
-              
+
               {/* Header Right Sidebar */}
               <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
                 <BagIcon className="w-5 h-5 text-[#8D6E63]" />
                 <h2 className="font-extrabold text-lg text-[#3E2723]">
-                  Đơn hàng của bạn ({items.length} món)
+                  Đơn hàng đang giữ ({activeItems.length} món)
                 </h2>
               </div>
 
-              {/* Danh sách món */}
+              {/* Danh sách món trong checkoutItems */}
               <div className="space-y-4 max-h-[360px] overflow-y-auto pr-1">
-                {items.map((item) => (
+                {activeItems.map((item) => (
                   <div
                     key={item.cartItemId}
                     className="flex items-start justify-between gap-3 text-xs"
@@ -589,7 +744,7 @@ export default function CheckoutPage() {
                         <img
                           src={
                             item.imageUrl ||
-                            "https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=200&auto=format&fit=crop&q=80"
+                            'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=200&auto=format&fit=crop&q=80'
                           }
                           alt={item.name}
                           className="w-full h-full object-cover"
@@ -609,7 +764,7 @@ export default function CheckoutPage() {
                       </div>
                     </div>
 
-                    {/* Stepper nhỏ & Trash */}
+                    {/* Stepper & Trash */}
                     <div className="flex items-center gap-2 shrink-0">
                       <div className="flex items-center border border-gray-200 rounded-lg bg-[#FDFBF7]">
                         <button
@@ -731,7 +886,7 @@ export default function CheckoutPage() {
               {/* Tóm tắt chi phí (Không có phí giao hàng) */}
               <div className="space-y-2 pt-2 border-t border-gray-100 text-xs">
                 <div className="flex justify-between text-[#5C4D44]">
-                  <span>Tạm tính ({items.length} món)</span>
+                  <span>Tạm tính ({activeItems.length} món)</span>
                   <span className="font-bold text-[#2E1810]">
                     {subtotal.toLocaleString('vi-VN')}đ
                   </span>
@@ -784,12 +939,13 @@ export default function CheckoutPage() {
               </button>
 
               <div className="text-center pt-1">
-                <Link
-                  href="/#menu"
-                  className="text-xs font-semibold text-[#8D6E63] hover:text-[#3E2723] hover:underline"
+                <button
+                  type="button"
+                  onClick={handleBackToCart}
+                  className="text-xs font-semibold text-[#8D6E63] hover:text-[#3E2723] hover:underline cursor-pointer"
                 >
-                  ← Tiếp tục mua sắm
-                </Link>
+                  ← Trả lại món & về giỏ hàng
+                </button>
               </div>
 
             </div>
@@ -798,8 +954,9 @@ export default function CheckoutPage() {
         </div>
 
       </div>
+
       {/* =========================================================
-          MODAL POPUP QUÉT MÃ MOMO CHUYỂN TIỀN THẬT
+          MODAL POPUP QUÉT MÃ MOMO
       ========================================================= */}
       {showMomoModal && createdOrderData && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
