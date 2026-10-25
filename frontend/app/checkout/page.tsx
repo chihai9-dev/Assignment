@@ -1,10 +1,10 @@
-'use client';
+﻿"use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { useCartStore } from '../../store/cartStore';
-import { useAuthStore } from '../../store/authStore';
+import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { useCartStore } from "../../store/cartStore";
+import { useAuthStore } from "../../store/authStore";
 import {
   ArrowLeftIcon,
   BankIcon,
@@ -13,7 +13,7 @@ import {
   PlusIcon,
   MinusIcon,
   InfoIcon,
-} from '../components/Icons';
+} from "../components/Icons";
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -41,11 +41,21 @@ export default function CheckoutPage() {
   }, [checkoutItems, items]);
 
   // Phương thức thanh toán (2 tùy chọn: VietQR, MoMo)
-  type PaymentMethodType = 'VIETQR' | 'MOMO';
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethodType>('VIETQR');
+  type PaymentMethodType = "VIETQR" | "MOMO";
+  const [paymentMethod, setPaymentMethod] =
+    useState<PaymentMethodType>("VIETQR");
   const [showMomoModal, setShowMomoModal] = useState(false);
-  const [createdOrderData, setCreatedOrderData] = useState<{ id: number; total: number } | null>(null);
-  const [payosPaymentData, setPayosPaymentData] = useState<{ qrCode?: string; accountNumber?: string; accountName?: string; description?: string; amount?: number } | null>(null);
+  const [createdOrderData, setCreatedOrderData] = useState<{
+    id: number;
+    total: number;
+  } | null>(null);
+  const [payosPaymentData, setPayosPaymentData] = useState<{
+    qrCode?: string;
+    accountNumber?: string;
+    accountName?: string;
+    description?: string;
+    amount?: number;
+  } | null>(null);
 
   // Bộ đếm thời gian giữ đơn hàng (5 phút)
   const [secondsLeft, setSecondsLeft] = useState<number>(300);
@@ -54,12 +64,12 @@ export default function CheckoutPage() {
   useEffect(() => {
     setHasHydrated(true);
     if (token) {
-      fetch('http://localhost:3001/api/auth/me', {
+      fetch("http://localhost:3001/api/auth/me", {
         headers: { Authorization: `Bearer ${token}` },
       })
         .then((res) => (res.ok ? res.json() : null))
         .then((freshUser) => {
-          if (freshUser && typeof freshUser.loyaltyPoints === 'number') {
+          if (freshUser && typeof freshUser.loyaltyPoints === "number") {
             useAuthStore.getState().setUser({
               ...freshUser,
               id: Number(freshUser.id),
@@ -70,27 +80,42 @@ export default function CheckoutPage() {
     }
   }, [token]);
 
-  // Chỉ kích hoạt một lần duy nhất nếu người dùng vào thẳng /checkout với giỏ hàng có món
+  // Khi trang /checkout load: nếu timer đã hết hạn hoặc null mà vẫn còn món → tự reset lại timer 5 phút
   useEffect(() => {
     if (!hasHydrated) return;
-    // Không tự động nuốt món khi checkoutItems đang trống
-  }, [hasHydrated]);
+    const store = useCartStore.getState();
+    const hasItems =
+      (store.checkoutItems && store.checkoutItems.length > 0) ||
+      (store.items && store.items.length > 0);
+    if (!hasItems) return;
+
+    const isExpiredOrMissing =
+      !store.checkoutExpiresAt || store.checkoutExpiresAt <= Date.now();
+    if (isExpiredOrMissing) {
+      startCheckout(5); // Reset timer 5 phút mà không xáo trộn món
+    }
+  }, [hasHydrated, startCheckout]);
 
   // Xử lý khi hết thời gian giữ đơn hàng (Timeout)
   const handleTimeout = useCallback(async () => {
     if (createdOrderData?.id && token) {
       try {
-        await fetch(`http://localhost:3001/api/orders/${createdOrderData.id}/cancel`, {
-          method: 'PATCH',
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        await fetch(
+          `http://localhost:3001/api/orders/${createdOrderData.id}/cancel`,
+          {
+            method: "PATCH",
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        );
       } catch (err) {
-        console.error('Lỗi khi hủy đơn timeout:', err);
+        console.error("Lỗi khi hủy đơn timeout:", err);
       }
     }
 
-    (restoreCheckoutToCart ? restoreCheckoutToCart() : useCartStore.getState().restoreCheckoutToCart?.());
-    router.push('/cart?reason=timeout');
+    restoreCheckoutToCart
+      ? restoreCheckoutToCart()
+      : useCartStore.getState().restoreCheckoutToCart?.();
+    router.push("/cart?reason=timeout");
   }, [createdOrderData?.id, token, restoreCheckoutToCart, router]);
 
   // Vòng lặp đếm ngược mỗi giây (Chỉ đếm khi có phiên checkoutExpiresAt)
@@ -116,7 +141,7 @@ export default function CheckoutPage() {
   const formatTimer = (totalSeconds: number) => {
     const mins = Math.floor(totalSeconds / 60);
     const secs = totalSeconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
   };
 
   // Người dùng bấm quay lại giỏ hàng: hoàn trả lại các món vào cart
@@ -124,19 +149,22 @@ export default function CheckoutPage() {
     e.preventDefault();
     if (createdOrderData?.id && token) {
       try {
-        await fetch(`http://localhost:3001/api/orders/${createdOrderData.id}/cancel`, {
-          method: 'PATCH',
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        await fetch(
+          `http://localhost:3001/api/orders/${createdOrderData.id}/cancel`,
+          {
+            method: "PATCH",
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        );
       } catch (err) {}
     }
     const store = useCartStore.getState();
-    if (typeof restoreCheckoutToCart === 'function') {
+    if (typeof restoreCheckoutToCart === "function") {
       restoreCheckoutToCart();
-    } else if (store && typeof store.restoreCheckoutToCart === 'function') {
+    } else if (store && typeof store.restoreCheckoutToCart === "function") {
       store.restoreCheckoutToCart();
     }
-    router.push('/cart?status=restored');
+    router.push("/cart?status=restored");
   };
 
   const loyaltyPoints = Number(user?.loyaltyPoints || 0);
@@ -145,45 +173,45 @@ export default function CheckoutPage() {
   const membership = useMemo(() => {
     if (loyaltyPoints >= 100) {
       return {
-        tier: 'Kim Cương',
-        badgeColor: 'bg-purple-100 text-purple-800 border-purple-200',
-        icon: '💎',
+        tier: "Kim Cương",
+        badgeColor: "bg-purple-100 text-purple-800 border-purple-200",
+        icon: "💎",
         discountPercent: 15,
         nextTier: null,
         pointsNeeded: 0,
-        description: 'Tự động giảm 15% cho mọi đơn hàng (Hạng cao nhất)',
+        description: "Tự động giảm 15% cho mọi đơn hàng (Hạng cao nhất)",
       };
     }
     if (loyaltyPoints >= 50) {
       return {
-        tier: 'Vàng',
-        badgeColor: 'bg-amber-100 text-amber-800 border-amber-200',
-        icon: '🏆',
+        tier: "Vàng",
+        badgeColor: "bg-amber-100 text-amber-800 border-amber-200",
+        icon: "🏆",
         discountPercent: 10,
-        nextTier: 'Kim Cương',
+        nextTier: "Kim Cương",
         pointsNeeded: 100 - loyaltyPoints,
-        description: 'Tự động giảm 10% cho mọi đơn hàng',
+        description: "Tự động giảm 10% cho mọi đơn hàng",
       };
     }
     if (loyaltyPoints >= 20) {
       return {
-        tier: 'Bạc',
-        badgeColor: 'bg-slate-100 text-slate-700 border-slate-200',
-        icon: '🥈',
+        tier: "Bạc",
+        badgeColor: "bg-slate-100 text-slate-700 border-slate-200",
+        icon: "🥈",
         discountPercent: 5,
-        nextTier: 'Vàng',
+        nextTier: "Vàng",
         pointsNeeded: 50 - loyaltyPoints,
-        description: 'Tự động giảm 5% cho mọi đơn hàng',
+        description: "Tự động giảm 5% cho mọi đơn hàng",
       };
     }
     return {
-      tier: 'Đồng',
-      badgeColor: 'bg-[#F5F0E6] text-[#8D6E63] border-[#E8DFD8]',
-      icon: '🥉',
+      tier: "Đồng",
+      badgeColor: "bg-[#F5F0E6] text-[#8D6E63] border-[#E8DFD8]",
+      icon: "🥉",
       discountPercent: 0,
-      nextTier: 'Bạc',
+      nextTier: "Bạc",
       pointsNeeded: 20 - loyaltyPoints,
-      description: 'Chưa có ưu đãi giảm giá',
+      description: "Chưa có ưu đãi giảm giá",
     };
   }, [loyaltyPoints]);
 
@@ -191,7 +219,7 @@ export default function CheckoutPage() {
   const subtotal = useMemo(() => {
     return activeItems.reduce(
       (sum, item) => sum + Number(item.price) * Number(item.quantity),
-      0
+      0,
     );
   }, [activeItems]);
 
@@ -210,8 +238,8 @@ export default function CheckoutPage() {
   // Tiến hành thanh toán
   const handleCheckoutSubmit = async () => {
     if (!token) {
-      alert('Vui lòng đăng nhập để thanh toán đơn hàng!');
-      router.push('/login?redirect=/checkout');
+      alert("Vui lòng đăng nhập để thanh toán đơn hàng!");
+      router.push("/login?redirect=/checkout");
       return;
     }
 
@@ -219,10 +247,10 @@ export default function CheckoutPage() {
       setIsPaying(true);
 
       // BƯỚC 1: Tạo Order qua API backend NestJS
-      const orderResponse = await fetch('http://localhost:3001/api/orders', {
-        method: 'POST',
+      const orderResponse = await fetch("http://localhost:3001/api/orders", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
         body: JSON.stringify({
@@ -241,14 +269,16 @@ export default function CheckoutPage() {
       if (!orderResponse.ok) {
         if (orderResponse.status === 401) {
           logout();
-          alert('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại để hoàn tất!');
-          router.push('/login?redirect=/checkout');
+          alert(
+            "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại để hoàn tất!",
+          );
+          router.push("/login?redirect=/checkout");
           return;
         }
         throw new Error(
           Array.isArray(orderData.message)
-            ? orderData.message.join(', ')
-            : orderData.message || 'Không thể tạo đơn hàng'
+            ? orderData.message.join(", ")
+            : orderData.message || "Không thể tạo đơn hàng",
         );
       }
 
@@ -257,20 +287,24 @@ export default function CheckoutPage() {
         orderData.total !== undefined ? Number(orderData.total) : grandTotal;
 
       // BƯỚC 2A: Nếu chọn VietQR -> Tạo link PayOS (PayOS tự có đếm ngược 5 phút)
-      if (paymentMethod === 'VIETQR') {
-        const payosResponse = await fetch('http://localhost:3001/api/payments/create-payos-link', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
+      if (paymentMethod === "VIETQR") {
+        const payosResponse = await fetch(
+          "http://localhost:3001/api/payments/create-payos-link",
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ orderId }),
           },
-          body: JSON.stringify({ orderId }),
-        });
+        );
 
         const payosData = await payosResponse.json();
         if (!payosResponse.ok) {
           throw new Error(
-            payosData.message || 'Không thể tạo link thanh toán VietQR qua PayOS'
+            payosData.message ||
+              "Không thể tạo link thanh toán VietQR qua PayOS",
           );
         }
 
@@ -280,23 +314,26 @@ export default function CheckoutPage() {
       }
 
       // BƯỚC 2B: Nếu chọn MoMo
-      if (paymentMethod === 'MOMO') {
+      if (paymentMethod === "MOMO") {
         try {
-          const payosResponse = await fetch('http://localhost:3001/api/payments/create-payos-link', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`,
+          const payosResponse = await fetch(
+            "http://localhost:3001/api/payments/create-payos-link",
+            {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${token}`,
+              },
+              body: JSON.stringify({ orderId }),
             },
-            body: JSON.stringify({ orderId }),
-          });
+          );
 
           if (payosResponse.ok) {
             const payosData = await payosResponse.json();
             setPayosPaymentData(payosData);
           }
         } catch (e) {
-          console.error('Không thể tạo PayOS link cho MoMo:', e);
+          console.error("Không thể tạo PayOS link cho MoMo:", e);
         }
 
         setCreatedOrderData({ id: orderId, total: payableAmount });
@@ -305,15 +342,17 @@ export default function CheckoutPage() {
       }
 
       // BƯỚC 2C: Dự phòng thanh toán
-      (clearCheckoutItems ? clearCheckoutItems() : useCartStore.getState().clearCheckoutItems?.());
+      clearCheckoutItems
+        ? clearCheckoutItems()
+        : useCartStore.getState().clearCheckoutItems?.();
       clearActiveCart();
       router.push(`/orders/${orderId}`);
     } catch (error) {
-      console.error('Lỗi thanh toán:', error);
+      console.error("Lỗi thanh toán:", error);
       alert(
         error instanceof Error
           ? error.message
-          : 'Có lỗi xảy ra trong quá trình xử lý đơn hàng.'
+          : "Có lỗi xảy ra trong quá trình xử lý đơn hàng.",
       );
     } finally {
       setIsPaying(false);
@@ -326,12 +365,19 @@ export default function CheckoutPage() {
 
     const interval = setInterval(async () => {
       try {
-        const res = await fetch(`http://localhost:3001/api/orders/${createdOrderData.id}`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const res = await fetch(
+          `http://localhost:3001/api/orders/${createdOrderData.id}`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        );
         if (res.ok) {
           const order = await res.json();
-          if (order.status === 'PAID' || order.status === 'PREPARING' || order.status === 'COMPLETED') {
+          if (
+            order.status === "PAID" ||
+            order.status === "PREPARING" ||
+            order.status === "COMPLETED"
+          ) {
             clearInterval(interval);
             setShowMomoModal(false);
             clearCheckoutItems();
@@ -340,12 +386,19 @@ export default function CheckoutPage() {
           }
         }
       } catch (err) {
-        console.error('Lỗi polling MoMo:', err);
+        console.error("Lỗi polling MoMo:", err);
       }
     }, 2500);
 
     return () => clearInterval(interval);
-  }, [showMomoModal, createdOrderData?.id, token, router, clearCheckoutItems, clearActiveCart]);
+  }, [
+    showMomoModal,
+    createdOrderData?.id,
+    token,
+    router,
+    clearCheckoutItems,
+    clearActiveCart,
+  ]);
 
   // Xác nhận chuyển tiền MoMo thành công
   const handleConfirmMomoPaid = async () => {
@@ -353,28 +406,35 @@ export default function CheckoutPage() {
 
     try {
       setIsPaying(true);
-      const paymentResponse = await fetch('http://localhost:3001/api/payments', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
+      const paymentResponse = await fetch(
+        "http://localhost:3001/api/payments",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            orderId: createdOrderData.id,
+            amount: createdOrderData.total,
+            method: "WALLET",
+            idempotencyKey: `momo-p2p-${createdOrderData.id}-${Date.now()}`,
+          }),
         },
-        body: JSON.stringify({
-          orderId: createdOrderData.id,
-          amount: createdOrderData.total,
-          method: 'WALLET',
-          idempotencyKey: `momo-p2p-${createdOrderData.id}-${Date.now()}`,
-        }),
-      });
+      );
 
       const paymentData = await paymentResponse.json();
       if (!paymentResponse.ok) {
-        throw new Error(paymentData.message || 'Không thể xác nhận thanh toán');
+        throw new Error(paymentData.message || "Không thể xác nhận thanh toán");
       }
 
       if (paymentData.pointsEarned) {
         const currentPoints = useAuthStore.getState().user?.loyaltyPoints || 0;
-        useAuthStore.getState().updateLoyaltyPoints(currentPoints + Number(paymentData.pointsEarned));
+        useAuthStore
+          .getState()
+          .updateLoyaltyPoints(
+            currentPoints + Number(paymentData.pointsEarned),
+          );
       }
 
       setShowMomoModal(false);
@@ -382,7 +442,7 @@ export default function CheckoutPage() {
       clearActiveCart();
       router.push(`/orders/${createdOrderData.id}`);
     } catch (err: any) {
-      alert(err.message || 'Lỗi xác nhận thanh toán MoMo');
+      alert(err.message || "Lỗi xác nhận thanh toán MoMo");
     } finally {
       setIsPaying(false);
     }
@@ -423,23 +483,22 @@ export default function CheckoutPage() {
   return (
     <main className="min-h-screen bg-[#FBF8F2] py-8 px-4 sm:px-6 lg:px-8 text-[#1F1F1F]">
       <div className="max-w-6xl mx-auto space-y-6">
-
         {/* =========================================================
             THANH ĐẾM NGƯỢC THỜI GIAN GIỮ ĐƠN HÀNG (5 PHÚT)
         ========================================================= */}
         <div
           className={`p-4 sm:p-5 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all shadow-sm ${
             secondsLeft <= 60
-              ? 'bg-red-50 border-red-300 text-red-900 animate-pulse'
-              : 'bg-amber-50/90 border-amber-200 text-amber-900'
+              ? "bg-red-50 border-red-300 text-red-900 animate-pulse"
+              : "bg-amber-50/90 border-amber-200 text-amber-900"
           }`}
         >
           <div className="flex items-center gap-3.5">
             <div
               className={`w-11 h-11 rounded-2xl flex items-center justify-center font-bold text-xl shadow-inner shrink-0 ${
                 secondsLeft <= 60
-                  ? 'bg-red-200 text-red-900'
-                  : 'bg-[#F5F0E6] text-[#8D6E63]'
+                  ? "bg-red-200 text-red-900"
+                  : "bg-[#F5F0E6] text-[#8D6E63]"
               }`}
             >
               ⏱️
@@ -449,7 +508,8 @@ export default function CheckoutPage() {
                 Thời gian giữ đơn hàng để thanh toán
               </p>
               <p className="text-xs text-[#756C65] mt-0.5">
-                Sau khi hết thời gian, đơn sẽ tự hủy và các món được hoàn trả lại giỏ hàng của bạn.
+                Sau khi hết thời gian, đơn sẽ tự hủy và các món được hoàn trả
+                lại giỏ hàng của bạn.
               </p>
             </div>
           </div>
@@ -457,17 +517,17 @@ export default function CheckoutPage() {
           <div className="flex items-center sm:flex-col sm:items-end justify-between sm:justify-center border-t sm:border-t-0 pt-2 sm:pt-0 border-amber-200 shrink-0">
             <div
               className={`font-mono font-black text-2xl sm:text-3xl tracking-wider ${
-                secondsLeft <= 60 ? 'text-red-600' : 'text-[#3E2723]'
+                secondsLeft <= 60 ? "text-red-600" : "text-[#3E2723]"
               }`}
             >
               {formatTimer(secondsLeft)}
             </div>
             <span
               className={`text-[11px] font-bold ${
-                secondsLeft <= 60 ? 'text-red-600' : 'text-[#8D6E63]'
+                secondsLeft <= 60 ? "text-red-600" : "text-[#8D6E63]"
               }`}
             >
-              {secondsLeft <= 60 ? '⚠️ Sắp hết hạn giữ đơn!' : 'Đang giữ món'}
+              {secondsLeft <= 60 ? "⚠️ Sắp hết hạn giữ đơn!" : "Đang giữ món"}
             </span>
           </div>
         </div>
@@ -487,16 +547,15 @@ export default function CheckoutPage() {
             Thanh toán
           </h1>
           <p className="text-xs sm:text-sm text-[#756C65]">
-            Vui lòng chọn phương thức thanh toán để hoàn tất đơn hàng và nhận món tại quầy
+            Vui lòng chọn phương thức thanh toán để hoàn tất đơn hàng và nhận
+            món tại quầy
           </p>
         </div>
 
         {/* Layout 2 cột: Phương thức thanh toán (Trái) & Tóm tắt đơn hàng (Phải) */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-
           {/* CỘT TRÁI: PHƯƠNG THỨC THANH TOÁN */}
           <div className="lg:col-span-7 xl:col-span-8 space-y-6">
-
             <div className="bg-white border border-[#E8DFD8] rounded-3xl p-6 sm:p-7 shadow-sm space-y-5">
               <h2 className="text-xl font-extrabold text-[#3E2723]">
                 Phương thức thanh toán
@@ -504,26 +563,25 @@ export default function CheckoutPage() {
 
               {/* LƯỚI 2 PHƯƠNG THỨC THANH TOÁN (VietQR Pro & Ví MoMo) */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-
                 {/* 1. VietQR Pro */}
                 <button
                   type="button"
-                  onClick={() => setPaymentMethod('VIETQR')}
+                  onClick={() => setPaymentMethod("VIETQR")}
                   className={`p-4 rounded-2xl border text-left transition-all duration-200 cursor-pointer flex items-center gap-3.5 ${
-                    paymentMethod === 'VIETQR'
-                      ? 'border-2 border-[#8D6E63] bg-[#FDFBF7] shadow-sm ring-1 ring-[#8D6E63]/20'
-                      : 'border-[#E8DFD8] bg-white hover:border-[#D7A86E] hover:bg-[#FAF5EE]/50'
+                    paymentMethod === "VIETQR"
+                      ? "border-2 border-[#8D6E63] bg-[#FDFBF7] shadow-sm ring-1 ring-[#8D6E63]/20"
+                      : "border-[#E8DFD8] bg-white hover:border-[#D7A86E] hover:bg-[#FAF5EE]/50"
                   }`}
                 >
                   <div className="shrink-0">
                     <span
                       className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                        paymentMethod === 'VIETQR'
-                          ? 'border-[#3E2723] bg-white'
-                          : 'border-gray-300 bg-white'
+                        paymentMethod === "VIETQR"
+                          ? "border-[#3E2723] bg-white"
+                          : "border-gray-300 bg-white"
                       }`}
                     >
-                      {paymentMethod === 'VIETQR' && (
+                      {paymentMethod === "VIETQR" && (
                         <span className="w-2.5 h-2.5 rounded-full bg-[#3E2723]" />
                       )}
                     </span>
@@ -548,22 +606,22 @@ export default function CheckoutPage() {
                 {/* 2. Ví MoMo */}
                 <button
                   type="button"
-                  onClick={() => setPaymentMethod('MOMO')}
+                  onClick={() => setPaymentMethod("MOMO")}
                   className={`p-4 rounded-2xl border text-left transition-all duration-200 cursor-pointer flex items-center gap-3.5 ${
-                    paymentMethod === 'MOMO'
-                      ? 'border-2 border-[#8D6E63] bg-[#FDFBF7] shadow-sm ring-1 ring-[#8D6E63]/20'
-                      : 'border-[#E8DFD8] bg-white hover:border-[#D7A86E] hover:bg-[#FAF5EE]/50'
+                    paymentMethod === "MOMO"
+                      ? "border-2 border-[#8D6E63] bg-[#FDFBF7] shadow-sm ring-1 ring-[#8D6E63]/20"
+                      : "border-[#E8DFD8] bg-white hover:border-[#D7A86E] hover:bg-[#FAF5EE]/50"
                   }`}
                 >
                   <div className="shrink-0">
                     <span
                       className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
-                        paymentMethod === 'MOMO'
-                          ? 'border-[#3E2723] bg-white'
-                          : 'border-gray-300 bg-white'
+                        paymentMethod === "MOMO"
+                          ? "border-[#3E2723] bg-white"
+                          : "border-gray-300 bg-white"
                       }`}
                     >
-                      {paymentMethod === 'MOMO' && (
+                      {paymentMethod === "MOMO" && (
                         <span className="w-2.5 h-2.5 rounded-full bg-[#3E2723]" />
                       )}
                     </span>
@@ -584,13 +642,12 @@ export default function CheckoutPage() {
                     </p>
                   </div>
                 </button>
-
               </div>
 
               {/* CHI TIẾT THEO PHƯƠNG THỨC ĐÃ CHỌN */}
 
               {/* Chi tiết 1: VietQR Pro */}
-              {paymentMethod === 'VIETQR' && (
+              {paymentMethod === "VIETQR" && (
                 <div className="bg-[#FDFBF7] border border-[#E8DFD8] rounded-2xl p-4 sm:p-6 shadow-inner space-y-4">
                   <div className="flex items-center gap-2 text-xs font-bold text-[#3E2723] pb-2 border-b border-[#E8DFD8]">
                     <InfoIcon className="w-4 h-4 text-[#8D6E63]" />
@@ -601,11 +658,15 @@ export default function CheckoutPage() {
                     <div className="sm:col-span-7 space-y-2 text-xs text-[#5C4D44]">
                       <div className="flex justify-between py-1">
                         <span className="text-gray-500">Ngân hàng:</span>
-                        <span className="font-bold text-[#2E1810]">OCB (Ngân hàng Phương Đông)</span>
+                        <span className="font-bold text-[#2E1810]">
+                          OCB (Ngân hàng Phương Đông)
+                        </span>
                       </div>
                       <div className="flex justify-between py-1">
                         <span className="text-gray-500">Chủ tài khoản:</span>
-                        <span className="font-bold text-[#2E1810]">VO DUONG THANH LE</span>
+                        <span className="font-bold text-[#2E1810]">
+                          VO DUONG THANH LE
+                        </span>
                       </div>
                       <div className="flex justify-between py-1">
                         <span className="text-gray-500">Số tài khoản:</span>
@@ -616,17 +677,21 @@ export default function CheckoutPage() {
                       <div className="flex justify-between py-1">
                         <span className="text-gray-500">Số tiền:</span>
                         <span className="font-extrabold text-[#8D6E63] text-sm">
-                          {grandTotal.toLocaleString('vi-VN')}đ
+                          {grandTotal.toLocaleString("vi-VN")}đ
                         </span>
                       </div>
                       <div className="flex justify-between py-1.5 bg-[#F5F0E6] px-3 rounded-lg border border-[#E8DFD8]">
-                        <span className="text-gray-600 font-semibold">Nội dung:</span>
+                        <span className="text-gray-600 font-semibold">
+                          Nội dung:
+                        </span>
                         <span className="font-extrabold text-[#8D6E63] tracking-wide">
                           {transferContent}
                         </span>
                       </div>
                       <p className="text-[11px] text-gray-400 italic pt-1">
-                        * Cổng PayOS cũng có đồng hồ đếm ngược 5 phút. Khi hết hạn hoặc bấm Hủy, hệ thống sẽ tự động đưa bạn về giỏ hàng kèm nguyên vẹn các món.
+                        * Cổng PayOS cũng có đồng hồ đếm ngược 5 phút. Khi hết
+                        hạn hoặc bấm Hủy, hệ thống sẽ tự động đưa bạn về giỏ
+                        hàng kèm nguyên vẹn các món.
                       </p>
                     </div>
 
@@ -639,7 +704,12 @@ export default function CheckoutPage() {
                           Tự động sinh mã VietQR
                         </span>
                         <p className="text-[11px] text-[#756C65] leading-relaxed">
-                          Nhấn nút <strong className="text-[#3E2723]">&quot;Thanh toán ngay&quot;</strong> bên dưới để mở giao diện thanh toán PayOS VietQR chính thức.
+                          Nhấn nút{" "}
+                          <strong className="text-[#3E2723]">
+                            &quot;Thanh toán ngay&quot;
+                          </strong>{" "}
+                          bên dưới để mở giao diện thanh toán PayOS VietQR chính
+                          thức.
                         </p>
                       </div>
                     </div>
@@ -648,10 +718,12 @@ export default function CheckoutPage() {
               )}
 
               {/* Chi tiết 2: Ví MoMo */}
-              {paymentMethod === 'MOMO' && (
+              {paymentMethod === "MOMO" && (
                 <div className="bg-[#FFF8FB] border border-[#F3D1E4] rounded-2xl p-4 sm:p-6 shadow-inner space-y-4">
                   <div className="flex items-center gap-2 text-xs font-bold text-[#A50064] pb-2 border-b border-[#F3D1E4]">
-                    <span className="w-4 h-4 rounded-full bg-[#A50064] text-white text-[10px] font-bold flex items-center justify-center">M</span>
+                    <span className="w-4 h-4 rounded-full bg-[#A50064] text-white text-[10px] font-bold flex items-center justify-center">
+                      M
+                    </span>
                     <span>Thông tin chuyển tiền Ví MoMo</span>
                   </div>
 
@@ -663,7 +735,9 @@ export default function CheckoutPage() {
                       </div>
                       <div className="flex justify-between py-1">
                         <span className="text-gray-500">Chủ ví MoMo:</span>
-                        <span className="font-bold text-[#2E1810]">VO DUONG THANH LE</span>
+                        <span className="font-bold text-[#2E1810]">
+                          VO DUONG THANH LE
+                        </span>
                       </div>
                       <div className="flex justify-between py-1">
                         <span className="text-gray-500">Số điện thoại:</span>
@@ -674,17 +748,20 @@ export default function CheckoutPage() {
                       <div className="flex justify-between py-1">
                         <span className="text-gray-500">Số tiền:</span>
                         <span className="font-extrabold text-[#A50064] text-sm">
-                          {grandTotal.toLocaleString('vi-VN')}đ
+                          {grandTotal.toLocaleString("vi-VN")}đ
                         </span>
                       </div>
                       <div className="flex justify-between py-1.5 bg-[#FFF0F6] px-3 rounded-lg border border-[#F3D1E4]">
-                        <span className="text-gray-600 font-semibold">Lời nhắn:</span>
+                        <span className="text-gray-600 font-semibold">
+                          Lời nhắn:
+                        </span>
                         <span className="font-extrabold text-[#A50064] tracking-wide">
                           {transferContent}
                         </span>
                       </div>
                       <p className="text-[11px] text-gray-400 italic pt-1">
-                        * Quét mã MoMo hoặc chuyển tiền theo lời nhắn để hệ thống tự động ghi nhận đơn.
+                        * Quét mã MoMo hoặc chuyển tiền theo lời nhắn để hệ
+                        thống tự động ghi nhận đơn.
                       </p>
                     </div>
 
@@ -697,7 +774,11 @@ export default function CheckoutPage() {
                           Quét mã MoMo
                         </span>
                         <p className="text-[11px] text-[#756C65] leading-relaxed">
-                          Nhấn nút <strong className="text-[#A50064]">&quot;Thanh toán ngay&quot;</strong> bên dưới để mở mã QR MoMo và hoàn tất đơn hàng.
+                          Nhấn nút{" "}
+                          <strong className="text-[#A50064]">
+                            &quot;Thanh toán ngay&quot;
+                          </strong>{" "}
+                          bên dưới để mở mã QR MoMo và hoàn tất đơn hàng.
                         </p>
                       </div>
                     </div>
@@ -717,13 +798,11 @@ export default function CheckoutPage() {
                 <span>Hoàn trả về giỏ hàng</span>
               </button>
             </div>
-
           </div>
 
           {/* CỘT PHẢI: ĐƠN HÀNG CỦA BẠN & NÚT THANH TOÁN */}
           <div className="lg:col-span-5 xl:col-span-4 sticky top-24">
             <div className="bg-white border border-[#E8DFD8] rounded-3xl p-6 sm:p-7 shadow-sm space-y-6">
-
               {/* Header Right Sidebar */}
               <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
                 <BagIcon className="w-5 h-5 text-[#8D6E63]" />
@@ -744,7 +823,7 @@ export default function CheckoutPage() {
                         <img
                           src={
                             item.imageUrl ||
-                            'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=200&auto=format&fit=crop&q=80'
+                            "https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=200&auto=format&fit=crop&q=80"
                           }
                           alt={item.name}
                           className="w-full h-full object-cover"
@@ -756,10 +835,16 @@ export default function CheckoutPage() {
                           {item.name}
                         </p>
                         <p className="text-gray-500 text-[11px] mt-0.5">
-                          Size {item.size} {item.toppings?.length ? `• ${item.toppings.join(', ')}` : ''}
+                          Size {item.size}{" "}
+                          {item.toppings?.length
+                            ? `• ${item.toppings.join(", ")}`
+                            : ""}
                         </p>
                         <p className="font-bold text-[#8D6E63] mt-1">
-                          {(Number(item.price) * Number(item.quantity)).toLocaleString('vi-VN')}đ
+                          {(
+                            Number(item.price) * Number(item.quantity)
+                          ).toLocaleString("vi-VN")}
+                          đ
                         </p>
                       </div>
                     </div>
@@ -771,7 +856,10 @@ export default function CheckoutPage() {
                           type="button"
                           onClick={() => {
                             if (item.quantity > 1) {
-                              updateQuantity(item.cartItemId, item.quantity - 1);
+                              updateQuantity(
+                                item.cartItemId,
+                                item.quantity - 1,
+                              );
                             } else {
                               removeFromCart(item.cartItemId);
                             }
@@ -785,7 +873,9 @@ export default function CheckoutPage() {
                         </span>
                         <button
                           type="button"
-                          onClick={() => updateQuantity(item.cartItemId, item.quantity + 1)}
+                          onClick={() =>
+                            updateQuantity(item.cartItemId, item.quantity + 1)
+                          }
                           className="w-5 h-5 flex items-center justify-center text-gray-500 hover:text-black cursor-pointer"
                         >
                           <PlusIcon className="w-2.5 h-2.5" />
@@ -841,17 +931,22 @@ export default function CheckoutPage() {
                   <p className="text-[11px] text-[#756C65] leading-relaxed">
                     {membership.discountPercent > 0 ? (
                       <>
-                        Đơn hàng của bạn được{' '}
+                        Đơn hàng của bạn được{" "}
                         <strong className="text-emerald-700">
                           tự động giảm {membership.discountPercent}%
-                        </strong>{' '}
-                        dựa trên điểm tích lũy ({loyaltyPoints} điểm - Hạng {membership.tier}).
+                        </strong>{" "}
+                        dựa trên điểm tích lũy ({loyaltyPoints} điểm - Hạng{" "}
+                        {membership.tier}).
                       </>
                     ) : (
                       <>
-                        Bạn đang có <strong>{loyaltyPoints} điểm</strong>. Tích lũy thêm{' '}
-                        <strong className="text-[#8D6E63]">{membership.pointsNeeded} điểm</strong> nữa để lên hạng{' '}
-                        <strong>{membership.nextTier}</strong> và nhận ưu đãi giảm 5% tự động!
+                        Bạn đang có <strong>{loyaltyPoints} điểm</strong>. Tích
+                        lũy thêm{" "}
+                        <strong className="text-[#8D6E63]">
+                          {membership.pointsNeeded} điểm
+                        </strong>{" "}
+                        nữa để lên hạng <strong>{membership.nextTier}</strong>{" "}
+                        và nhận ưu đãi giảm 5% tự động!
                       </>
                     )}
                   </p>
@@ -861,7 +956,10 @@ export default function CheckoutPage() {
                     <div className="space-y-1 pt-1">
                       <div className="flex justify-between text-[10px] text-gray-500 font-medium">
                         <span>Hạng {membership.tier}</span>
-                        <span>Cần thêm {membership.pointsNeeded} điểm lên {membership.nextTier}</span>
+                        <span>
+                          Cần thêm {membership.pointsNeeded} điểm lên{" "}
+                          {membership.nextTier}
+                        </span>
                       </div>
                       <div className="w-full bg-[#E8DFD8] h-1.5 rounded-full overflow-hidden">
                         <div
@@ -872,8 +970,8 @@ export default function CheckoutPage() {
                               Math.round(
                                 (loyaltyPoints /
                                   (loyaltyPoints + membership.pointsNeeded)) *
-                                  100
-                              )
+                                  100,
+                              ),
                             )}%`,
                           }}
                         />
@@ -888,17 +986,18 @@ export default function CheckoutPage() {
                 <div className="flex justify-between text-[#5C4D44]">
                   <span>Tạm tính ({activeItems.length} món)</span>
                   <span className="font-bold text-[#2E1810]">
-                    {subtotal.toLocaleString('vi-VN')}đ
+                    {subtotal.toLocaleString("vi-VN")}đ
                   </span>
                 </div>
 
                 {discountAmount > 0 ? (
                   <div className="flex justify-between text-emerald-600 font-medium">
                     <span>
-                      Giảm giá thành viên (Hạng {membership.tier} -{membership.discountPercent}%)
+                      Giảm giá thành viên (Hạng {membership.tier} -
+                      {membership.discountPercent}%)
                     </span>
                     <span className="font-bold">
-                      -{discountAmount.toLocaleString('vi-VN')}đ
+                      -{discountAmount.toLocaleString("vi-VN")}đ
                     </span>
                   </div>
                 ) : (
@@ -923,7 +1022,7 @@ export default function CheckoutPage() {
                   Tổng cộng
                 </span>
                 <span className="font-extrabold text-2xl text-[#3E2723]">
-                  {grandTotal.toLocaleString('vi-VN')}đ
+                  {grandTotal.toLocaleString("vi-VN")}đ
                 </span>
               </div>
 
@@ -935,7 +1034,9 @@ export default function CheckoutPage() {
                 className="w-full bg-[#763A1E] hover:bg-[#5C2D17] text-white font-bold py-3.5 px-4 rounded-xl transition shadow-lg shadow-[#763A1E]/20 hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 text-center flex items-center justify-center gap-2 cursor-pointer text-sm"
               >
                 <BankIcon className="w-4 h-4 text-[#D7A86E]" />
-                <span>{isPaying ? 'Đang xử lý đơn...' : 'Thanh toán ngay'}</span>
+                <span>
+                  {isPaying ? "Đang xử lý đơn..." : "Thanh toán ngay"}
+                </span>
               </button>
 
               <div className="text-center pt-1">
@@ -947,12 +1048,9 @@ export default function CheckoutPage() {
                   ← Trả lại món & về giỏ hàng
                 </button>
               </div>
-
             </div>
           </div>
-
         </div>
-
       </div>
 
       {/* =========================================================
@@ -1001,29 +1099,39 @@ export default function CheckoutPage() {
                 VO DUONG THANH LE — 0962 6295 94
               </span>
               <span className="text-xl font-black text-[#A50064] mt-0.5">
-                {createdOrderData.total.toLocaleString('vi-VN')}đ
+                {createdOrderData.total.toLocaleString("vi-VN")}đ
               </span>
             </div>
 
             {/* Đang tự động nhận diện thanh toán */}
             <div className="flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-pink-50 border border-pink-200 text-[11px] text-[#A50064] font-medium">
               <div className="w-3.5 h-3.5 border-2 border-[#A50064] border-t-transparent rounded-full animate-spin shrink-0" />
-              <span>Đang chờ chuyển tiền... Hệ thống sẽ tự động duyệt đơn khi tiền vào!</span>
+              <span>
+                Đang chờ chuyển tiền... Hệ thống sẽ tự động duyệt đơn khi tiền
+                vào!
+              </span>
             </div>
 
             {/* Chi tiết người nhận & Lời nhắn */}
             <div className="bg-gray-50 p-3 rounded-xl border border-gray-200 text-xs text-left space-y-1.5">
               <div className="flex justify-between">
                 <span className="text-gray-500">Người nhận:</span>
-                <span className="font-bold text-gray-800">VO DUONG THANH LE</span>
+                <span className="font-bold text-gray-800">
+                  VO DUONG THANH LE
+                </span>
               </div>
               <div className="flex justify-between">
                 <span className="text-gray-500">Số MoMo:</span>
                 <span className="font-bold text-[#A50064]">0962 6295 94</span>
               </div>
               <div className="flex justify-between">
-                <span className="text-gray-500">Nội dung CK (tự động nhận diện):</span>
-                <span className="font-bold text-[#A50064] bg-pink-50 px-1.5 py-0.5 rounded border border-pink-200">{payosPaymentData?.description || `BrewLite #${createdOrderData.id}`}</span>
+                <span className="text-gray-500">
+                  Nội dung CK (tự động nhận diện):
+                </span>
+                <span className="font-bold text-[#A50064] bg-pink-50 px-1.5 py-0.5 rounded border border-pink-200">
+                  {payosPaymentData?.description ||
+                    `BrewLite #${createdOrderData.id}`}
+                </span>
               </div>
             </div>
 
@@ -1035,7 +1143,9 @@ export default function CheckoutPage() {
                 onClick={handleConfirmMomoPaid}
                 className="w-full bg-[#A50064] hover:bg-[#880052] disabled:opacity-50 text-white font-bold py-3.5 px-4 rounded-xl transition shadow-lg shadow-[#A50064]/25 text-sm cursor-pointer"
               >
-                {isPaying ? 'Đang xác nhận...' : '✅ Tôi đã chuyển tiền MoMo thành công'}
+                {isPaying
+                  ? "Đang xác nhận..."
+                  : "✅ Tôi đã chuyển tiền MoMo thành công"}
               </button>
               <button
                 type="button"
@@ -1048,7 +1158,6 @@ export default function CheckoutPage() {
           </div>
         </div>
       )}
-
     </main>
   );
 }
