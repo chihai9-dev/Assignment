@@ -4,28 +4,14 @@ import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState, useMemo } from "react";
 import Link from "next/link";
 import { useCartStore } from "../../../store/cartStore";
-import { ArrowLeftIcon, PlusIcon, MinusIcon, CoffeeCupIcon } from "../../components/Icons";
-
-interface Product {
-  id: number;
-  name: string;
-  price: number;
-  imageUrl: string;
-  description?: string;
-}
-
-interface ToppingItem {
-  id: number;
-  name: string;
-  price: number;
-}
-
-// Bảng phụ thu theo size chuẩn
-const SIZE_PRICES: Record<"S" | "M" | "L", number> = {
-  S: 0,
-  M: 5000,
-  L: 10000,
-};
+import {
+  ArrowLeftIcon,
+  PlusIcon,
+  MinusIcon,
+  CoffeeCupIcon,
+} from "../../components/Icons";
+import { ProductSize } from "../../types";
+import type { Product, ToppingItem, ProductSizeOption } from "../../types";
 
 export default function ProductDetailPage() {
   const params = useParams();
@@ -35,7 +21,8 @@ export default function ProductDetailPage() {
   const productIdStr = String(params?.id || "1");
 
   const [product, setProduct] = useState<Product | null>(null);
-  const [selectedSize, setSelectedSize] = useState<"S" | "M" | "L">("M");
+  const [sizes, setSizes] = useState<ProductSizeOption[]>([]);
+  const [selectedSize, setSelectedSize] = useState<string>("");
   const [selectedToppings, setSelectedToppings] = useState<string[]>([]);
   const [quantity, setQuantity] = useState<number>(1);
   const [activeImage, setActiveImage] = useState<string>("");
@@ -53,7 +40,8 @@ export default function ProductDetailPage() {
 
     fetch(`http://localhost:3001/api/products/${productIdStr}`)
       .then((res) => {
-        if (!res.ok) throw new Error("Không tìm thấy đồ uống trong cơ sở dữ liệu");
+        if (!res.ok)
+          throw new Error("Không tìm thấy đồ uống trong cơ sở dữ liệu");
         return res.json();
       })
       .then((data) => {
@@ -69,8 +57,22 @@ export default function ProductDetailPage() {
               "Hương vị tuyệt hảo, được pha chế từ nguồn nguyên liệu chọn lọc của BrewLite.",
           });
           setActiveImage(p.imageUrl);
+
+          // Size + phụ thu lấy từ API
+          const sizeList: ProductSizeOption[] = (
+            Array.isArray(p.sizes) ? p.sizes : []
+          ).map((sz: any) => ({
+            key: String(sz.key ?? sz.size ?? sz.name),
+            label: sz.label,
+            extraPrice: Number(sz.extraPrice ?? sz.price ?? 0),
+          }));
+          setSizes(sizeList);
+          const def =
+            sizeList.find((sz) => sz.key === ProductSize.S) ?? sizeList[0];
+          setSelectedSize(def ? def.key : "");
         } else {
           setProduct(null);
+          setSizes([]);
         }
       })
       .catch((err) => {
@@ -107,15 +109,17 @@ export default function ProductDetailPage() {
   // Cập nhật topping checkbox
   const handleToppingToggle = (name: string) => {
     setSelectedToppings((prev) =>
-      prev.includes(name) ? prev.filter((t) => t !== name) : [...prev, name]
+      prev.includes(name) ? prev.filter((t) => t !== name) : [...prev, name],
     );
   };
+
+  const currentSize = sizes.find((sz) => sz.key === selectedSize);
 
   // Tính giá đơn vị sản phẩm: Giá gốc + Size + Toppings
   const unitPrice = useMemo(() => {
     if (!product) return 0;
     const base = Number(product.price);
-    const sizeExtra = SIZE_PRICES[selectedSize];
+    const sizeExtra = Number(currentSize?.extraPrice ?? 0);
     const toppingsExtra = selectedToppings.reduce((sum, name) => {
       const found = toppingsList.find((t) => t.name === name);
       return sum + (found ? Number(found.price) : 0);
@@ -128,7 +132,7 @@ export default function ProductDetailPage() {
 
   // Thêm vào giỏ hàng
   const handleAddToCart = () => {
-    if (!product) return;
+    if (!product || !selectedSize) return;
 
     // Sắp xếp toppings để tạo key giỏ hàng duy nhất
     const sortedToppings = [...selectedToppings].sort();
@@ -168,9 +172,12 @@ export default function ProductDetailPage() {
       <div className="min-h-screen bg-[#FBF8F2] flex items-center justify-center p-6 text-center">
         <div className="bg-white p-8 rounded-2xl border border-[#E8DFD8] shadow-sm max-w-md">
           <CoffeeCupIcon className="w-12 h-12 text-[#8D6E63] mx-auto mb-3" />
-          <h2 className="text-xl font-bold text-[#3E2723]">Không tìm thấy đồ uống</h2>
+          <h2 className="text-xl font-bold text-[#3E2723]">
+            Không tìm thấy đồ uống
+          </h2>
           <p className="text-sm text-gray-500 mt-2 mb-6">
-            {loadError || "Món bạn tìm kiếm không tồn tại trong cơ sở dữ liệu hoặc đã ngừng phục vụ."}
+            {loadError ||
+              "Món bạn tìm kiếm không tồn tại trong cơ sở dữ liệu hoặc đã ngừng phục vụ."}
           </p>
           <Link
             href="/"
@@ -186,7 +193,6 @@ export default function ProductDetailPage() {
   return (
     <main className="min-h-screen bg-[#FBF8F2] py-8 px-4 sm:px-6 lg:px-8 text-[#1F1F1F]">
       <div className="max-w-6xl mx-auto space-y-6">
-        
         {/* Nút quay lại */}
         <div>
           <button
@@ -198,13 +204,10 @@ export default function ProductDetailPage() {
           </button>
         </div>
 
-
-
         {/* =========================================================
             CHI TIẾT SẢN PHẨM (Theo Mockup 3. Chi tiết sản phẩm)
         ========================================================= */}
         <div className="bg-white border border-[#E8DFD8] rounded-3xl p-6 sm:p-10 shadow-sm grid grid-cols-1 md:grid-cols-12 gap-8 lg:gap-12">
-          
           {/* CỘT TRÁI: HÌNH ẢNH SẢN PHẨM & THUMBNAILS */}
           <div className="md:col-span-5 space-y-4">
             {/* Ảnh chính */}
@@ -220,7 +223,8 @@ export default function ProductDetailPage() {
             {thumbnails.length > 1 && (
               <div className="grid grid-cols-3 gap-3">
                 {thumbnails.map((imgUrl, idx) => {
-                  const isSelected = (activeImage || product?.imageUrl) === imgUrl;
+                  const isSelected =
+                    (activeImage || product?.imageUrl) === imgUrl;
                   return (
                     <button
                       key={idx}
@@ -267,26 +271,34 @@ export default function ProductDetailPage() {
                 <label className="block text-sm font-bold text-[#3E2723]">
                   Chọn size
                 </label>
-                <div className="grid grid-cols-3 gap-3">
-                  {(["S", "M", "L"] as const).map((size) => {
-                    const isSelected = selectedSize === size;
-                    const priceDiff = SIZE_PRICES[size];
+                <div className="grid grid-cols-[repeat(auto-fit,minmax(90px,1fr))] gap-3">
+                  {sizes.length === 0 && (
+                    <div className="col-span-full p-3 rounded-xl border border-dashed border-[#E8DFD8] text-xs text-gray-500 text-center bg-[#FDFBF7]">
+                      Món này chưa có size
+                    </div>
+                  )}
+                  {sizes.map((size) => {
+                    const isSelected = selectedSize === size.key;
                     const displayPrice =
-                      Number(product?.price || 0) + priceDiff;
+                      Number(product?.price || 0) + size.extraPrice;
 
                     return (
                       <button
-                        key={size}
+                        key={size.key}
                         type="button"
-                        onClick={() => setSelectedSize(size)}
+                        onClick={() => setSelectedSize(size.key)}
                         className={`p-3 rounded-xl border text-center transition-all cursor-pointer ${
                           isSelected
                             ? "bg-[#3E2723] text-white border-[#3E2723] shadow-md shadow-[#3E2723]/20"
                             : "bg-[#FDFBF7] text-[#5C4D44] border-[#E8DFD8] hover:bg-[#F5F0E6] hover:border-[#8D6E63]"
                         }`}
                       >
-                        <div className="font-extrabold text-base">{size}</div>
-                        <div className={`text-xs mt-0.5 ${isSelected ? "text-white/80" : "text-[#8D6E63]"}`}>
+                        <div className="font-extrabold text-base">
+                          {size.label ?? size.key}
+                        </div>
+                        <div
+                          className={`text-xs mt-0.5 ${isSelected ? "text-white/80" : "text-[#8D6E63]"}`}
+                        >
                           {displayPrice.toLocaleString("vi-VN")}đ
                         </div>
                       </button>
@@ -368,7 +380,8 @@ export default function ProductDetailPage() {
                 <button
                   type="button"
                   onClick={handleAddToCart}
-                  className="flex-1 bg-[#3E2723] hover:bg-[#2E1C12] text-white font-bold py-3.5 px-6 rounded-xl transition-all shadow-md shadow-[#3E2723]/20 hover:-translate-y-0.5 active:translate-y-0 cursor-pointer flex items-center justify-center gap-2"
+                  disabled={!selectedSize}
+                  className="disabled:opacity-50 disabled:cursor-not-allowed flex-1 bg-[#3E2723] hover:bg-[#2E1C12] text-white font-bold py-3.5 px-6 rounded-xl transition-all shadow-md shadow-[#3E2723]/20 hover:-translate-y-0.5 active:translate-y-0 cursor-pointer flex items-center justify-center gap-2"
                 >
                   <span>Thêm vào giỏ hàng</span>
                   <span>•</span>
@@ -376,11 +389,8 @@ export default function ProductDetailPage() {
                 </button>
               </div>
             </div>
-
           </div>
-
         </div>
-
       </div>
 
       {/* Toast thông báo thêm giỏ hàng thành công (Cố định ở phía dưới màn hình) */}
