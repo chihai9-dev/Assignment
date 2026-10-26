@@ -1,31 +1,19 @@
-export const ProductSize = { S: "S", M: "M", L: "L" } as const;
-export type ProductSizeKey = (typeof ProductSize)[keyof typeof ProductSize];
+export enum ProductSize {
+  S = "S",
+  M = "M",
+  L = "L",
+}
 
-export const OrderStatus = {
-  PENDING: "PENDING",
-  PAID: "PAID",
-  PREPARING: "PREPARING",
-  READY: "READY",
-  COMPLETED: "COMPLETED",
-  PAYMENT_FAILED: "PAYMENT_FAILED",
-  CANCELLED: "CANCELLED",
-} as const;
-export type OrderStatusType = (typeof OrderStatus)[keyof typeof OrderStatus];
+export type ProductSizeKey = keyof typeof ProductSize;
 
-export const PaymentMethod = { WALLET: "WALLET", CARD: "CARD" } as const;
-export type PaymentMethodType = (typeof PaymentMethod)[keyof typeof PaymentMethod];
-
-export const ProductStatus = { ACTIVE: "active", INACTIVE: "inactive" } as const;
-export type ProductStatusType = (typeof ProductStatus)[keyof typeof ProductStatus];
-
-export const UserRole = { CUSTOMER: "customer", BARISTA: "barista" } as const;
-export type UserRoleType = (typeof UserRole)[keyof typeof UserRole];
-
-
-export interface ProductSizeOption {
-  key: ProductSizeKey;
-  label?: string;
-  extraPrice: number;
+export interface Product {
+  id: number;
+  name: string;
+  price: number;
+  imageUrl: string;
+  description?: string;
+  categoryId?: number;
+  category?: Category | null;
 }
 
 export interface Category {
@@ -33,29 +21,19 @@ export interface Category {
   name: string;
 }
 
-export interface Product {
-  id: number; 
-  name: string;
-  price: number; 
-  imageUrl?: string;
-  stock?: number;
-  status?: ProductStatusType;
-  description?: string; 
-  sizes?: ProductSizeOption[];
-  categoryId?: number | null;
-  category?: Category | null;
-}
-
 export interface ToppingItem {
   id: number;
   name: string;
   price: number;
-  isAvailable?: boolean;
+}
+export enum UserRole {
+  CUSTOMER = "customer",
+  BARISTA = "barista",
 }
 
 export interface AuthUser {
   id: number;
   email: string;
-  role?: UserRoleType;
+  role?: UserRole | string;
   loyaltyPoints?: number;
 }
