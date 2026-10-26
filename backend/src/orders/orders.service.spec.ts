@@ -17,6 +17,7 @@ describe('OrdersService', () => {
         findUnique: jest.fn(),
         update: jest.fn(),
       },
+      $queryRaw: jest.fn(),
     };
 
     mockUsersService = {
@@ -200,6 +201,35 @@ describe('OrdersService', () => {
 
       expect(order).toBeDefined();
       expect(Number(order.id)).toBe(orderId);
+    });
+  });
+
+  describe('getOrderStatuses', () => {
+    it('lấy danh sách các trạng thái đơn hàng từ database enum', async () => {
+      mockPrisma.$queryRaw.mockResolvedValue([
+        {
+          enum_range: [
+            'PENDING',
+            'PAID',
+            'PREPARING',
+            'READY',
+            'COMPLETED',
+            'PAYMENT_FAILED',
+            'CANCELLED',
+          ],
+        },
+      ]);
+
+      const statuses = await service.getOrderStatuses();
+      expect(statuses).toEqual([
+        'PENDING',
+        'PAID',
+        'PREPARING',
+        'READY',
+        'COMPLETED',
+        'PAYMENT_FAILED',
+        'CANCELLED',
+      ]);
     });
   });
 });

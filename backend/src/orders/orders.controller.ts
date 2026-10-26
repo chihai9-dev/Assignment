@@ -107,6 +107,12 @@ export class OrdersController {
     return this.ordersService.retryPayment(id, Number(req.user.userId));
   }
 
+  // Lấy danh sách các trạng thái đơn hàng trong database (Enum order_status)
+  @Get('statuses')
+  getOrderStatuses() {
+    return this.ordersService.getOrderStatuses();
+  }
+
   // Lấy chi tiết đơn hàng theo ID (đặt sau các route cụ thể để tránh conflict routing)
   // Khách hàng chỉ có quyền xem đơn hàng do chính mình mua, không có quyền xem đơn của người khác
   @UseGuards(JwtAuthGuard)

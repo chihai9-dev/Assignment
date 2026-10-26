@@ -2,6 +2,9 @@ import { BadRequestException, ConflictException, NotFoundException } from '@nest
 import { order_status, payment_method } from '@prisma/client';
 import { OrdersService } from './orders.service';
 import { PaymentsService } from '../payments/payments.service';
+import { CreatePaymentDto, PaymentMethod } from '../payments/dto/create-payment.dto';
+import { validate } from 'class-validator';
+import { plainToInstance } from 'class-transformer';
 
 describe('Task 10 - Backend Business Logic Tests', () => {
   let ordersService: OrdersService;
@@ -126,7 +129,7 @@ describe('Task 10 - Backend Business Logic Tests', () => {
     it('gửi yêu cầu thanh toán lần đầu: tạo giao dịch mới và chuyển đơn sang PAID', async () => {
       const orderId = 101;
       const amount = 50000;
-      const idempotencyKey = 'key-test-uuid-1';
+      const idempotencyKey = '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d';
 
       mockPrisma.payment.findUnique.mockResolvedValue(null); // Chưa tồn tại
       mockPrisma.order.findUnique.mockResolvedValue({
@@ -164,7 +167,7 @@ describe('Task 10 - Backend Business Logic Tests', () => {
     it('gửi lần 2 với CÙNG Idempotency-Key: trả về giao dịch cũ, không tạo record mới, không trừ tiền 2 lần', async () => {
       const orderId = 101;
       const amount = 50000;
-      const idempotencyKey = 'key-test-uuid-1';
+      const idempotencyKey = '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d';
 
       const existingPayment = {
         id: BigInt(1),
@@ -195,6 +198,30 @@ describe('Task 10 - Backend Business Logic Tests', () => {
       expect(result.payment).toEqual(existingPayment);
       // Đảm bảo không gọi prisma.payment.create thêm lần nào
       expect(mockPrisma.payment.create).not.toHaveBeenCalled();
+    });
+
+    it('chấp nhận idempotencyKey đúng định dạng chuẩn UUID v4 trong CreatePaymentDto', async () => {
+      const dto = plainToInstance(CreatePaymentDto, {
+        orderId: 101,
+        amount: 50000,
+        method: PaymentMethod.WALLET,
+        idempotencyKey: '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d',
+      });
+      const errors = await validate(dto);
+      expect(errors.length).toBe(0);
+    });
+
+    it('CHẶN và báo lỗi khi idempotencyKey KHÔNG phải là UUID v4 hợp lệ trong CreatePaymentDto', async () => {
+      const dto = plainToInstance(CreatePaymentDto, {
+        orderId: 101,
+        amount: 50000,
+        method: PaymentMethod.WALLET,
+        idempotencyKey: 'invalid-non-uuid-key',
+      });
+      const errors = await validate(dto);
+      expect(errors.length).toBeGreaterThan(0);
+      expect(errors[0].property).toBe('idempotencyKey');
+      expect(errors[0].constraints?.isUuid).toBeDefined();
     });
   });
 
@@ -404,7 +431,7 @@ describe('Task 10 - Backend Business Logic Tests', () => {
         orderId,
         amount,
         method: payment_method.WALLET,
-        idempotencyKey: 'loyalty-test-key',
+        idempotencyKey: 'c3d4e5f6-a7b8-4c9d-8e1f-2a3b4c5d6e7f',
       });
 
       // 50.000đ -> tích 5 điểm thưởng (1 điểm / 10.000đ)

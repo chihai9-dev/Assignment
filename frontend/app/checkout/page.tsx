@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { generateUUIDv4 } from '@/lib/uuid';
 import { useCartStore } from '../../store/cartStore';
 import { useAuthStore } from '../../store/authStore';
 import {
@@ -276,7 +277,7 @@ export default function CheckoutPage() {
           orderId: payOSData.orderId,
           amount: payOSData.amount,
           method: 'WALLET',
-          idempotencyKey: `mock-payos-${payOSData.orderId}-${Date.now()}`,
+          idempotencyKey: generateUUIDv4(),
         }),
       });
 

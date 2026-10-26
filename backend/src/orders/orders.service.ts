@@ -17,6 +17,21 @@ export class OrdersService {
     private readonly usersService: UsersService,
   ) {}
 
+  // Lấy danh sách các trạng thái đơn hàng trực tiếp từ database (Enum order_status)
+  async getOrderStatuses(): Promise<string[]> {
+    try {
+      const result: any = await this.prisma.$queryRaw`
+        SELECT enum_range(NULL::order_status);
+      `;
+      if (Array.isArray(result) && result.length > 0 && Array.isArray(result[0]?.enum_range)) {
+        return result[0].enum_range;
+      }
+    } catch {
+      // Fallback sang enum định nghĩa trong Prisma Client nếu query raw không thành công
+    }
+    return Object.values(order_status);
+  }
+
   async create(createOrderDto: CreateOrderDto, userId: number) {
     // 1. Tính tổng tiền gốc của đơn hàng
     const rawTotal = createOrderDto.items.reduce(
