@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useAuthStore } from './authStore';
+import { CHECKOUT_DURATION_MINUTES } from '../hooks/useCheckoutTimer';
 
 export interface CartItem {
   cartItemId: string;
@@ -18,11 +19,22 @@ interface CartStore {
   cartsByUser: Record<string, CartItem[]>;
   activeUserEmail: string | null;
 
+  // Trạng thái giữ hàng khi đang trong phiên checkout
+  checkoutItems: CartItem[];
+  checkoutExpiresAt: number | null; // Timestamp (ms) hết hạn (khoảng 5-6 phút)
+
   addToCart: (newItem: CartItem) => void;
   removeFromCart: (cartItemId: string) => void;
   updateQuantity: (cartItemId: string, quantity: number) => void;
   loadCartForUser: (email: string) => void;
   clearActiveCart: () => void;
+
+  // Bắt đầu thanh toán: đưa món từ cart sang checkoutItems, làm rỗng cart ngay lập tức
+  startCheckout: (durationMinutes?: number) => void;
+  // Hoàn trả các món từ checkoutItems về lại cart khi hết giờ hoặc hủy
+  restoreCheckoutToCart: () => void;
+  // Xóa checkoutItems khi đơn hàng thanh toán thành công
+  clearCheckoutItems: () => void;
 }
 
 export const useCartStore = create<CartStore>()(
@@ -31,6 +43,8 @@ export const useCartStore = create<CartStore>()(
       items: [],
       cartsByUser: {},
       activeUserEmail: null,
+      checkoutItems: [],
+      checkoutExpiresAt: null,
 
       // Thêm vào giỏ (hỗ trợ cả khách vãng lai chưa đăng nhập)
       addToCart: (newItem) =>
@@ -122,7 +136,6 @@ export const useCartStore = create<CartStore>()(
       loadCartForUser: (email) =>
         set((state) => {
           const savedUserItems = state.cartsByUser[email] ?? [];
-          // Nếu khách đã thêm món vào giỏ trước khi đăng nhập, ưu tiên dùng món hiện có
           const effectiveItems =
             state.items.length > 0 ? state.items : savedUserItems;
 
@@ -136,6 +149,61 @@ export const useCartStore = create<CartStore>()(
           };
         }),
 
+      // Bắt đầu thanh toán: chuyển món từ giỏ hàng sang checkoutItems và làm trống giỏ
+      startCheckout: (durationMinutes = CHECKOUT_DURATION_MINUTES) =>
+        set((state) => {
+          const authUser = useAuthStore.getState().user;
+          const email = authUser?.email || state.activeUserEmail;
+          const currentItems = state.items && state.items.length > 0 ? state.items : (state.checkoutItems || []);
+          const expiresAt = Date.now() + durationMinutes * 60 * 1000;
+
+          return {
+            items: [], // Làm rỗng giỏ hàng ngay khi nhấn thanh toán
+            checkoutItems: [...currentItems],
+            checkoutExpiresAt: expiresAt,
+            cartsByUser: email
+              ? {
+                  ...state.cartsByUser,
+                  [email]: [],
+                }
+              : state.cartsByUser,
+          };
+        }),
+
+      // Hoàn trả các món từ checkoutItems về lại cart khi hết hạn hoặc hủy
+      restoreCheckoutToCart: () =>
+        set((state) => {
+          const authUser = useAuthStore.getState().user;
+          const email = authUser?.email || state.activeUserEmail;
+
+          // Lấy món cần hoàn: ưu tiên checkoutItems, fallback items
+          const source = (state.checkoutItems && state.checkoutItems.length > 0) ? state.checkoutItems : state.items;
+          if (!source || source.length === 0) {
+            return state;
+          }
+
+          const restoredItems = [...source];
+
+          return {
+            items: restoredItems,
+            checkoutItems: [],
+            checkoutExpiresAt: null,
+            cartsByUser: email
+              ? {
+                  ...state.cartsByUser,
+                  [email]: restoredItems,
+                }
+              : state.cartsByUser,
+          };
+        }),
+
+      // Xóa checkoutItems khi thanh toán hoàn tất thành công
+      clearCheckoutItems: () =>
+        set({
+          checkoutItems: [],
+          checkoutExpiresAt: null,
+        }),
+
       // Đăng xuất thì bỏ tài khoản đang active nhưng vẫn giữ món
       clearActiveCart: () =>
         set({
@@ -144,6 +212,13 @@ export const useCartStore = create<CartStore>()(
     }),
     {
       name: 'cart-storage',
+      partialize: (state) => ({
+        items: state.items,
+        cartsByUser: state.cartsByUser,
+        activeUserEmail: state.activeUserEmail,
+        checkoutItems: state.checkoutItems,
+        checkoutExpiresAt: state.checkoutExpiresAt,
+      }),
     }
   )
 );

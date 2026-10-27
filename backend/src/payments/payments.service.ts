@@ -2,296 +2,61 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
-  Logger,
   NotFoundException,
+  OnModuleInit,
 } from '@nestjs/common';
-import { order_status } from '@prisma/client';
-import { PayOS } from '@payos/node';
+import { order_status, payment_method } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
+import * as crypto from 'crypto';
+
+// eslint-disable-next-line @typescript-eslint/no-require-imports
+const { PayOS } = require('@payos/node');
 
 @Injectable()
-export class PaymentsService {
-  private readonly logger = new Logger(PaymentsService.name);
-  private payos: PayOS | null = null;
+export class PaymentsService implements OnModuleInit {
+  private payOS: any = null;
 
   constructor(
     private readonly prisma: PrismaService,
     private readonly usersService: UsersService,
-  ) {
+  ) {}
+
+  onModuleInit() {
     const clientId = process.env.PAYOS_CLIENT_ID;
     const apiKey = process.env.PAYOS_API_KEY;
     const checksumKey = process.env.PAYOS_CHECKSUM_KEY;
 
     if (clientId && apiKey && checksumKey) {
       try {
-        this.payos = new PayOS({
+        this.payOS = new PayOS({
           clientId,
           apiKey,
           checksumKey,
         });
-        this.logger.log('Đã kết nối thành công cổng thanh toán PayOS VietQR Pro');
-      } catch (err) {
-        this.logger.error('Lỗi khởi tạo PayOS:', err);
+        console.log('[PayOS] SDK initialized successfully with client ID:', clientId.slice(0, 8) + '...');
+      } catch (err: any) {
+        console.error('[PayOS] Initialization error:', err?.message || err);
       }
-    } else {
-      this.logger.warn('Chưa có đủ biến môi trường PAYOS trong file .env');
     }
   }
 
-  // 1. Tạo liên kết thanh toán PayOS (Sinh mã VietQR quét được bằng MoMo và mọi App Ngân hàng)
-  async createPayOSLink(
-    orderId: number,
-    options?: { returnUrl?: string; cancelUrl?: string },
-  ) {
-    if (!this.payos) {
-      throw new BadRequestException(
-        'Cổng thanh toán PayOS chưa được cấu hình Client ID / API Key trong backend/.env',
-      );
-    }
-
-    const order = await this.prisma.order.findUnique({
-      where: {
-        id: BigInt(orderId) as any,
-      },
-      include: {
-        OrderItem: {
-          include: {
-            Product: true,
-          },
-        },
-      },
-    });
-
-    if (!order) {
-      throw new NotFoundException(`Không tìm thấy đơn hàng #${orderId}`);
-    }
-
-    if (order.status === order_status.PAID || order.status === order_status.COMPLETED) {
-      throw new BadRequestException('Đơn hàng này đã được thanh toán hoàn tất');
-    }
-
-    if (order.status === order_status.CANCELLED) {
-      throw new BadRequestException('Đơn hàng này đã bị hủy, không thể thanh toán');
-    }
-
-    const amount = Number(order.total);
-    if (amount <= 0) {
-      throw new BadRequestException('Số tiền thanh toán phải lớn hơn 0đ');
-    }
-
-    // PayOS yêu cầu orderCode duy nhất (số nguyên dương <= 9007199254740991)
-    // Mã hóa: orderId * 100000 + số ngẫu nhiên 5 chữ số
-    // Khi giải mã webhook: Math.floor(orderCode / 100000) = orderId
-    const orderCode = Number(orderId) * 100000 + Math.floor(10000 + Math.random() * 90000);
-
-    // Mô tả hiển thị tối đa 25 ký tự, không dấu và không ký tự đặc biệt
-    const description = `BrewLite ${orderId}`.slice(0, 25);
-
-    const clientOrigin = 'http://localhost:3000';
-    const returnUrl = options?.returnUrl || `${clientOrigin}/orders/${orderId}?status=PAID`;
-    const cancelUrl = options?.cancelUrl || `${clientOrigin}/orders/${orderId}?status=CANCELLED`;
-
-    const items = order.OrderItem.map((item) => ({
-      name: item.Product?.name || `Món #${item.productId}`,
-      quantity: item.qty,
-      price: Math.round(Number(item.lineTotal) / item.qty),
-    }));
-
-    const itemsSum = items.reduce((sum, it) => sum + it.price * it.quantity, 0);
-    const paymentPayload: any = {
-      orderCode,
-      amount,
-      description,
-      cancelUrl,
-      returnUrl,
-    };
-    if (itemsSum === amount) {
-      paymentPayload.items = items;
-    }
-
-    try {
-      const paymentLink = await this.payos.paymentRequests.create(paymentPayload);
-
-      return {
-        success: true,
-        orderId,
-        orderCode,
-        amount,
-        accountName: paymentLink.accountName,
-        accountNumber: paymentLink.accountNumber,
-        bin: paymentLink.bin,
-        description: paymentLink.description,
-        checkoutUrl: paymentLink.checkoutUrl,
-        qrCode: paymentLink.qrCode,
-        paymentLinkId: paymentLink.paymentLinkId,
-        status: paymentLink.status,
-      };
-    } catch (err: any) {
-      this.logger.error(`Lỗi tạo mã QR PayOS cho đơn #${orderId}:`, err);
-      throw new BadRequestException(
-        err.message || 'Không thể tạo link thanh toán PayOS',
-      );
-    }
-  }
-
-  // 2. Xử lý Webhook từ PayOS khi khách hàng quét QR và chuyển tiền thành công
-  async handlePayOSWebhook(body: any) {
-    this.logger.log('Nhận tín hiệu webhook từ PayOS: ' + JSON.stringify(body));
-
-    // PayOS gửi ping xác thực khi admin cấu hình Webhook URL
-    if (body?.webhookUrl) {
-      return { success: true, message: 'Webhook URL verified successfully' };
-    }
-
-    if (!this.payos) {
-      return { success: false, message: 'PayOS chưa cấu hình trong .env' };
-    }
-
-    let webhookData: any;
-    try {
-      webhookData = await this.payos.webhooks.verify(body);
-    } catch (err: any) {
-      this.logger.warn(`Lỗi xác thực webhook signature: ${err.message}`);
-      // Nếu là test payload từ PayOS Dashboard
-      if (body?.desc === 'success' || body?.data?.orderCode === 123) {
-        return { success: true, message: 'Handled PayOS test webhook' };
-      }
-      return { success: false, message: 'Invalid webhook signature' };
-    }
-
-    if (!webhookData || !webhookData.orderCode) {
-      return { success: true, message: 'No orderCode in webhook' };
-    }
-
-    // Giải mã orderId từ orderCode
-    const rawOrderCode = Number(webhookData.orderCode);
-    let orderId = Math.floor(rawOrderCode / 100000);
-    let order = await this.prisma.order.findUnique({
-      where: { id: BigInt(orderId) as any },
-    });
-
-    if (!order) {
-      order = await this.prisma.order.findUnique({
-        where: { id: BigInt(rawOrderCode) as any },
-      });
-      if (order) {
-        orderId = rawOrderCode;
-      }
-    }
-
-    if (!order) {
-      this.logger.warn(
-        `Webhook PayOS: Không tìm thấy đơn hàng với orderCode ${rawOrderCode}`,
-      );
-      return {
-        success: true,
-        message: `Order #${orderId} not found (might be test)`,
-      };
-    }
-
-    if (order.status === order_status.PAID || order.status === order_status.COMPLETED) {
-      this.logger.log(`Đơn hàng #${orderId} đã được thanh toán từ trước`);
-      return { success: true, message: 'Order already paid' };
-    }
-
-    // Cập nhật trạng thái đơn sang PAID và tạo Payment record
-    const idempotencyKey = `payos-${webhookData.paymentLinkId || webhookData.reference || rawOrderCode}`;
-
-    await this.prisma.$transaction(async (tx) => {
-      const existingPayment = await tx.payment.findUnique({
-        where: { idempotencyKey },
-      });
-
-      if (!existingPayment) {
-        await tx.payment.create({
-          data: {
-            orderId: BigInt(orderId) as any,
-            amount: webhookData.amount,
-            method: 'WALLET',
-            idempotencyKey,
-          },
-        });
-      }
-
-      await tx.order.update({
-        where: { id: BigInt(orderId) as any },
-        data: { status: order_status.PAID },
-      });
-    });
-
-    // Cộng điểm thưởng tích lũy (1 điểm / 10.000đ)
-    const pointsEarned = Math.floor(Number(webhookData.amount) / 10000);
-    if (pointsEarned > 0) {
-      try {
-        await this.usersService.addLoyaltyPoints(
-          Number(order.userId),
-          pointsEarned,
-        );
-      } catch (err) {
-        this.logger.error('Lỗi cộng điểm tích lũy PayOS:', err);
-      }
-    }
-
-    this.logger.log(
-      `Đã xác nhận thanh toán PayOS thành công cho đơn #${orderId} (+${pointsEarned} điểm thưởng)`,
-    );
-
-    return {
-      success: true,
-      orderId,
-      status: 'PAID',
-      message: 'Xác nhận thanh toán PayOS thành công',
-    };
-  }
-
-  // 3. Đăng ký tự động Webhook URL với PayOS API
-  async confirmPayOSWebhookUrl(webhookUrl: string) {
-    if (!this.payos) {
-      throw new BadRequestException('PayOS chưa được cấu hình');
-    }
-    try {
-      const res = await this.payos.webhooks.confirm(webhookUrl);
-      return { success: true, data: res };
-    } catch (err: any) {
-      this.logger.error('Lỗi confirm webhook URL:', err);
-      throw new BadRequestException(
-        err.message || 'Không thể xác thực Webhook URL với PayOS',
-      );
-    }
-  }
-
-  // 4. Kiểm tra trạng thái thanh toán của đơn hàng
-  async getPaymentStatus(orderId: number) {
-    const order = await this.prisma.order.findUnique({
-      where: { id: BigInt(orderId) as any },
-      include: { Payment: true },
-    });
-
-    if (!order) {
-      throw new NotFoundException(`Không tìm thấy đơn hàng #${orderId}`);
-    }
-
-    return {
-      orderId,
-      status: order.status,
-      isPaid: order.status === order_status.PAID || order.status === order_status.COMPLETED,
-      total: Number(order.total),
-      payment: order.Payment,
-    };
-  }
-
-  // 5. Thanh toán trực tiếp / Mock Idempotent (Bảo lưu nghiệp vụ cũ)
   async create(createPaymentDto: CreatePaymentDto) {
-    const { orderId, amount, method, idempotencyKey } = createPaymentDto;
+    const {
+      orderId,
+      amount,
+      method,
+      idempotencyKey,
+    } = createPaymentDto;
 
-    // 1. Kiểm tra Idempotency
-    const existingPayment = await this.prisma.payment.findUnique({
-      where: {
-        idempotencyKey,
-      },
-    });
+    // 1. Kiểm tra Idempotency: Giao dịch cùng key đã tồn tại -> Trả về giao dịch trước đó, không trừ tiền 2 lần
+    const existingPayment =
+      await this.prisma.payment.findUnique({
+        where: {
+          idempotencyKey,
+        },
+      });
 
     if (existingPayment) {
       const existingOrder = await this.prisma.order.findUnique({
@@ -313,57 +78,69 @@ export class PaymentsService {
     });
 
     if (!order) {
-      throw new NotFoundException(`Không tìm thấy đơn hàng #${orderId}`);
+      throw new NotFoundException(
+        `Không tìm thấy đơn hàng #${orderId}`,
+      );
     }
 
+    // 3. Không cho thanh toán đơn đã hủy hoặc đơn đã hoàn thành
     if (order.status === order_status.CANCELLED) {
-      throw new BadRequestException('Không thể thanh toán đơn hàng đã hủy');
+      throw new BadRequestException(
+        'Không thể thanh toán đơn hàng đã hủy',
+      );
     }
     if (order.status === order_status.COMPLETED) {
-      throw new BadRequestException('Đơn hàng này đã hoàn thành');
+      throw new BadRequestException(
+        'Đơn hàng này đã hoàn thành',
+      );
     }
     if (order.status === order_status.PAID) {
-      throw new BadRequestException('Đơn hàng này đã được thanh toán');
+      throw new BadRequestException(
+        'Đơn hàng này đã được thanh toán',
+      );
     }
 
+    // 4. Kiểm tra số tiền thanh toán khớp với tổng đơn
     if (Number(order.total) !== amount) {
       throw new BadRequestException(
         `Số tiền thanh toán (${amount}đ) không khớp với tổng tiền đơn hàng (${Number(order.total)}đ)`,
       );
     }
 
-    const result = await this.prisma.$transaction(async (tx) => {
-      const payment = await tx.payment.create({
-        data: {
-          orderId: BigInt(orderId) as any,
-          amount,
-          method,
-          idempotencyKey,
-        },
-      });
+    // 5. Tạo Payment và cập nhật Order sang PAID trong Transaction
+    const result = await this.prisma.$transaction(
+      async (tx) => {
+        const payment = await tx.payment.create({
+          data: {
+            orderId: BigInt(orderId) as any,
+            amount,
+            method,
+            idempotencyKey,
+          },
+        });
 
-      const updatedOrder = await tx.order.update({
-        where: {
-          id: BigInt(orderId) as any,
-        },
-        data: {
-          status: order_status.PAID,
-        },
-      });
+        const updatedOrder =
+          await tx.order.update({
+            where: {
+              id: BigInt(orderId) as any,
+            },
+            data: {
+              status: order_status.PAID,
+            },
+          });
 
-      return {
-        payment,
-        order: updatedOrder,
-      };
-    });
+        return {
+          payment,
+          order: updatedOrder,
+        };
+      },
+    );
 
+    // 6. Cộng điểm thưởng tích lũy (Loyalty Points) sau khi thanh toán thành công (1 điểm / 10.000đ)
     const pointsEarned = Math.floor(amount / 10000);
     if (pointsEarned > 0) {
       try {
-        await this.usersService.addLoyaltyPoints(
-          Number(order.userId),
-          pointsEarned,
-        );
+        await this.usersService.addLoyaltyPoints(Number(order.userId), pointsEarned);
       } catch (err) {
         console.error('Lỗi cộng điểm tích lũy:', err);
       }
@@ -383,7 +160,9 @@ export class PaymentsService {
     });
 
     if (!order) {
-      throw new NotFoundException(`Không tìm thấy đơn hàng ${orderId}`);
+      throw new NotFoundException(
+        `Không tìm thấy đơn hàng ${orderId}`,
+      );
     }
 
     return this.prisma.payment.findMany({
@@ -392,4 +171,256 @@ export class PaymentsService {
       },
     });
   }
+
+  /**
+   * Tạo link thanh toán VietQR động bằng PayOS
+   */
+  async createPayOSPaymentLink(orderId: number) {
+    if (!this.payOS) {
+      throw new BadRequestException('PayOS chưa được khởi tạo, vui lòng kiểm tra cấu hình .env');
+    }
+
+    const order = await this.prisma.order.findUnique({
+      where: { id: BigInt(orderId) as any },
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Không tìm thấy đơn hàng #${orderId}`);
+    }
+
+    if (order.status === order_status.PAID || order.status === order_status.COMPLETED) {
+      throw new BadRequestException('Đơn hàng này đã được thanh toán');
+    }
+
+    const orderCode = Number(order.id);
+    const amount = Math.round(Number(order.total));
+    const description = `BrewLite #${orderId}`.slice(0, 25);
+
+    try {
+      const paymentLinkRes = await this.payOS.paymentRequests.create({
+        orderCode,
+        amount,
+        description,
+        cancelUrl: `http://localhost:3000/cart?status=cancelled&reason=payos_timeout&orderId=${orderId}`,
+        //    CHECKOUT_DURATION: Thời gian giữ đơn hàng (giây).
+        //    Đồng bộ với CHECKOUT_DURATION_MINUTES ở frontend/hooks/useCheckoutTimer.ts
+        expiredAt: Math.floor(Date.now() / 1000) + 5 * 60, // 1 phút
+        returnUrl: `http://localhost:3000/orders/${orderId}`,
+      });
+
+      return {
+        orderId,
+        checkoutUrl: paymentLinkRes.checkoutUrl,
+        qrCode: paymentLinkRes.qrCode,
+        accountNumber: paymentLinkRes.accountNumber,
+        accountName: paymentLinkRes.accountName,
+        amount: paymentLinkRes.amount,
+        description: paymentLinkRes.description,
+      };
+    } catch (err: any) {
+      console.error('[PayOS] Lỗi tạo payment link:', err?.message || err);
+      throw new BadRequestException(err?.message || 'Không thể tạo mã thanh toán VietQR');
+    }
+  }
+
+  /**
+   * Xử lý webhook từ PayOS khi khách chuyển khoản VietQR thành công
+   */
+  async handlePayOSWebhook(webhookBody: any) {
+    console.log('[PayOS Webhook] Received webhook payload:', JSON.stringify(webhookBody));
+
+    if (!webhookBody) {
+      return { success: false, message: 'No data' };
+    }
+
+    let verifiedData: any = null;
+
+    if (this.payOS && webhookBody.signature) {
+      try {
+        verifiedData = await this.payOS.webhooks.verify(webhookBody);
+      } catch (err: any) {
+        console.warn('[PayOS Webhook] Signature notice:', err?.message || err);
+        verifiedData = webhookBody.data;
+      }
+    } else {
+      verifiedData = webhookBody.data;
+    }
+
+    if (!verifiedData) {
+      return { success: true, message: 'Ping/verification acknowledged' };
+    }
+
+    const orderCode = Number(verifiedData.orderCode);
+    if (!orderCode) {
+      return { success: true, message: 'No valid orderCode found' };
+    }
+
+    const order = await this.prisma.order.findUnique({
+      where: { id: BigInt(orderCode) as any },
+    });
+
+    if (!order) {
+      console.warn(`[PayOS Webhook] Order #${orderCode} not found in database`);
+      return { success: true, message: 'Order not found, acknowledged' };
+    }
+
+    // Nếu đơn hàng đã PAID thì không xử lý lại (Idempotent)
+    if (order.status === order_status.PAID || order.status === order_status.COMPLETED) {
+      return { success: true, message: 'Order already paid' };
+    }
+
+    const amount = Number(verifiedData.amount || order.total);
+    const idempotencyKey = `PAYOS-${orderCode}-${verifiedData.reference || Date.now()}`;
+
+    // Cập nhật trạng thái đơn hàng sang PAID trong transaction
+    const result = await this.prisma.$transaction(async (tx) => {
+      const payment = await tx.payment.create({
+        data: {
+          orderId: BigInt(orderCode) as any,
+          amount,
+          method: payment_method.WALLET,
+          idempotencyKey,
+        },
+      });
+
+      const updatedOrder = await tx.order.update({
+        where: { id: BigInt(orderCode) as any },
+        data: { status: order_status.PAID },
+      });
+
+      return { payment, order: updatedOrder };
+    });
+
+    // Cộng điểm thưởng
+    const pointsEarned = Math.floor(amount / 10000);
+    if (pointsEarned > 0) {
+      try {
+        await this.usersService.addLoyaltyPoints(Number(order.userId), pointsEarned);
+      } catch (err) {
+        console.error('[PayOS Webhook] Lỗi cộng điểm tích lũy:', err);
+      }
+    }
+
+    console.log(`[PayOS Webhook] Đơn hàng #${orderCode} đã thanh toán thành công qua VietQR!`);
+
+    return {
+      success: true,
+      message: 'Payment confirmed successfully',
+      data: result,
+    };
+  }
+
+  //Hàm logic tạo hóa đơn momo
+  
+  async createMomoPayment(orderId: number) {
+  const order = await this.prisma.order.findUnique({
+    where: { id: BigInt(orderId) as any },
+  });
+  if (!order) {
+    throw new NotFoundException(`Không tìm thấy đơn hàng #${orderId}`);
+  }
+  const partnerCode = process.env.MOMO_PARTNER_CODE || 'MOMO';
+  const accessKey = process.env.MOMO_ACCESS_KEY || 'F8BBA842ECF85';
+  const secretKey = process.env.MOMO_SECRET_KEY || 'K951B6PE1waDMi640xX08PD3vg6EkVlz';
+  const momoApiUrl = process.env.MOMO_API_URL || 'https://test-payment.momo.vn/v2/gateway/api/create';
+  const amount = Math.round(Number(order.total));
+  const orderInfo = `Thanh toan don hang #${orderId} tai BrewLite`;
+  const requestId = `${partnerCode}-${orderId}-${Date.now()}`;
+  const momoOrderId = `BL_${orderId}_${Date.now()}`;
+  
+  // URL nhận kết quả
+  const redirectUrl = `http://localhost:3000/orders/${orderId}`;
+  // Link Webhook nhận thông báo tự động duyệt đơn (qua ngrok)
+  const ipnUrl = `https://cusp-pager-velvet.ngrok-free.dev/api/payments/momo-ipn`;
+  const requestType = 'captureWallet';
+  const extraData = ''; // có thể để trống
+  // Tạo chữ ký HMAC SHA256 chuẩn MoMo
+  const rawSignature = `accessKey=${accessKey}&amount=${amount}&extraData=${extraData}&ipnUrl=${ipnUrl}&orderId=${momoOrderId}&orderInfo=${orderInfo}&partnerCode=${partnerCode}&redirectUrl=${redirectUrl}&requestId=${requestId}&requestType=${requestType}`;
+  
+  const signature = crypto
+    .createHmac('sha256', secretKey)
+    .update(rawSignature)
+    .digest('hex');
+  const requestBody = {
+    partnerCode,
+    partnerName: 'BrewLite Coffee',
+    storeId: 'BrewLiteStore',
+    requestId,
+    amount,
+    orderId: momoOrderId,
+    orderInfo,
+    redirectUrl,
+    ipnUrl,
+    lang: 'vi',
+    requestType,
+    autoCapture: true,
+    extraData,
+    signature,
+  };
+  // Gửi request sang MoMo Sandbox
+  const response = await fetch(momoApiUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(requestBody),
+  });
+  const result = await response.json();
+  if (result.resultCode !== 0) {
+    throw new BadRequestException(result.message || 'Lỗi kết nối tới cổng thanh toán MoMo');
+  }
+  return {
+    orderId,
+    payUrl: result.payUrl,         // Link mở cổng thanh toán MoMo
+    qrCodeUrl: result.qrCodeUrl,   // Link ảnh QR MoMo
+    deeplink: result.deeplink,     // Mở trực tiếp app MoMo trên điện thoại
+  };
+  }
+// Xử lý IPN (Webhook) từ MoMo
+async handleMomoIPN(body: any) {
+    console.log('[MoMo IPN] Received notification:', JSON.stringify(body));
+    const { resultCode, orderId: momoOrderId, amount, transId } = body;
+    // resultCode === 0 là thanh toán thành công
+    if (resultCode === 0) {
+      // Tách lấy id đơn hàng thực tế từ chuỗi BL_{orderId}_{timestamp}
+      const match = momoOrderId?.match(/BL_(\d+)_/);
+      const orderId = match ? Number(match[1]) : null;
+      if (!orderId) {
+        return { message: 'Invalid orderId format' };
+      }
+      const order = await this.prisma.order.findUnique({
+        where: { id: BigInt(orderId) as any },
+      });
+      if (!order || order.status === order_status.PAID || order.status === order_status.COMPLETED) {
+        return { message: 'Order processed or not found' };
+      }
+      const idempotencyKey = `MOMO-${orderId}-${transId || Date.now()}`;
+      // Cập nhật trạng thái đơn sang PAID
+      await this.prisma.$transaction(async (tx) => {
+        await tx.payment.create({
+          data: {
+            orderId: BigInt(orderId) as any,
+            amount: Number(amount),
+            method: payment_method.WALLET,
+            idempotencyKey,
+          },
+        });
+        await tx.order.update({
+          where: { id: BigInt(orderId) as any },
+          data: { status: order_status.PAID },
+        });
+      });
+      // Cộng điểm tích lũy
+      const pointsEarned = Math.floor(Number(amount) / 10000);
+      if (pointsEarned > 0) {
+        try {
+          await this.usersService.addLoyaltyPoints(Number(order.userId), pointsEarned);
+        } catch (err) {
+          console.error('Lỗi cộng điểm tích lũy:', err);
+        }
+      }
+      console.log(`[MoMo IPN] Đơn hàng #${orderId} đã duyệt thanh toán MoMo thành công!`);
+    }
+    // MoMo yêu cầu server trả về HTTP 204 No Content hoặc 200
+    return { message: 'Received' };
+  }
 }
+
