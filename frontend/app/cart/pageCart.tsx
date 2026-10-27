@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCartStore } from '../../store/cartStore';
 import { useAuthStore } from '../../store/authStore';
+import { CHECKOUT_DURATION_MINUTES } from '../../hooks/useCheckoutTimer';
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
@@ -98,9 +99,9 @@ export default function CartPage() {
 
     const store = useCartStore.getState();
     if (typeof startCheckout === 'function') {
-      startCheckout(5);
+      startCheckout(CHECKOUT_DURATION_MINUTES);
     } else if (store && typeof store.startCheckout === 'function') {
-      store.startCheckout(5);
+      
     }
 
     router.push('/checkout');

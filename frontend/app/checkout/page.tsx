@@ -14,6 +14,11 @@ import {
   MinusIcon,
   InfoIcon,
 } from "../components/Icons";
+import {
+  useCheckoutTimer,
+  CHECKOUT_DURATION_MINUTES,
+  formatTimer,
+} from "../../hooks/useCheckoutTimer";
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -21,7 +26,6 @@ export default function CheckoutPage() {
   const {
     items,
     checkoutItems,
-    checkoutExpiresAt,
     removeFromCart,
     updateQuantity,
     startCheckout,
@@ -57,9 +61,6 @@ export default function CheckoutPage() {
     amount?: number;
   } | null>(null);
 
-  // Bộ đếm thời gian giữ đơn hàng (5 phút)
-  const [secondsLeft, setSecondsLeft] = useState<number>(300);
-
   // Khởi tạo hydrate & sync user
   useEffect(() => {
     setHasHydrated(true);
@@ -92,7 +93,7 @@ export default function CheckoutPage() {
     const isExpiredOrMissing =
       !store.checkoutExpiresAt || store.checkoutExpiresAt <= Date.now();
     if (isExpiredOrMissing) {
-      startCheckout(5); // Reset timer 5 phút mà không xáo trộn món
+      startCheckout(CHECKOUT_DURATION_MINUTES); // Reset timer từ useCheckoutTimer
     }
   }, [hasHydrated, startCheckout]);
 
@@ -118,31 +119,12 @@ export default function CheckoutPage() {
     router.push("/cart?reason=timeout");
   }, [createdOrderData?.id, token, restoreCheckoutToCart, router]);
 
-  // Vòng lặp đếm ngược mỗi giây (Chỉ đếm khi có phiên checkoutExpiresAt)
-  useEffect(() => {
-    if (!hasHydrated || !checkoutExpiresAt) return;
 
-    const tick = () => {
-      const now = Date.now();
-      const diff = Math.max(0, Math.floor((checkoutExpiresAt - now) / 1000));
-      setSecondsLeft(diff);
-
-      if (diff <= 0) {
-        handleTimeout();
-      }
-    };
-
-    tick();
-    const timer = setInterval(tick, 1000);
-    return () => clearInterval(timer);
-  }, [hasHydrated, checkoutExpiresAt, handleTimeout]);
-
-  // Định dạng hiển thị MM:SS
-  const formatTimer = (totalSeconds: number) => {
-    const mins = Math.floor(totalSeconds / 60);
-    const secs = totalSeconds % 60;
-    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
-  };
+  // Đồng hồ đếm ngược — dùng hook tập trung từ useCheckoutTimer
+  const { secondsLeft, isUrgent } = useCheckoutTimer({
+    enabled: hasHydrated,
+    onTimeout: handleTimeout,
+  });
 
   // Người dùng bấm quay lại giỏ hàng: hoàn trả lại các món vào cart
   const handleBackToCart = async (e: React.MouseEvent) => {
@@ -488,7 +470,7 @@ export default function CheckoutPage() {
         ========================================================= */}
         <div
           className={`p-4 sm:p-5 rounded-2xl border flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-all shadow-sm ${
-            secondsLeft <= 60
+            isUrgent
               ? "bg-red-50 border-red-300 text-red-900 animate-pulse"
               : "bg-amber-50/90 border-amber-200 text-amber-900"
           }`}
@@ -496,7 +478,7 @@ export default function CheckoutPage() {
           <div className="flex items-center gap-3.5">
             <div
               className={`w-11 h-11 rounded-2xl flex items-center justify-center font-bold text-xl shadow-inner shrink-0 ${
-                secondsLeft <= 60
+                isUrgent
                   ? "bg-red-200 text-red-900"
                   : "bg-[#F5F0E6] text-[#8D6E63]"
               }`}
@@ -517,17 +499,17 @@ export default function CheckoutPage() {
           <div className="flex items-center sm:flex-col sm:items-end justify-between sm:justify-center border-t sm:border-t-0 pt-2 sm:pt-0 border-amber-200 shrink-0">
             <div
               className={`font-mono font-black text-2xl sm:text-3xl tracking-wider ${
-                secondsLeft <= 60 ? "text-red-600" : "text-[#3E2723]"
+                isUrgent ? "text-red-600" : "text-[#3E2723]"
               }`}
             >
               {formatTimer(secondsLeft)}
             </div>
             <span
               className={`text-[11px] font-bold ${
-                secondsLeft <= 60 ? "text-red-600" : "text-[#8D6E63]"
+                isUrgent ? "text-red-600" : "text-[#8D6E63]"
               }`}
             >
-              {secondsLeft <= 60 ? "⚠️ Sắp hết hạn giữ đơn!" : "Đang giữ món"}
+              {isUrgent ? "⚠️ Sắp hết hạn giữ đơn!" : "Đang giữ món"}
             </span>
           </div>
         </div>
@@ -1161,3 +1143,4 @@ export default function CheckoutPage() {
     </main>
   );
 }
+

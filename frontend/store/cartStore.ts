@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useAuthStore } from './authStore';
+import { CHECKOUT_DURATION_MINUTES } from '../hooks/useCheckoutTimer';
 
 export interface CartItem {
   cartItemId: string;
@@ -149,7 +150,7 @@ export const useCartStore = create<CartStore>()(
         }),
 
       // Bắt đầu thanh toán: chuyển món từ giỏ hàng sang checkoutItems và làm trống giỏ
-      startCheckout: (durationMinutes = 5) =>
+      startCheckout: (durationMinutes = CHECKOUT_DURATION_MINUTES) =>
         set((state) => {
           const authUser = useAuthStore.getState().user;
           const email = authUser?.email || state.activeUserEmail;
