@@ -1,6 +1,6 @@
-﻿"use client";
+"use client";
 
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useCartStore } from "../../store/cartStore";
@@ -26,6 +26,7 @@ export default function CheckoutPage() {
   const {
     items,
     checkoutItems,
+    pendingOrderId,
     removeFromCart,
     updateQuantity,
     startCheckout,
@@ -38,6 +39,7 @@ export default function CheckoutPage() {
 
   const [hasHydrated, setHasHydrated] = useState(false);
   const [isPaying, setIsPaying] = useState(false);
+  const isPayingRef = useRef(false);
 
   // Món đang trong phiên checkout (ưu tiên checkoutItems, nếu rỗng thì fallback items)
   const activeItems = useMemo(() => {
@@ -60,94 +62,6 @@ export default function CheckoutPage() {
     description?: string;
     amount?: number;
   } | null>(null);
-
-  // Khởi tạo hydrate & sync user
-  useEffect(() => {
-    setHasHydrated(true);
-    if (token) {
-      fetch("http://localhost:3001/api/auth/me", {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-        .then((res) => (res.ok ? res.json() : null))
-        .then((freshUser) => {
-          if (freshUser && typeof freshUser.loyaltyPoints === "number") {
-            useAuthStore.getState().setUser({
-              ...freshUser,
-              id: Number(freshUser.id),
-            });
-          }
-        })
-        .catch(() => {});
-    }
-  }, [token]);
-
-  // Khi trang /checkout load: nếu timer đã hết hạn hoặc null mà vẫn còn món → tự reset lại timer 5 phút
-  useEffect(() => {
-    if (!hasHydrated) return;
-    const store = useCartStore.getState();
-    const hasItems =
-      (store.checkoutItems && store.checkoutItems.length > 0) ||
-      (store.items && store.items.length > 0);
-    if (!hasItems) return;
-
-    const isExpiredOrMissing =
-      !store.checkoutExpiresAt || store.checkoutExpiresAt <= Date.now();
-    if (isExpiredOrMissing) {
-      startCheckout(CHECKOUT_DURATION_MINUTES); // Reset timer từ useCheckoutTimer
-    }
-  }, [hasHydrated, startCheckout]);
-
-  // Xử lý khi hết thời gian giữ đơn hàng (Timeout)
-  const handleTimeout = useCallback(async () => {
-    if (createdOrderData?.id && token) {
-      try {
-        await fetch(
-          `http://localhost:3001/api/orders/${createdOrderData.id}/cancel`,
-          {
-            method: "PATCH",
-            headers: { Authorization: `Bearer ${token}` },
-          },
-        );
-      } catch (err) {
-        console.error("Lỗi khi hủy đơn timeout:", err);
-      }
-    }
-
-    restoreCheckoutToCart
-      ? restoreCheckoutToCart()
-      : useCartStore.getState().restoreCheckoutToCart?.();
-    router.push("/cart?reason=timeout");
-  }, [createdOrderData?.id, token, restoreCheckoutToCart, router]);
-
-
-  // Đồng hồ đếm ngược — dùng hook tập trung từ useCheckoutTimer
-  const { secondsLeft, isUrgent } = useCheckoutTimer({
-    enabled: hasHydrated,
-    onTimeout: handleTimeout,
-  });
-
-  // Người dùng bấm quay lại giỏ hàng: hoàn trả lại các món vào cart
-  const handleBackToCart = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    if (createdOrderData?.id && token) {
-      try {
-        await fetch(
-          `http://localhost:3001/api/orders/${createdOrderData.id}/cancel`,
-          {
-            method: "PATCH",
-            headers: { Authorization: `Bearer ${token}` },
-          },
-        );
-      } catch (err) {}
-    }
-    const store = useCartStore.getState();
-    if (typeof restoreCheckoutToCart === "function") {
-      restoreCheckoutToCart();
-    } else if (store && typeof store.restoreCheckoutToCart === "function") {
-      store.restoreCheckoutToCart();
-    }
-    router.push("/cart?status=restored");
-  };
 
   const loyaltyPoints = Number(user?.loyaltyPoints || 0);
 
@@ -212,6 +126,122 @@ export default function CheckoutPage() {
   const grandTotal = Math.max(0, subtotal - discountAmount);
   const earnedPointsPreview = Math.floor(grandTotal / 10000);
 
+  // Khởi tạo hydrate & sync user
+  useEffect(() => {
+    setHasHydrated(true);
+    if (token) {
+      fetch("http://localhost:3001/api/auth/me", {
+        headers: { Authorization: `Bearer ${token}` },
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((freshUser) => {
+          if (freshUser && typeof freshUser.loyaltyPoints === "number") {
+            useAuthStore.getState().setUser({
+              ...freshUser,
+              id: Number(freshUser.id),
+            });
+          }
+        })
+        .catch(() => {});
+    }
+  }, [token]);
+
+  // Kiểm tra đăng nhập khi vào trang checkout
+  useEffect(() => {
+    if (hasHydrated && !token) {
+      alert("Vui lòng đăng nhập để thanh toán đơn hàng!");
+      router.push("/login?redirect=/checkout");
+    }
+  }, [hasHydrated, token, router]);
+
+  // Đồng bộ createdOrderData từ pendingOrderId trong store
+  useEffect(() => {
+    if (pendingOrderId && (!createdOrderData || createdOrderData.id !== pendingOrderId)) {
+      setCreatedOrderData({ id: pendingOrderId, total: grandTotal });
+    }
+  }, [pendingOrderId, createdOrderData, grandTotal]);
+
+  // Nếu đã hydrate mà không có pendingOrderId hoặc không có món -> đưa về giỏ hàng
+  useEffect(() => {
+    if (hasHydrated && (!pendingOrderId || activeItems.length === 0)) {
+      router.push("/cart");
+    }
+  }, [hasHydrated, pendingOrderId, activeItems.length, router]);
+
+  // Khi trang /checkout load: nếu timer đã hết hạn hoặc null mà vẫn còn món → tự reset lại timer 5 phút
+  useEffect(() => {
+    if (!hasHydrated) return;
+    const store = useCartStore.getState();
+    const hasItems =
+      (store.checkoutItems && store.checkoutItems.length > 0) ||
+      (store.items && store.items.length > 0);
+    if (!hasItems) return;
+
+    const isExpiredOrMissing =
+      !store.checkoutExpiresAt || store.checkoutExpiresAt <= Date.now();
+    if (isExpiredOrMissing) {
+      startCheckout(CHECKOUT_DURATION_MINUTES); // Reset timer từ useCheckoutTimer
+    }
+  }, [hasHydrated, startCheckout]);
+
+  // Xử lý khi hết thời gian giữ đơn hàng (Timeout) -> hoàn lại số lượng tồn kho (stock)
+  const handleTimeout = useCallback(async () => {
+    const orderIdToCancel = createdOrderData?.id || useCartStore.getState().pendingOrderId;
+    if (orderIdToCancel && token) {
+      try {
+        await fetch(
+          `http://localhost:3001/api/orders/${orderIdToCancel}/cancel`,
+          {
+            method: "PATCH",
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        );
+      } catch (err) {
+        console.error("Lỗi khi hủy đơn timeout:", err);
+      }
+    }
+
+    restoreCheckoutToCart
+      ? restoreCheckoutToCart()
+      : useCartStore.getState().restoreCheckoutToCart?.();
+    router.push("/cart?reason=timeout");
+  }, [createdOrderData?.id, token, restoreCheckoutToCart, router]);
+
+
+  // Đồng hồ đếm ngược — dùng hook tập trung từ useCheckoutTimer
+  const { secondsLeft, isUrgent } = useCheckoutTimer({
+    enabled: hasHydrated,
+    onTimeout: handleTimeout,
+  });
+
+  // Người dùng bấm quay lại giỏ hàng: gọi hủy đơn để hoàn lại số lượng tồn kho (stock) và trả món về cart
+  const handleBackToCart = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    const orderIdToCancel = createdOrderData?.id || useCartStore.getState().pendingOrderId;
+    if (orderIdToCancel && token) {
+      try {
+        await fetch(
+          `http://localhost:3001/api/orders/${orderIdToCancel}/cancel`,
+          {
+            method: "PATCH",
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        );
+      } catch (err) {
+        console.error("Lỗi khi hoàn trả tồn kho:", err);
+      }
+    }
+    const store = useCartStore.getState();
+    if (typeof restoreCheckoutToCart === "function") {
+      restoreCheckoutToCart();
+    } else if (store && typeof store.restoreCheckoutToCart === "function") {
+      store.restoreCheckoutToCart();
+    }
+    router.push("/cart?status=restored");
+  };
+
+
+
   // Tạo mã nội dung chuyển khoản động
   const transferContent = useMemo(() => {
     return `BrewLite_#ORD${Math.floor(100000 + Math.random() * 900000)}`;
@@ -219,6 +249,8 @@ export default function CheckoutPage() {
 
   // Tiến hành thanh toán
   const handleCheckoutSubmit = async () => {
+    if (isPaying || isPayingRef.current) return;
+
     if (!token) {
       alert("Vui lòng đăng nhập để thanh toán đơn hàng!");
       router.push("/login?redirect=/checkout");
@@ -226,47 +258,18 @@ export default function CheckoutPage() {
     }
 
     try {
+      isPayingRef.current = true;
       setIsPaying(true);
 
-      // BƯỚC 1: Tạo Order qua API backend NestJS
-      const orderResponse = await fetch("http://localhost:3001/api/orders", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          items: activeItems.map((item) => ({
-            productId: item.productId,
-            size: item.size,
-            qty: Number(item.quantity),
-            price: Number(item.price),
-            toppings: item.toppings || [],
-          })),
-        }),
-      });
+      // BƯỚC 1: Lấy orderId đã được tạo lúc vào checkout (hoặc tạo mới nếu chưa có)
+      let orderId = createdOrderData?.id || useCartStore.getState().pendingOrderId;
+      let payableAmount = createdOrderData?.total !== undefined ? Number(createdOrderData.total) : grandTotal;
 
-      const orderData = await orderResponse.json();
-
-      if (!orderResponse.ok) {
-        if (orderResponse.status === 401) {
-          logout();
-          alert(
-            "Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại để hoàn tất!",
-          );
-          router.push("/login?redirect=/checkout");
-          return;
-        }
-        throw new Error(
-          Array.isArray(orderData.message)
-            ? orderData.message.join(", ")
-            : orderData.message || "Không thể tạo đơn hàng",
-        );
+      if (!orderId) {
+        alert("Phiên thanh toán không tồn tại hoặc đã hết hạn. Vui lòng quay lại giỏ hàng!");
+        router.push("/cart");
+        return;
       }
-
-      const orderId = Number(orderData.orderId);
-      const payableAmount =
-        orderData.total !== undefined ? Number(orderData.total) : grandTotal;
 
       // BƯỚC 2A: Nếu chọn VietQR -> Tạo link PayOS (PayOS tự có đếm ngược 5 phút)
       if (paymentMethod === "VIETQR") {
@@ -338,6 +341,7 @@ export default function CheckoutPage() {
       );
     } finally {
       setIsPaying(false);
+      isPayingRef.current = false;
     }
   };
 
@@ -1013,7 +1017,7 @@ export default function CheckoutPage() {
                 type="button"
                 disabled={isPaying}
                 onClick={handleCheckoutSubmit}
-                className="w-full bg-[#763A1E] hover:bg-[#5C2D17] text-white font-bold py-3.5 px-4 rounded-xl transition shadow-lg shadow-[#763A1E]/20 hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 text-center flex items-center justify-center gap-2 cursor-pointer text-sm"
+                className="w-full bg-[#763A1E] hover:bg-[#5C2D17] text-white font-bold py-3.5 px-4 rounded-xl transition shadow-lg shadow-[#763A1E]/20 hover:-translate-y-0.5 active:translate-y-0 disabled:opacity-50 disabled:pointer-events-none text-center flex items-center justify-center gap-2 cursor-pointer text-sm"
               >
                 <BankIcon className="w-4 h-4 text-[#D7A86E]" />
                 <span>

@@ -22,7 +22,9 @@ interface CartStore {
   // Trạng thái giữ hàng khi đang trong phiên checkout
   checkoutItems: CartItem[];
   checkoutExpiresAt: number | null; // Timestamp (ms) hết hạn (khoảng 5-6 phút)
+  pendingOrderId: number | null; // ID đơn hàng PENDING đã trừ tồn kho ở backend
 
+  setPendingOrderId: (orderId: number | null) => void;
   addToCart: (newItem: CartItem) => void;
   removeFromCart: (cartItemId: string) => void;
   updateQuantity: (cartItemId: string, quantity: number) => void;
@@ -30,7 +32,7 @@ interface CartStore {
   clearActiveCart: () => void;
 
   // Bắt đầu thanh toán: đưa món từ cart sang checkoutItems, làm rỗng cart ngay lập tức
-  startCheckout: (durationMinutes?: number) => void;
+  startCheckout: (durationMinutes?: number, orderId?: number | null) => void;
   // Hoàn trả các món từ checkoutItems về lại cart khi hết giờ hoặc hủy
   restoreCheckoutToCart: () => void;
   // Xóa checkoutItems khi đơn hàng thanh toán thành công
@@ -45,6 +47,9 @@ export const useCartStore = create<CartStore>()(
       activeUserEmail: null,
       checkoutItems: [],
       checkoutExpiresAt: null,
+      pendingOrderId: null,
+
+      setPendingOrderId: (orderId) => set({ pendingOrderId: orderId }),
 
       // Thêm vào giỏ (hỗ trợ cả khách vãng lai chưa đăng nhập)
       addToCart: (newItem) =>
@@ -150,7 +155,7 @@ export const useCartStore = create<CartStore>()(
         }),
 
       // Bắt đầu thanh toán: chuyển món từ giỏ hàng sang checkoutItems và làm trống giỏ
-      startCheckout: (durationMinutes = CHECKOUT_DURATION_MINUTES) =>
+      startCheckout: (durationMinutes = CHECKOUT_DURATION_MINUTES, orderId?: number | null) =>
         set((state) => {
           const authUser = useAuthStore.getState().user;
           const email = authUser?.email || state.activeUserEmail;
@@ -161,6 +166,7 @@ export const useCartStore = create<CartStore>()(
             items: [], // Làm rỗng giỏ hàng ngay khi nhấn thanh toán
             checkoutItems: [...currentItems],
             checkoutExpiresAt: expiresAt,
+            pendingOrderId: orderId !== undefined ? orderId : state.pendingOrderId,
             cartsByUser: email
               ? {
                   ...state.cartsByUser,
@@ -188,6 +194,7 @@ export const useCartStore = create<CartStore>()(
             items: restoredItems,
             checkoutItems: [],
             checkoutExpiresAt: null,
+            pendingOrderId: null,
             cartsByUser: email
               ? {
                   ...state.cartsByUser,
@@ -202,6 +209,7 @@ export const useCartStore = create<CartStore>()(
         set({
           checkoutItems: [],
           checkoutExpiresAt: null,
+          pendingOrderId: null,
         }),
 
       // Đăng xuất thì bỏ tài khoản đang active nhưng vẫn giữ món
@@ -218,6 +226,7 @@ export const useCartStore = create<CartStore>()(
         activeUserEmail: state.activeUserEmail,
         checkoutItems: state.checkoutItems,
         checkoutExpiresAt: state.checkoutExpiresAt,
+        pendingOrderId: state.pendingOrderId,
       }),
     }
   )
