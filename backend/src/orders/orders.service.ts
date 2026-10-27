@@ -52,94 +52,192 @@ export class OrdersService {
     const discountAmount = Math.round((rawTotal * discountPercent) / 100);
     const finalTotal = Math.max(0, rawTotal - discountAmount);
 
-    // 3. Sử dụng Transaction + Optimistic Locking để trừ tồn kho an toàn khi đặt đồng thời (Task 10 - Yêu cầu 3)
-    const order = await this.prisma.$transaction(async (tx) => {
-      for (const item of createOrderDto.items) {
-        const product = await tx.product.findUnique({
-          where: { id: BigInt(item.productId) as any },
-        });
+    // 2.1 Bảo vệ chống double-click / multi-request từ cùng 1 tài khoản (Idempotency)
+    const recentPendingOrder = await this.prisma.order.findFirst({
+      where: {
+        userId: BigInt(userId) as any,
+        status: order_status.PENDING,
+        createdAt: {
+          gte: new Date(Date.now() - 4000), // trong vòng 4 giây
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
 
-        if (!product) {
-          throw new NotFoundException(`Sản phẩm #${item.productId} không tồn tại`);
-        }
+    if (recentPendingOrder) {
+      return {
+        message: 'Tạo đơn hàng thành công',
+        orderId: Number(recentPendingOrder.id),
+        total: Number(recentPendingOrder.total),
+        rawTotal,
+        discount: discountAmount,
+        loyaltyPoints,
+        membershipTier,
+      };
+    }
 
-        if (product.stock < item.qty) {
-          throw new BadRequestException(
-            `Sản phẩm "${product.name}" không đủ số lượng tồn kho (còn ${product.stock}, yêu cầu ${item.qty})`,
-          );
-        }
+    // 2.2 Tự động hoàn tồn kho cho các đơn PENDING cũ hơn (> 4s) của user này (nếu có do quay lại giỏ hàng)
+    const oldUserPendingOrders = await this.prisma.order.findMany({
+      where: {
+        userId: BigInt(userId) as any,
+        status: order_status.PENDING,
+        createdAt: {
+          lt: new Date(Date.now() - 4000),
+        },
+      },
+      include: { OrderItem: true },
+    });
 
-        // Optimistic locking: kiểm tra version và số lượng tồn kho trong điều kiện update
-        const updateResult = await tx.product.updateMany({
-          where: {
-            id: product.id,
-            version: product.version, // Khóa lạc quan (Optimistic Concurrency Control)
-            stock: { gte: item.qty },
-          },
-          data: {
-            stock: { decrement: item.qty },
-            version: { increment: 1 },
-          },
-        });
-
-        if (updateResult.count === 0) {
-          throw new ConflictException(
-            `Xung đột tồn kho khi nhiều khách đặt đồng thời sản phẩm "${product.name}". Vui lòng thử lại!`,
-          );
-        }
+    for (const oldOrder of oldUserPendingOrders) {
+      try {
+        await this.cancelOrder(Number(oldOrder.id), userId);
+      } catch (err) {
+        console.warn(`[AutoCancel] Không thể hoàn đơn cũ #${oldOrder.id}:`, err);
       }
+    }
 
-      // Lấy danh sách Topping từ DB nếu có để lưu vào OrderItemTopping
-      const allToppingNames = new Set<string>();
-      for (const item of createOrderDto.items) {
-        if (item.toppings && Array.isArray(item.toppings)) {
-          item.toppings.forEach((t) => allToppingNames.add(t));
-        }
-      }
-
-      const toppingsMap = new Map<string, { id: number; price: number }>();
-      if (allToppingNames.size > 0 && (tx as any).topping) {
-        const dbToppings = await (tx as any).topping.findMany({
-          where: { name: { in: Array.from(allToppingNames) } },
-        });
-        dbToppings.forEach((t: any) => toppingsMap.set(t.name, { id: t.id, price: t.price }));
-      }
-
-      // Tạo đơn hàng với trạng thái PENDING
-      return tx.order.create({
-        data: {
-          userId: BigInt(userId) as any,
+    // 2.3 Quét dọn các đơn PENDING quá hạn (> 6 phút không thanh toán) toàn hệ thống để trả lại tồn kho
+    try {
+      const expiredPendingOrders = await this.prisma.order.findMany({
+        where: {
           status: order_status.PENDING,
-          total: finalTotal,
-          OrderItem: {
-            create: createOrderDto.items.map((item) => {
-              const itemToppings = (item.toppings || [])
-                .map((name) => toppingsMap.get(name))
-                .filter(Boolean);
-
-              return {
-                size: item.size as any,
-                qty: item.qty,
-                lineTotal: item.price * item.qty,
-                Product: {
-                  connect: { id: BigInt(item.productId) as any },
-                },
-                ...(itemToppings.length > 0 && (tx as any).orderItemTopping
-                  ? {
-                      OrderItemTopping: {
-                        create: itemToppings.map((t) => ({
-                          toppingId: t!.id,
-                          priceAtTime: t!.price,
-                        })),
-                      },
-                    }
-                  : {}),
-              };
-            }),
+          createdAt: {
+            lt: new Date(Date.now() - 6 * 60 * 1000),
           },
         },
+        include: { OrderItem: true },
+        take: 20,
       });
-    });
+
+      for (const expOrder of expiredPendingOrders) {
+        await this.prisma.$transaction(async (tx) => {
+          for (const item of expOrder.OrderItem) {
+            await tx.product.update({
+              where: { id: item.productId },
+              data: {
+                stock: { increment: item.qty },
+                version: { increment: 1 },
+              },
+            });
+          }
+          await tx.order.update({
+            where: { id: expOrder.id },
+            data: { status: order_status.CANCELLED },
+          });
+        });
+      }
+    } catch {
+      // bỏ qua lỗi background cleanup
+    }
+
+    // 3. Sử dụng Transaction + Optimistic Locking để trừ tồn kho an toàn khi đặt đồng thời (Task 10 - Yêu cầu 3)
+    // Tự động retry tối đa 3 lần nếu có xung đột version giữa các giao dịch đồng thời mà kho vẫn còn hàng
+    const maxRetries = 3;
+    let attempts = 0;
+    let order: any = null;
+
+    while (attempts < maxRetries) {
+      attempts++;
+      try {
+        order = await this.prisma.$transaction(async (tx) => {
+          for (const item of createOrderDto.items) {
+            const product = await tx.product.findUnique({
+              where: { id: BigInt(item.productId) as any },
+            });
+
+            if (!product) {
+              throw new NotFoundException(`Sản phẩm #${item.productId} không tồn tại`);
+            }
+
+            if (product.stock < item.qty) {
+              throw new BadRequestException(
+                `Sản phẩm "${product.name}" không đủ số lượng tồn kho (còn ${product.stock}, yêu cầu ${item.qty})`,
+              );
+            }
+
+            // Optimistic locking: kiểm tra version và số lượng tồn kho trong điều kiện update
+            const updateResult = await tx.product.updateMany({
+              where: {
+                id: product.id,
+                version: product.version, // Khóa lạc quan (Optimistic Concurrency Control)
+                stock: { gte: item.qty },
+              },
+              data: {
+                stock: { decrement: item.qty },
+                version: { increment: 1 },
+              },
+            });
+
+            if (updateResult.count === 0) {
+              throw new ConflictException(
+                `Xung đột tồn kho khi nhiều khách đặt đồng thời sản phẩm "${product.name}". Vui lòng thử lại!`,
+              );
+            }
+          }
+
+          // Lấy danh sách Topping từ DB nếu có để lưu vào OrderItemTopping
+          const allToppingNames = new Set<string>();
+          for (const item of createOrderDto.items) {
+            if (item.toppings && Array.isArray(item.toppings)) {
+              item.toppings.forEach((t) => allToppingNames.add(t));
+            }
+          }
+
+          const toppingsMap = new Map<string, { id: number; price: number }>();
+          if (allToppingNames.size > 0 && (tx as any).topping) {
+            const dbToppings = await (tx as any).topping.findMany({
+              where: { name: { in: Array.from(allToppingNames) } },
+            });
+            dbToppings.forEach((t: any) => toppingsMap.set(t.name, { id: t.id, price: t.price }));
+          }
+
+          // Tạo đơn hàng với trạng thái PENDING
+          return tx.order.create({
+            data: {
+              userId: BigInt(userId) as any,
+              status: order_status.PENDING,
+              total: finalTotal,
+              OrderItem: {
+                create: createOrderDto.items.map((item) => {
+                  const itemToppings = (item.toppings || [])
+                    .map((name) => toppingsMap.get(name))
+                    .filter(Boolean);
+
+                  return {
+                    size: item.size as any,
+                    qty: item.qty,
+                    lineTotal: item.price * item.qty,
+                    Product: {
+                      connect: { id: BigInt(item.productId) as any },
+                    },
+                    ...(itemToppings.length > 0 && (tx as any).orderItemTopping
+                      ? {
+                          OrderItemTopping: {
+                            create: itemToppings.map((t) => ({
+                              toppingId: t!.id,
+                              priceAtTime: t!.price,
+                            })),
+                          },
+                        }
+                      : {}),
+                  };
+                }),
+              },
+            },
+          });
+        });
+
+        // Nếu thành công thì thoát retry loop
+        break;
+      } catch (err) {
+        if (err instanceof ConflictException && attempts < maxRetries) {
+          // Va chạm version do nhiều khách đặt đồng thời -> chờ ngẫu nhiên 50-100ms rồi thử lại
+          await new Promise((res) => setTimeout(res, 50 * attempts + Math.floor(Math.random() * 30)));
+          continue;
+        }
+        throw err;
+      }
+    }
 
     return {
       message: 'Tạo đơn hàng thành công',
@@ -165,6 +263,11 @@ export class OrdersService {
       if (!isStaff) {
         throw new ForbiddenException('Bạn không có quyền hủy đơn hàng này');
       }
+    }
+
+    // Nếu đơn hàng đã hủy trước đó rồi thì trả về luôn, tránh hoàn tồn kho 2 lần
+    if (order.status === order_status.CANCELLED) {
+      return order;
     }
 
     this.assertTransition(order.status, order_status.CANCELLED);

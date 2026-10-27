@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useCartStore } from '../../store/cartStore';
@@ -29,15 +29,32 @@ export default function CartPage() {
     restoreCheckoutToCart,
   } = useCartStore();
 
+  const { user, token } = useAuthStore();
   const [noticeMessage, setNoticeMessage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmittingRef = useRef(false);
+  const isNavigatingRef = useRef(false);
 
   // Tự động kiểm tra nếu quay về từ PayOS bị hủy hoặc hết hạn đếm ngược
   useEffect(() => {
+    // Không can thiệp nếu đang trong tiến trình bấm nút chuyển trang sang /checkout
+    if (isNavigatingRef.current) return;
+
     const status = searchParams.get('status');
     const reason = searchParams.get('reason');
 
     if (status === 'cancelled' || status === 'restored' || reason === 'timeout' || reason === 'payos_timeout') {
       const store = useCartStore.getState();
+      const orderIdParam = searchParams.get('orderId');
+      const cancelId = orderIdParam ? Number(orderIdParam) : store.pendingOrderId;
+
+      if (cancelId && token) {
+        fetch(`http://localhost:3001/api/orders/${cancelId}/cancel`, {
+          method: 'PATCH',
+          headers: { Authorization: `Bearer ${token}` },
+        }).catch((e) => console.error('Lỗi hoàn trả tồn kho PayOS:', e));
+      }
+
       if (typeof restoreCheckoutToCart === 'function') {
         restoreCheckoutToCart();
       } else if (store && typeof store.restoreCheckoutToCart === 'function') {
@@ -60,15 +77,27 @@ export default function CartPage() {
       // Dọn sạch query parameters trên thanh địa chỉ URL
       window.history.replaceState({}, '', '/cart');
     } else if (items.length === 0 && checkoutItems.length > 0) {
-      // Bảo hiểm: Bất kỳ khi nào vào giỏ hàng mà giỏ trống nhưng còn món giữ ở checkout, tự động phục hồi ngay
       const store = useCartStore.getState();
-      if (typeof restoreCheckoutToCart === 'function') {
-        restoreCheckoutToCart();
-      } else if (store && typeof store.restoreCheckoutToCart === 'function') {
-        store.restoreCheckoutToCart();
+      const isExpired = !store.checkoutExpiresAt || store.checkoutExpiresAt <= Date.now();
+
+      // Chỉ tự động phục hồi nếu phiên checkout ĐÃ HẾT HẠN
+      if (isExpired) {
+        const cancelId = store.pendingOrderId;
+        if (cancelId && token) {
+          fetch(`http://localhost:3001/api/orders/${cancelId}/cancel`, {
+            method: 'PATCH',
+            headers: { Authorization: `Bearer ${token}` },
+          }).catch((e) => console.error('Lỗi hoàn trả tồn kho khi hết hạn:', e));
+        }
+
+        if (typeof restoreCheckoutToCart === 'function') {
+          restoreCheckoutToCart();
+        } else if (store && typeof store.restoreCheckoutToCart === 'function') {
+          store.restoreCheckoutToCart();
+        }
       }
     }
-  }, [searchParams, restoreCheckoutToCart, items.length, checkoutItems.length]);
+  }, [searchParams, restoreCheckoutToCart, items.length, checkoutItems.length, token]);
 
   const safeItems = items || [];
   const totalItemsCount = safeItems.reduce((sum, item) => sum + Number(item.quantity || 0), 0);
@@ -77,7 +106,6 @@ export default function CartPage() {
     0
   );
 
-  const { user } = useAuthStore();
   const loyaltyPoints = Number(user?.loyaltyPoints || 0);
   const discountPercent =
     loyaltyPoints >= 100 ? 15 : loyaltyPoints >= 50 ? 10 : loyaltyPoints >= 20 ? 5 : 0;
@@ -93,21 +121,70 @@ export default function CartPage() {
   const discount = Math.round((subtotal * discountPercent) / 100);
   const grandTotal = Math.max(0, subtotal - discount);
 
-  // Khi bấm nút Thanh toán: chuyển món sang checkoutItems, làm trống giỏ hàng ngay lập tức và sang checkout
-  const handleProceedToCheckout = () => {
-    if (safeItems.length === 0) return;
+  // Khi bấm nút Thanh toán: gọi API tạo đơn giữ kho (trừ stock trong DB), chuyển món sang checkoutItems và sang /checkout
+  const handleProceedToCheckout = async () => {
+    if (safeItems.length === 0 || isSubmitting || isSubmittingRef.current || isNavigatingRef.current) return;
 
-    const store = useCartStore.getState();
-    if (typeof startCheckout === 'function') {
-      startCheckout(CHECKOUT_DURATION_MINUTES);
-    } else if (store && typeof store.startCheckout === 'function') {
-      
+    if (!token) {
+      alert('Vui lòng đăng nhập để thanh toán đơn hàng!');
+      router.push('/login?redirect=/cart');
+      return;
     }
 
-    router.push('/checkout');
+    try {
+      isSubmittingRef.current = true;
+      setIsSubmitting(true);
+      // Gọi API POST /api/orders: Backend tự động kiểm tra tồn kho & trừ stock ngay trong DB
+      const orderResponse = await fetch('http://localhost:3001/api/orders', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          items: safeItems.map((item) => ({
+            productId: item.productId,
+            size: item.size,
+            qty: Number(item.quantity),
+            price: Number(item.price),
+            toppings: item.toppings || [],
+          })),
+        }),
+      });
+
+      const orderData = await orderResponse.json();
+
+      if (!orderResponse.ok) {
+        throw new Error(
+          Array.isArray(orderData.message)
+            ? orderData.message.join(', ')
+            : orderData.message || 'Không thể tạo đơn hàng giữ kho'
+        );
+      }
+
+      const orderId = Number(orderData.orderId);
+
+      // Đánh dấu đang điều hướng sang checkout để tránh bị useEffect tự hủy đơn
+      isNavigatingRef.current = true;
+
+      const store = useCartStore.getState();
+      if (typeof startCheckout === 'function') {
+        startCheckout(CHECKOUT_DURATION_MINUTES, orderId);
+      } else if (store && typeof store.startCheckout === 'function') {
+        store.startCheckout(CHECKOUT_DURATION_MINUTES, orderId);
+      }
+
+      router.push('/checkout');
+    } catch (err: any) {
+      isNavigatingRef.current = false;
+      isSubmittingRef.current = false;
+      setIsSubmitting(false);
+      alert(err.message || 'Có lỗi xảy ra khi kiểm tra tồn kho.');
+    }
   };
 
   if (safeItems.length === 0) {
+    const hasActiveCheckout = checkoutItems.length > 0;
     return (
       <main className="min-h-screen bg-[#FBF8F2] py-16 px-4 text-center flex items-center justify-center">
         <div className="bg-white border border-[#E8DFD8] rounded-3xl p-8 sm:p-12 max-w-md w-full shadow-sm space-y-5">
@@ -117,24 +194,69 @@ export default function CartPage() {
             </div>
           )}
 
-          <div className="w-16 h-16 rounded-full bg-[#F5F0E6] text-[#8D6E63] flex items-center justify-center mx-auto">
-            <BagIcon className="w-8 h-8" />
-          </div>
-          <h1 className="text-2xl font-extrabold text-[#3E2723]">
-            Giỏ hàng của bạn đang trống
-          </h1>
-          <p className="text-sm text-[#756C65]">
-            Hãy khám phá thực đơn cà phê và đồ uống đặc biệt của BrewLite để thêm món yêu thích nhé!
-          </p>
-          <div className="pt-2">
-            <Link
-              href="/#menu"
-              className="inline-flex items-center gap-2 bg-[#3E2723] hover:bg-[#2E1C12] text-white font-bold px-6 py-3 rounded-xl transition shadow-md shadow-[#3E2723]/20 text-sm"
-            >
-              <span>Khám phá Menu ngay</span>
-              <ArrowRightIcon className="w-4 h-4" />
-            </Link>
-          </div>
+          {hasActiveCheckout ? (
+            <>
+              <div className="w-16 h-16 rounded-full bg-amber-100 text-amber-800 flex items-center justify-center mx-auto text-3xl">
+                ⏱️
+              </div>
+              <h1 className="text-2xl font-extrabold text-[#3E2723]">
+                Đơn hàng đang chờ thanh toán
+              </h1>
+              <p className="text-sm text-[#756C65]">
+                Món của bạn đang được giữ ở trang thanh toán (giữ kho 5 phút).
+              </p>
+              <div className="pt-2 flex flex-col gap-2.5">
+                <Link
+                  href="/checkout"
+                  className="w-full inline-flex items-center justify-center gap-2 bg-[#763A1E] hover:bg-[#5C2D17] text-white font-bold px-6 py-3.5 rounded-xl transition shadow-md text-sm"
+                >
+                  <span>Tiếp tục thanh toán</span>
+                  <ArrowRightIcon className="w-4 h-4" />
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const store = useCartStore.getState();
+                    if (store.pendingOrderId && token) {
+                      fetch(`http://localhost:3001/api/orders/${store.pendingOrderId}/cancel`, {
+                        method: 'PATCH',
+                        headers: { Authorization: `Bearer ${token}` },
+                      }).catch(() => {});
+                    }
+                    if (typeof restoreCheckoutToCart === 'function') {
+                      restoreCheckoutToCart();
+                    } else if (store && typeof store.restoreCheckoutToCart === 'function') {
+                      store.restoreCheckoutToCart();
+                    }
+                  }}
+                  className="w-full text-xs text-[#8D6E63] hover:text-[#3E2723] font-semibold py-2 cursor-pointer"
+                >
+                  ↩️ Hủy giữ món & hoàn về giỏ hàng
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="w-16 h-16 rounded-full bg-[#F5F0E6] text-[#8D6E63] flex items-center justify-center mx-auto">
+                <BagIcon className="w-8 h-8" />
+              </div>
+              <h1 className="text-2xl font-extrabold text-[#3E2723]">
+                Giỏ hàng của bạn đang trống
+              </h1>
+              <p className="text-sm text-[#756C65]">
+                Hãy khám phá thực đơn cà phê và đồ uống đặc biệt của BrewLite để thêm món yêu thích nhé!
+              </p>
+              <div className="pt-2">
+                <Link
+                  href="/#menu"
+                  className="inline-flex items-center gap-2 bg-[#3E2723] hover:bg-[#2E1C12] text-white font-bold px-6 py-3 rounded-xl transition shadow-md shadow-[#3E2723]/20 text-sm"
+                >
+                  <span>Khám phá Menu ngay</span>
+                  <ArrowRightIcon className="w-4 h-4" />
+                </Link>
+              </div>
+            </>
+          )}
         </div>
       </main>
     );
@@ -311,10 +433,11 @@ export default function CartPage() {
               {/* Nút thanh toán */}
               <button
                 type="button"
+                disabled={isSubmitting}
                 onClick={handleProceedToCheckout}
-                className="w-full bg-[#3E2723] hover:bg-[#2E1C12] text-white font-bold py-3.5 px-4 rounded-xl transition shadow-md shadow-[#3E2723]/20 hover:-translate-y-0.5 active:translate-y-0 text-center flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full bg-[#3E2723] hover:bg-[#2E1C12] disabled:opacity-60 disabled:pointer-events-none text-white font-bold py-3.5 px-4 rounded-xl transition shadow-md shadow-[#3E2723]/20 hover:-translate-y-0.5 active:translate-y-0 text-center flex items-center justify-center gap-2 cursor-pointer"
               >
-                <span>Thanh toán</span>
+                <span>{isSubmitting ? 'Đang kiểm tra tồn kho...' : 'Thanh toán'}</span>
                 <ArrowRightIcon className="w-4 h-4" />
               </button>
 
