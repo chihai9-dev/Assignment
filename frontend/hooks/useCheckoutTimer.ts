@@ -15,7 +15,7 @@ import { useCartStore } from '../store/cartStore';
 
 // ─── Hằng số thời gian (phút) ────────────────────────────────────────────────
 /** Thời gian giữ đơn hàng (phút). Đồng bộ với PayOS expiredAt ở backend. */
-export const CHECKOUT_DURATION_MINUTES = 0.5;
+export const CHECKOUT_DURATION_MINUTES = 1;
 
 /** Thời gian tính bằng giây (dùng cho useState khởi tạo). */
 export const CHECKOUT_DURATION_SECONDS = CHECKOUT_DURATION_MINUTES * 60;

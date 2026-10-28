@@ -204,7 +204,7 @@ export class PaymentsService implements OnModuleInit {
         cancelUrl: `http://localhost:3000/cart?status=cancelled&reason=payos_timeout&orderId=${orderId}`,
         //    CHECKOUT_DURATION: Thời gian giữ đơn hàng (giây).
         //    Đồng bộ với CHECKOUT_DURATION_MINUTES ở frontend/hooks/useCheckoutTimer.ts
-        expiredAt: Math.floor(Date.now() / 1000) + 0.5 * 60, // 1 phút
+        expiredAt: Math.floor(Date.now() / 1000) + 1 * 60, // 1 phút
         returnUrl: `http://localhost:3000/orders/${orderId}`,
       });
 
