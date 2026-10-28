@@ -19,6 +19,7 @@ import {
   CHECKOUT_DURATION_MINUTES,
   formatTimer,
 } from "../../hooks/useCheckoutTimer";
+import { generateUUIDv4 } from "@/lib/uuid";
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -40,6 +41,7 @@ export default function CheckoutPage() {
   const [hasHydrated, setHasHydrated] = useState(false);
   const [isPaying, setIsPaying] = useState(false);
   const isPayingRef = useRef(false);
+  const momoIdempotencyKeyRef = useRef<string | null>(null);
 
   // Món đang trong phiên checkout (ưu tiên checkoutItems, nếu rỗng thì fallback items)
   const activeItems = useMemo(() => {
@@ -365,6 +367,7 @@ export default function CheckoutPage() {
             order.status === "COMPLETED"
           ) {
             clearInterval(interval);
+            momoIdempotencyKeyRef.current = null;
             setShowMomoModal(false);
             clearCheckoutItems();
             clearActiveCart();
@@ -390,6 +393,10 @@ export default function CheckoutPage() {
   const handleConfirmMomoPaid = async () => {
     if (!createdOrderData || !token) return;
 
+    if (!momoIdempotencyKeyRef.current) {
+      momoIdempotencyKeyRef.current = generateUUIDv4();
+    }
+
     try {
       setIsPaying(true);
       const paymentResponse = await fetch(
@@ -401,17 +408,20 @@ export default function CheckoutPage() {
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
-            orderId: createdOrderData.id,
-            amount: createdOrderData.total,
+            orderId: Number(createdOrderData.id),
+            amount: Math.round(Number(createdOrderData.total)),
             method: "WALLET",
-            idempotencyKey: `momo-p2p-${createdOrderData.id}-${Date.now()}`,
+            idempotencyKey: momoIdempotencyKeyRef.current || generateUUIDv4(),
           }),
         },
       );
 
       const paymentData = await paymentResponse.json();
       if (!paymentResponse.ok) {
-        throw new Error(paymentData.message || "Không thể xác nhận thanh toán");
+        const errorMsg = Array.isArray(paymentData.message)
+          ? paymentData.message.join(", ")
+          : paymentData.message || "Không thể xác nhận thanh toán";
+        throw new Error(errorMsg);
       }
 
       if (paymentData.pointsEarned) {
@@ -423,6 +433,7 @@ export default function CheckoutPage() {
           );
       }
 
+      momoIdempotencyKeyRef.current = null;
       setShowMomoModal(false);
       clearCheckoutItems();
       clearActiveCart();
@@ -1048,7 +1059,10 @@ export default function CheckoutPage() {
             {/* Nút đóng góc phải */}
             <button
               type="button"
-              onClick={() => setShowMomoModal(false)}
+              onClick={() => {
+                momoIdempotencyKeyRef.current = null;
+                setShowMomoModal(false);
+              }}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 w-8 h-8 rounded-full flex items-center justify-center bg-gray-100 hover:bg-gray-200 transition cursor-pointer"
             >
               ✕
@@ -1135,7 +1149,10 @@ export default function CheckoutPage() {
               </button>
               <button
                 type="button"
-                onClick={() => setShowMomoModal(false)}
+                onClick={() => {
+                  momoIdempotencyKeyRef.current = null;
+                  setShowMomoModal(false);
+                }}
                 className="w-full bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold py-2.5 rounded-xl transition text-xs cursor-pointer"
               >
                 Hủy / Đổi phương thức
