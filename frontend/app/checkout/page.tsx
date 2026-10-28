@@ -23,6 +23,7 @@ import {
 
 export default function CheckoutPage() {
   const router = useRouter();
+  const isNavigatingToOrderRef = useRef(false);
 
   const {
     items,
@@ -164,6 +165,7 @@ export default function CheckoutPage() {
 
   // Nếu đã hydrate mà không có pendingOrderId hoặc không có món -> đưa về giỏ hàng
   useEffect(() => {
+    if (isNavigatingToOrderRef.current) return;
     if (hasHydrated && (!pendingOrderId || activeItems.length === 0)) {
       router.push("/cart");
     }
@@ -376,10 +378,11 @@ export default function CheckoutPage() {
             order.status === "COMPLETED"
           ) {
             clearInterval(interval);
+            isNavigatingToOrderRef.current = true;
             setShowMomoModal(false);
             clearCheckoutItems();
             clearActiveCart();
-            router.push(`/orders/${createdOrderData.id}`);
+            window.location.href = `/orders/${createdOrderData.id}?status=PAID`;
           }
         }
       } catch (err) {
@@ -422,7 +425,14 @@ export default function CheckoutPage() {
 
       const paymentData = await paymentResponse.json();
       if (!paymentResponse.ok) {
-        throw new Error(paymentData.message || "Không thể xác nhận thanh toán");
+        if (
+          paymentData.message?.includes("đã được thanh toán") ||
+          paymentData.message?.includes("PAID")
+        ) {
+          // Đơn hàng đã được thanh toán (qua webhook hoặc polling), tiếp tục chuyển trang
+        } else {
+          throw new Error(paymentData.message || "Không thể xác nhận thanh toán");
+        }
       }
 
       if (paymentData.pointsEarned) {
@@ -434,10 +444,12 @@ export default function CheckoutPage() {
           );
       }
 
+      isNavigatingToOrderRef.current = true;
+      const targetOrderId = createdOrderData.id;
       setShowMomoModal(false);
       clearCheckoutItems();
       clearActiveCart();
-      router.push(`/orders/${createdOrderData.id}`);
+      window.location.href = `/orders/${targetOrderId}?status=PAID`;
     } catch (err: any) {
       alert(err.message || "Lỗi xác nhận thanh toán MoMo");
     } finally {
