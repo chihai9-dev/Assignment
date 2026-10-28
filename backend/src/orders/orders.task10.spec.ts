@@ -17,7 +17,8 @@ describe('Task 10 - Backend Business Logic Tests', () => {
       order: {
         create: jest.fn(),
         findUnique: jest.fn(),
-        findMany: jest.fn(),
+        findFirst: jest.fn().mockResolvedValue(null),
+        findMany: jest.fn().mockResolvedValue([]),
         update: jest.fn(),
       },
       product: {

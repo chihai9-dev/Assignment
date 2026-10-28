@@ -23,7 +23,8 @@ export class PaymentsController {
   }
 
   // Tạo liên kết thanh toán PayOS (Sinh mã VietQR / MoMo quét được trên điện thoại)
-  @Post('payos-link')
+  // Hỗ trợ cả 2 endpoint /api/payments/payos-link và /api/payments/create-payos-link
+  @Post(['payos-link', 'create-payos-link'])
   @UsePipes(new ValidationPipe({ whitelist: false, forbidNonWhitelisted: false, transform: true }))
   createPayOSLink(
     @Body() body: { orderId: number; returnUrl?: string; cancelUrl?: string },
@@ -50,6 +51,19 @@ export class PaymentsController {
   @Get('status/:orderId')
   getStatus(@Param('orderId', ParseIntPipe) orderId: number) {
     return this.paymentsService.getPaymentStatus(orderId);
+  }
+
+  // Tạo hóa đơn thanh toán MoMo Sandbox
+  @Post('momo-payment')
+  createMomoPayment(@Body() body: { orderId: number }) {
+    return this.paymentsService.createMomoPayment(Number(body.orderId));
+  }
+
+  // Nhận IPN Webhook từ MoMo
+  @Post('momo-ipn')
+  @HttpCode(HttpStatus.OK)
+  handleMomoIPN(@Body() body: any) {
+    return this.paymentsService.handleMomoIPN(body);
   }
 
   @Get('order/:orderId')
