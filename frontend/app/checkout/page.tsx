@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { generateUUIDv4 } from "../../lib/uuid";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useCartStore } from "../../store/cartStore";
@@ -294,7 +295,17 @@ export default function CheckoutPage() {
         }
 
         // Chuyển hướng tới cổng thanh toán PayOS (PayOS sẽ tự đếm ngược 5 phút và redirect về cart nếu hết hạn)
-        window.location.href = payosData.checkoutUrl;
+        const redirectUrl =
+          payosData.checkoutUrl ||
+          (payosData.paymentLinkId
+            ? `https://pay.payos.vn/web/${payosData.paymentLinkId}`
+            : null);
+
+        if (!redirectUrl) {
+          throw new Error("Không tìm thấy đường dẫn thanh toán PayOS hợp lệ");
+        }
+
+        window.location.href = redirectUrl;
         return;
       }
 
@@ -404,7 +415,7 @@ export default function CheckoutPage() {
             orderId: createdOrderData.id,
             amount: createdOrderData.total,
             method: "WALLET",
-            idempotencyKey: `momo-p2p-${createdOrderData.id}-${Date.now()}`,
+            idempotencyKey: generateUUIDv4(),
           }),
         },
       );

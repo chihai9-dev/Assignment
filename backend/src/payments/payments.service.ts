@@ -253,7 +253,7 @@ export class PaymentsService implements OnModuleInit {
             accountNumber: (existingLink as any).accountNumber,
             bin: (existingLink as any).bin,
             description: (existingLink as any).description,
-            checkoutUrl: (existingLink as any).checkoutUrl,
+            checkoutUrl: (existingLink as any).checkoutUrl || (existingLink.id ? `https://pay.payos.vn/web/${existingLink.id}` : undefined),
             qrCode: (existingLink as any).qrCode,
             paymentLinkId: existingLink.id,
             status: existingLink.status,
