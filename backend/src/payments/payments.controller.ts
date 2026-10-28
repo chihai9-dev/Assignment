@@ -7,67 +7,67 @@ import {
   Param,
   ParseIntPipe,
   Post,
+  UsePipes,
+  ValidationPipe,
 } from '@nestjs/common';
-
 import { PaymentsService } from './payments.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
-import { CreatePayOSLinkDto } from './dto/create-payos-link.dto';
-import { CreateMomoLinkDto } from './dto/create-momo-link.dto';
 
 @Controller('api/payments')
 export class PaymentsController {
-  constructor(
-    private readonly paymentsService: PaymentsService,
-  ) {}
+  constructor(private readonly paymentsService: PaymentsService) {}
 
   @Post()
-  create(
-    @Body() createPaymentDto: CreatePaymentDto,
-  ) {
-    return this.paymentsService.create(
-      createPaymentDto,
-    );
+  create(@Body() createPaymentDto: CreatePaymentDto) {
+    return this.paymentsService.create(createPaymentDto);
   }
 
-  @Post('create-payos-link')
+  // Tạo liên kết thanh toán PayOS (Sinh mã VietQR / MoMo quét được trên điện thoại)
+  // Hỗ trợ cả 2 endpoint /api/payments/payos-link và /api/payments/create-payos-link
+  @Post(['payos-link', 'create-payos-link'])
+  @UsePipes(new ValidationPipe({ whitelist: false, forbidNonWhitelisted: false, transform: true }))
   createPayOSLink(
-    @Body() dto: CreatePayOSLinkDto,
+    @Body() body: { orderId: number; returnUrl?: string; cancelUrl?: string },
   ) {
-    return this.paymentsService.createPayOSPaymentLink(dto.orderId);
+    return this.paymentsService.createPayOSLink(Number(body.orderId), body);
   }
 
-  @Get('order/:orderId')
-  findByOrder(
-    @Param('orderId', ParseIntPipe) orderId: number,
-  ) {
-    return this.paymentsService.findByOrder(orderId);
-  }
-
-  //Liên kết webhoob của payos
-  @Get('payos-webhook')
-  checkWebhookHealth() {
-    return {
-      status: 'ok',
-      message: 'PayOS Webhook endpoint is active and ready to receive POST notifications!',
-    };
-  }
-
+  // Nhận thông báo biến động số dư từ cổng PayOS qua Webhook
   @Post('payos-webhook')
   @HttpCode(HttpStatus.OK)
-  handlePayOSWebhook(
-    @Body() webhookData: any,
-  ) {
-    return this.paymentsService.handlePayOSWebhook(webhookData);
+  @UsePipes(new ValidationPipe({ whitelist: false, forbidNonWhitelisted: false }))
+  handlePayOSWebhook(@Body() body: any) {
+    return this.paymentsService.handlePayOSWebhook(body);
   }
 
-  @Post('create-momo-link')
-  createMomoLink(@Body() dto: CreateMomoLinkDto) {
-    return this.paymentsService.createMomoPayment(dto.orderId);
+  // Xác thực tự động Webhook URL với PayOS API
+  @Post('payos-confirm-url')
+  @UsePipes(new ValidationPipe({ whitelist: false, forbidNonWhitelisted: false }))
+  confirmPayOSWebhookUrl(@Body() body: { webhookUrl: string }) {
+    return this.paymentsService.confirmPayOSWebhookUrl(body.webhookUrl);
   }
 
+  // Lấy trạng thái thanh toán hiện tại của đơn hàng
+  @Get('status/:orderId')
+  getStatus(@Param('orderId', ParseIntPipe) orderId: number) {
+    return this.paymentsService.getPaymentStatus(orderId);
+  }
+
+  // Tạo hóa đơn thanh toán MoMo Sandbox
+  @Post('momo-payment')
+  createMomoPayment(@Body() body: { orderId: number }) {
+    return this.paymentsService.createMomoPayment(Number(body.orderId));
+  }
+
+  // Nhận IPN Webhook từ MoMo
   @Post('momo-ipn')
   @HttpCode(HttpStatus.OK)
   handleMomoIPN(@Body() body: any) {
     return this.paymentsService.handleMomoIPN(body);
+  }
+
+  @Get('order/:orderId')
+  findByOrder(@Param('orderId', ParseIntPipe) orderId: number) {
+    return this.paymentsService.findByOrder(orderId);
   }
 }

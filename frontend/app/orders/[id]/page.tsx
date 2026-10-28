@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import { generateUUIDv4 } from '@/lib/uuid';
 import { useAuthStore } from '../../../store/authStore';
 import { useCartStore } from '../../../store/cartStore';
 import {
@@ -73,7 +74,7 @@ export default function OrderConfirmationPage() {
   const router = useRouter();
   const orderId = params?.id as string;
 
-  const { token, logout } = useAuthStore();
+  const { token, user, logout } = useAuthStore();
   const [order, setOrder] = useState<OrderDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -96,18 +97,33 @@ export default function OrderConfirmationPage() {
           setError('Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại để xem đơn hàng.');
           return null;
         }
+        if (res.status === 403) {
+          setError('Khách hàng chỉ có quyền xem đơn mình đã mua, không có quyền xem lịch sử đơn của người khác.');
+          return null;
+        }
         const errData = await res.json().catch(() => ({}));
         throw new Error(errData.message || 'Không thể tải thông tin đơn hàng');
       }
 
       const data: OrderDetail = await res.json();
+
+      // Kiểm tra bảo mật bổ sung: Nếu là khách hàng thì chỉ xem đơn của chính mình
+      if (user && Number(data.userId) !== Number(user.id)) {
+        const isStaff = user.role === 'barista' || user.email?.toLowerCase().includes('barista');
+        if (!isStaff) {
+          setError('Khách hàng chỉ có quyền xem đơn mình đã mua, không có quyền xem lịch sử đơn của người khác.');
+          setOrder(null);
+          return null;
+        }
+      }
+
       setOrder(data);
       return data;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Lỗi khi tải thông tin đơn hàng');
       return null;
     }
-  }, [orderId, token, logout]);
+  }, [orderId, token, user, logout]);
 
   const { clearActiveCart, clearCheckoutItems } = useCartStore();
 
@@ -159,7 +175,7 @@ export default function OrderConfirmationPage() {
           orderId: Number(order.id),
           amount: Number(order.total),
           method: 'WALLET',
-          idempotencyKey: `manual-confirm-${order.id}-${Date.now()}`,
+          idempotencyKey: generateUUIDv4(),
         }),
       });
 
@@ -205,20 +221,25 @@ export default function OrderConfirmationPage() {
   }
 
   if (error || !order) {
+    const isForbidden = error?.includes('quyền') || error?.includes('người khác');
     return (
       <main className="min-h-screen bg-[#FBF8F2] p-8 flex items-center justify-center">
         <div className="bg-white border border-[#E8DFD8] text-gray-800 p-8 rounded-3xl shadow-sm max-w-md w-full text-center space-y-4">
-          <div className="w-14 h-14 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto text-xl font-bold">
-            ✕
+          <div className={`w-14 h-14 ${isForbidden ? 'bg-amber-100 text-amber-700' : 'bg-red-50 text-red-600'} rounded-full flex items-center justify-center mx-auto text-xl font-bold`}>
+            {isForbidden ? '🔒' : '✕'}
           </div>
-          <h2 className="text-xl font-extrabold text-[#3E2723]">Không tìm thấy đơn hàng</h2>
-          <p className="text-xs text-gray-500">{error || 'Đơn hàng không tồn tại hoặc bạn không có quyền xem.'}</p>
+          <h2 className="text-xl font-extrabold text-[#3E2723]">
+            {isForbidden ? 'Không có quyền truy cập' : 'Không tìm thấy đơn hàng'}
+          </h2>
+          <p className="text-xs text-gray-600 leading-relaxed">
+            {error || 'Đơn hàng không tồn tại hoặc bạn không có quyền xem.'}
+          </p>
           <div className="space-y-2 pt-2">
             <Link
               href="/orders"
               className="block w-full bg-[#3E2723] hover:bg-[#2E1C12] text-white font-bold py-2.5 rounded-xl transition text-xs"
             >
-              Lịch sử đơn
+              Về lịch sử đơn của bạn
             </Link>
             <Link
               href="/"
@@ -236,6 +257,94 @@ export default function OrderConfirmationPage() {
     label: order.status,
     className: 'bg-gray-100 text-gray-800',
   };
+
+  // Cấu hình tiêu đề, thông điệp và biểu tượng tương ứng với trạng thái thực tế trong database
+  const statusHeaderMap: Record<
+    string,
+    { title: string; subtitle: string; iconBg: string; iconSvg: React.ReactNode }
+  > = {
+    PENDING: {
+      title: 'Đang chờ thanh toán',
+      subtitle: 'Đơn hàng đã được tạo trên hệ thống và đang chờ bạn hoàn tất chuyển khoản.',
+      iconBg: 'bg-amber-100 text-amber-800',
+      iconSvg: (
+        <svg className="w-8 h-8 text-amber-800" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      ),
+    },
+    PAID: {
+      title: 'Đặt hàng thành công!',
+      subtitle: 'Đã nhận thanh toán. Đơn hàng của bạn đã chuyển vào hàng đợi để chuẩn bị pha chế.',
+      iconBg: 'bg-[#D7A86E] text-[#3E2723]',
+      iconSvg: (
+        <svg className="w-8 h-8 text-[#2E1810]" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+        </svg>
+      ),
+    },
+    PREPARING: {
+      title: 'Đang pha chế đồ uống',
+      subtitle: 'Barista đang pha chế món theo đơn của bạn. Món sẽ sớm sẵn sàng!',
+      iconBg: 'bg-blue-100 text-blue-800',
+      iconSvg: <CoffeeCupIcon className="w-8 h-8 text-blue-800" />,
+    },
+    READY: {
+      title: 'Đồ uống đã sẵn sàng!',
+      subtitle: 'Món của bạn đã được pha chế xong. Mời bạn đến quầy BrewLite để nhận món.',
+      iconBg: 'bg-purple-100 text-purple-800',
+      iconSvg: (
+        <svg className="w-8 h-8 text-purple-800" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M14.857 17.082a23.848 23.848 0 005.454-1.31A8.967 8.967 0 0118 9.75v-.7V9A6 6 0 006 9v.75a8.967 8.967 0 01-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 01-5.714 0m5.714 0a3 3 0 11-5.714 0" />
+        </svg>
+      ),
+    },
+    COMPLETED: {
+      title: 'Đơn hàng đã hoàn thành',
+      subtitle: 'Cảm ơn bạn đã thưởng thức đồ uống tại BrewLite. Chúc bạn một ngày tốt lành!',
+      iconBg: 'bg-emerald-100 text-emerald-800',
+      iconSvg: (
+        <svg className="w-8 h-8 text-emerald-800" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      ),
+    },
+    PAYMENT_FAILED: {
+      title: 'Thanh toán không thành công',
+      subtitle: 'Giao dịch thanh toán chưa thể hoàn tất. Bạn có thể kiểm tra hoặc thử lại.',
+      iconBg: 'bg-red-100 text-red-800',
+      iconSvg: (
+        <svg className="w-8 h-8 text-red-800" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+        </svg>
+      ),
+    },
+    CANCELLED: {
+      title: 'Đơn hàng đã bị hủy',
+      subtitle: 'Đơn hàng này đã được hủy và hệ thống đã hoàn trả lại số lượng tồn kho.',
+      iconBg: 'bg-gray-100 text-gray-700',
+      iconSvg: (
+        <svg className="w-8 h-8 text-gray-700" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      ),
+    },
+  };
+
+  const headerInfo = statusHeaderMap[order.status] || {
+    title: `Đơn hàng #${order.id}`,
+    subtitle: 'Thông tin chi tiết đơn hàng của bạn.',
+    iconBg: 'bg-[#D7A86E] text-[#3E2723]',
+    iconSvg: (
+      <svg className="w-8 h-8 text-[#2E1810]" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+      </svg>
+    ),
+  };
+
+  const primaryProductImage =
+    order.OrderItem?.[0]?.Product?.imageUrl ||
+    'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=600&auto=format&fit=crop&q=85';
 
   const formattedDate = new Date(order.createdAt).toLocaleString('vi-VN', {
     day: '2-digit',
@@ -258,8 +367,8 @@ export default function OrderConfirmationPage() {
           <div className="md:col-span-5 flex justify-center">
             <div className="relative w-64 h-72 sm:w-72 sm:h-80 rounded-2xl overflow-hidden shadow-lg border-2 border-[#E8DFD8] bg-[#F5F0E6]">
               <img
-                src="https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=600&auto=format&fit=crop&q=85"
-                alt="BrewLite Success"
+                src={primaryProductImage}
+                alt={order.OrderItem?.[0]?.Product?.name || "BrewLite Coffee"}
                 className="w-full h-full object-cover"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent flex items-end p-4">
@@ -273,19 +382,19 @@ export default function OrderConfirmationPage() {
           {/* CỘT PHẢI: ICON CHECKMARK, TIÊU ĐỀ & THÔNG TIN ĐƠN */}
           <div className="md:col-span-7 space-y-6">
             
-            {/* Checkmark icon & Title */}
+            {/* Biểu tượng trạng thái & Tiêu đề tương ứng database */}
             <div className="space-y-2">
-              <div className="w-14 h-14 rounded-full bg-[#D7A86E] text-[#3E2723] flex items-center justify-center shadow-md">
-                <svg className="w-8 h-8 text-[#2E1810]" fill="none" stroke="currentColor" strokeWidth="3" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
+              <div
+                className={`w-14 h-14 rounded-full ${headerInfo.iconBg} flex items-center justify-center shadow-md`}
+              >
+                {headerInfo.iconSvg}
               </div>
 
               <h1 className="text-2xl sm:text-3xl font-extrabold text-[#3E2723] tracking-tight pt-2">
-                Đặt hàng thành công!
+                {headerInfo.title}
               </h1>
               <p className="text-xs sm:text-sm text-[#756C65] leading-relaxed">
-                Cảm ơn bạn đã lựa chọn BrewLite. Chúng tôi sẽ sớm chuẩn bị đơn hàng của bạn.
+                {headerInfo.subtitle}
               </p>
             </div>
 

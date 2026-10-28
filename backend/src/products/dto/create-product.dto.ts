@@ -25,4 +25,9 @@ export class CreateProductDto {
   @IsOptional()
   @IsEnum(ProductStatus, { message: 'Trạng thái sản phẩm không hợp lệ' })
   status?: ProductStatus;
+
+  @IsOptional()
+  @IsInt({ message: 'Danh mục sản phẩm không hợp lệ' })
+  @Min(1, { message: 'Danh mục sản phẩm không hợp lệ' })
+  categoryId?: number;
 }

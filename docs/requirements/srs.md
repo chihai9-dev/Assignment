@@ -15,6 +15,127 @@ Tài liệu này xác định các **Yêu cầu chức năng (Functional Require
 
 ## 2. Sơ đồ Use-case tổng quát hệ thống (Overall Use Case Diagram)
 
+### 2.1. Sơ đồ Use-case tổng quát (UML Use Case Diagram)
+
+Tệp nguồn PlantUML: [`docs/diagrams/usecase-general.puml`](../diagrams/usecase-general.puml)  
+Tệp đồ họa vector: [`docs/diagrams/usecase-general.svg`](../diagrams/usecase-general.svg)
+
+![Sơ đồ Use-case tổng quát BrewLite](../diagrams/usecase-general.svg)
+
+```mermaid
+flowchart LR
+    %% Actors (Tất cả đều là Actor người que)
+    Customer(["Khách hàng\n(Customer)"]):::actor
+    Barista(["Nhân viên quầy\n(Barista)"]):::actor
+    Manager(["Quản lý cửa hàng\n(Store Manager)"]):::actor
+    PaymentService(["Cổng thanh toán\n(Payment Service)"]):::actor
+
+    %% Subgraphs / Packages
+    subgraph System ["HỆ THỐNG ĐẶT ĐỒ UỐNG TRỰC TUYẾN BREWLITE"]
+        direction TB
+
+        subgraph P1 ["Phân hệ Khách hàng (Ordering Flow)"]
+            UC01(["UC-01: Xem menu đồ uống"]):::usecase
+            UC02(["UC-02: Tìm kiếm & lọc món"]):::usecase
+            UC03(["UC-03: Xem chi tiết sản phẩm"]):::usecase
+            UC04(["UC-04: Tùy biến Size/Topping"]):::usecase
+            UC05(["UC-05: Quản lý giỏ hàng"]):::usecase
+            UC06(["UC-06: Đặt hàng mới"]):::usecase
+            UC07(["UC-07: Thanh toán trực tuyến"]):::core
+            UC08(["UC-08: Theo dõi trạng thái đơn"]):::usecase
+            UC09(["UC-09: Xem lịch sử & tích điểm"]):::usecase
+        end
+
+        subgraph P2 ["Phân hệ Xác thực (Authentication)"]
+            UC10(["UC-10: Đăng ký tài khoản"]):::usecase
+            UC11(["UC-11: Đăng nhập cấp JWT"]):::usecase
+        end
+
+        subgraph P3 ["Phân hệ Quầy pha chế (Barista Operations)"]
+            UC12(["UC-12: Tiếp nhận đơn đã thanh toán"]):::usecase
+            UC13(["UC-13: Cập nhật tiến độ pha chế"]):::core
+        end
+
+        subgraph P4 ["Phân hệ Quản trị (Store Management)"]
+            UC14(["UC-14: Bật/tắt món & topping"]):::usecase
+            UC15(["UC-15: Xem báo cáo doanh thu"]):::usecase
+        end
+
+        %% Inside relations
+        UC02 -. "<<extend>>" .-> UC01
+        UC04 -. "<<extend>>" .-> UC03
+        UC06 -. "<<include>>" .-> UC05
+        UC07 -. "<<include>>" .-> UC06
+        
+        %% QUY TẮC ĐĂNG NHẬP:
+        %% UC-05 & UC-06 KHÔNG cần đăng nhập
+        %% UC-07 BẮT BUỘC đăng nhập trước khi thanh toán
+        %% UC-13 BẮT BUỘC đăng nhập tài khoản Barista
+        UC07 -. "<<include>>\n(Bắt buộc Login)" .-> UC11
+        UC13 -. "<<include>>\n(Bắt buộc Login)" .-> UC11
+        UC09 -. "<<include>>" .-> UC11
+        UC13 -. "<<include>>" .-> UC12
+    end
+
+    %% Customer Connections
+    Customer --- UC01
+    Customer --- UC03
+    Customer --- UC05
+    Customer --- UC06
+    Customer --- UC07
+    Customer --- UC08
+    Customer --- UC09
+    Customer --- UC10
+    Customer --- UC11
+
+    %% Barista Connections
+    Barista --- UC11
+    Barista --- UC12
+    Barista --- UC13
+
+    %% Manager Connections
+    Manager --- UC11
+    Manager --- UC14
+    Manager --- UC15
+
+    %% Payment Connection (Tương tác cổng thanh toán)
+    UC07 ==>|"<<interact>>"| PaymentService
+
+    %% Styles
+    classDef actor fill:#EBF8FF,stroke:#2B6CB0,stroke-width:2px,color:#1A365D;
+    classDef usecase fill:#FFFFFF,stroke:#3B82F6,stroke-width:1.5px,color:#1E3A8A;
+    classDef core fill:#FEF2F2,stroke:#DC2626,stroke-width:2px,color:#991B1B,font-weight:bold;
+```
+
+### 2.2. Bảng phân tích các Actor (Tác nhân)
+
+| STT | Actor (Tác nhân) | Phân loại | Mô tả vai trò trong hệ thống |
+| :---: | :--- | :--- | :--- |
+| **1** | **Khách hàng** *(Customer)* | Primary Actor (Chính) | Người dùng truy cập qua thiết bị cá nhân (PWA / Responsive Web) để xem menu, chọn tùy biến món, thêm giỏ hàng, đặt đơn (không cần login) và đăng nhập khi thanh toán trực tuyến. |
+| **2** | **Nhân viên quầy** *(Barista)* | Primary Actor (Chính) | Người dùng nội bộ tại quán chịu trách nhiệm tiếp nhận các đơn hàng đã thanh toán (`PAID`), thực hiện pha chế và cập nhật trạng thái đơn (`PREPARING` -> `READY` -> `COMPLETED`). |
+| **3** | **Quản lý cửa hàng** *(Store Manager)* | Secondary / Admin | Quản lý danh mục menu, kiểm soát trạng thái món và topping (bật/tắt khi hết nguyên liệu), theo dõi lịch sử đơn và doanh thu. |
+| **4** | **Cổng thanh toán** *(Payment Service)* | External Actor (Hệ thống ngoài) | Dịch vụ thanh toán mô phỏng (Mock Payment Gateway) xử lý xác thực giao dịch qua Ví điện tử (`WALLET`) hoặc Thẻ (`CARD`), hỗ trợ `idempotencyKey` chống trừ tiền trùng lặp. |
+
+### 2.3. Bảng ánh xạ Use-case với Yêu cầu chức năng (Traceability)
+
+| Mã Use-case | Tên Use-case | Actor chính | Mã Yêu cầu chức năng | Quan hệ liên kết |
+| :---: | :--- | :--- | :---: | :--- |
+| **UC-01** | Xem menu đồ uống | Customer | **FR-01** | Use-case cơ sở hiển thị danh mục món. |
+| **UC-02** | Tìm kiếm & lọc đồ uống | Customer | **FR-01** | `<<extend>>` UC-01 (khi người dùng có nhu cầu tìm kiếm nhanh). |
+| **UC-03** | Xem chi tiết sản phẩm | Customer | **FR-02** | Use-case cơ sở xem mô tả, ảnh, giá gốc. |
+| **UC-04** | Tùy biến Size & Topping | Customer | **FR-02** | `<<extend>>` UC-03 (chọn kích thước S/M/L, thêm topping, tính giá động). |
+| **UC-05** | Quản lý giỏ hàng | Customer | **FR-03** | Lưu trữ, tăng/giảm số lượng, xóa món và tính tổng tiền (**Khách vãng lai không cần đăng nhập**). |
+| **UC-06** | Đặt hàng mới | Customer | **FR-05** | `<<include>>` UC-05 (giỏ hàng); Tạo đơn hàng mới ở trạng thái `PENDING` (**Khách vãng lai không cần đăng nhập**). |
+| **UC-07** | **Thanh toán trực tuyến (Trọng tâm)** | Customer, Payment Service | **FR-06** | `<<include>>` UC-06; `<<include>>` UC-11 (**BẮT BUỘC ĐĂNG NHẬP** trước khi thanh toán); tương tác với Payment Service để trừ tiền và đổi trạng thái sang `PAID`. |
+| **UC-08** | Theo dõi trạng thái đơn hàng | Customer | **FR-08** | Hiển thị tiến trình thời gian thực: `PENDING` -> `PAID` -> `PREPARING` -> `READY` -> `COMPLETED`. |
+| **UC-09** | Xem lịch sử đơn & tích điểm | Customer | **FR-07** | `<<include>>` UC-11; xem lại các đơn đã mua và điểm `loyaltyPoints`. |
+| **UC-10** | Đăng ký tài khoản | Customer | **FR-04** | Đăng ký tài khoản khách hàng mới với mật khẩu mã hóa `bcrypt`. |
+| **UC-11** | Đăng nhập hệ thống | Customer, Barista, Manager | **FR-04** | Cấp phát JWT Bearer Token chứa `userId` và `role`. |
+| **UC-12** | Tiếp nhận đơn đã thanh toán | Barista | **FR-08** | Quầy pha chế nhận danh sách đơn hàng có trạng thái `PAID`. |
+| **UC-13** | Cập nhật tiến độ pha chế | Barista | **FR-08** | `<<include>>` UC-12; `<<include>>` UC-11 (**BẮT BUỘC ĐĂNG NHẬP** tài khoản Barista); cập nhật trạng thái đơn theo máy trạng thái FSM. |
+| **UC-14** | Bật/tắt món & topping | Store Manager | **FR-09** | Cập nhật trạng thái `isAvailable` khi quán hết nguyên liệu. |
+| **UC-15** | Xem báo cáo doanh thu & đơn | Store Manager | Khác | Xem tổng kết số lượng đơn hàng và doanh thu theo thời gian. |
+
 
 
 ---

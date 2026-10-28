@@ -2,7 +2,7 @@ import {
   IsEnum,
   IsInt,
   IsNotEmpty,
-  IsString,
+  IsUUID,
   Min,
 } from 'class-validator';
 
@@ -25,7 +25,7 @@ export class CreatePaymentDto {
   @IsEnum(PaymentMethod)
   method: PaymentMethod;
 
-  @IsString()
+  @IsUUID('4', { message: 'idempotencyKey phải là định dạng UUID v4 hợp lệ' })
   @IsNotEmpty()
   idempotencyKey: string;
 }
