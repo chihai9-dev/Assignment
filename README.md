@@ -8,14 +8,17 @@
 1. [Giới thiệu dự án](#-giới-thiệu-dự-án)
 2. [Công nghệ sử dụng (Tech Stack)](#-công-nghệ-sử-dụng-tech-stack)
 3. [Kiến trúc hệ thống (Architecture)](#-kiến-trúc-hệ-thống-architecture)
-4. [Khởi chạy nhanh với Docker Compose](#-khởi-chạy-nhanh-với-docker-compose)
-5. [Khởi chạy môi trường phát triển (Local Development)](#-khởi-chạy-môi-trường-phát-triển-local-development)
+4. [Thiết kế & Khởi tạo Cơ sở dữ liệu (Database Setup)](#-thiết-kế--khởi-tạo-cơ-sở-dữ-liệu-database-setup)
+5. [Khởi chạy với Docker Compose (Cách dùng chính)](#-khởi-chạy-nhanh-với-docker-compose-cách-dùng-chính---khuyên-dùng)
+6. [Khởi chạy môi trường phát triển cục bộ (Tùy chọn)](#-khởi-chạy-môi-trường-phát-triển-cục-bộ-tùy-chọn---optional-local-development)
    - [Cấu hình thanh toán trực tuyến VietQR & MoMo (Ngrok)](backend/PAYMENT_SETUP.md)
-6. [Danh sách API Endpoints](#-danh-sách-api-endpoints)
-7. [Máy trạng thái đơn hàng (Order State Machine)](#-máy-trạng-thái-đơn-hàng-order-state-machine)
-8. [Cấu trúc thư mục dự án](#-cấu-trúc-thư-mục-dự-án)
-9. [Kịch bản Demo (End-to-End Flow)](#-kịch-bản-demo-end-to-end-flow)
-10. [Thành viên nhóm phát triển (Contributors)](#-thành-viên-nhóm-phát-triển-contributors)
+7. [Danh sách API Endpoints](#-danh-sách-api-endpoints)
+8. [Máy trạng thái đơn hàng (Order State Machine)](#-máy-trạng-thái-đơn-hàng-order-state-machine)
+9. [Cấu trúc thư mục dự án](#-cấu-trúc-thư-mục-dự-án)
+10. [Nghiệp vụ Backend Nâng cao (Task 10) & Kiểm thử tự động](#-nghiệp-vụ-backend-nâng-cao-task-10--kiểm-thử-tự-động)
+11. [Phân hệ Barista / Quầy Pha Chế](#-phân-hệ-barista--quầy-pha-chế-tính-năng-mở-rộng-ngoài-mvp)
+12. [Kịch bản Demo (End-to-End Flow)](#-kịch-bản-demo-end-to-end-flow)
+13. [Thành viên nhóm phát triển (Contributors)](#-thành-viên-nhóm-phát-triển-contributors)
 
 ---
 
@@ -82,17 +85,124 @@ flowchart TD
 
 ---
 
-## 🚀 Khởi chạy nhanh với Docker Compose
+## 🗄️ Thiết kế & Khởi tạo Cơ sở dữ liệu (Database Setup)
 
-Chỉ với **1 câu lệnh duy nhất**, toàn bộ hệ sinh thái (Database, Backend, Frontend) sẽ được khởi chạy tự động:
+Phần cơ sở dữ liệu của dự án được xây dựng trên **PostgreSQL 16**, đồng bộ 100% giữa tài liệu đề bài môn Công nghệ Phần mềm, Prisma ORM và các script SQL khởi tạo.
+
+### 1. Sơ đồ quan hệ thực thể (ERD)
+
+```mermaid
+erDiagram
+    CATEGORY ||--o{ PRODUCT : "chứa"
+    USER ||--o{ ORDER : "đặt"
+    ORDER ||--|{ ORDERITEM : "gồm"
+    PRODUCT ||--o{ ORDERITEM : "được đặt trong"
+    TOPPING ||--o{ ORDERITEMTOPPING : "được thêm vào"
+    ORDERITEM ||--o{ ORDERITEMTOPPING : "chọn topping"
+    ORDER ||--o{ PAYMENT : "thanh toán bằng"
+
+    CATEGORY {
+        SERIAL id PK
+        VARCHAR name UK
+        TIMESTAMPTZ createdAt
+        TIMESTAMPTZ updatedAt
+    }
+
+    USER {
+        BIGSERIAL id PK
+        VARCHAR email UK
+        VARCHAR passwordHash
+        INTEGER loyaltyPoints
+        ENUM role
+        TIMESTAMPTZ createdAt
+        TIMESTAMPTZ updatedAt
+    }
+
+    PRODUCT {
+        BIGSERIAL id PK
+        INTEGER categoryId FK
+        VARCHAR name
+        DECIMAL price
+        VARCHAR imageUrl
+        INTEGER stock
+        INTEGER version
+        ENUM status
+        TIMESTAMPTZ createdAt
+        TIMESTAMPTZ updatedAt
+    }
+
+    TOPPING {
+        SERIAL id PK
+        VARCHAR name UK
+        INTEGER price
+        BOOLEAN isAvailable
+        TIMESTAMPTZ createdAt
+    }
+
+    ORDER {
+        BIGSERIAL id PK
+        BIGINT userId FK
+        ENUM status
+        DECIMAL total
+        TIMESTAMPTZ createdAt
+        TIMESTAMPTZ updatedAt
+    }
+
+    ORDERITEM {
+        BIGSERIAL id PK
+        BIGINT orderId FK
+        BIGINT productId FK
+        ENUM size
+        INTEGER qty
+        DECIMAL lineTotal
+    }
+
+    ORDERITEMTOPPING {
+        BIGINT orderItemId PK,FK
+        INTEGER toppingId PK,FK
+        INTEGER priceAtTime
+    }
+
+    PAYMENT {
+        BIGSERIAL id PK
+        BIGINT orderId FK
+        VARCHAR idempotencyKey UK
+        DECIMAL amount
+        ENUM method
+    }
+```
+
+### 2. Mô tả các bảng dữ liệu & Ràng buộc toàn vẹn
+- **`Category`**: Quản lý danh mục đồ uống (Cà phê, Trà trái cây, Trà sữa, Đá xay & Khác).
+- **`User`**: Quản lý người dùng, mật khẩu băm bcrypt, phân quyền (`role`: `customer`, `barista`), điểm thưởng tích lũy (`loyaltyPoints >= 0`).
+- **`Product`**: Sản phẩm menu, liên kết `categoryId`, giá bán (`DECIMAL`), tồn kho (`stock >= 0`), `version` (phục vụ Optimistic Locking ở Task 10), trạng thái kinh doanh (`status`: `active`, `inactive`).
+- **`Topping`**: Món thêm cho ly nước (`name`, `price`, `isAvailable`).
+- **`Order`**: Đơn hàng với mã tự tăng `id`, liên kết `userId`, trạng thái theo máy trạng thái (`PENDING`, `PAID`, `PREPARING`, `READY`, `COMPLETED`, `PAYMENT_FAILED`, `CANCELLED`), tổng tiền (`total >= 0`).
+- **`OrderItem`**: Chi tiết từng món trong đơn (`orderId` ON DELETE CASCADE, `productId`, `size`, `qty > 0`, `lineTotal >= 0`).
+- **`OrderItemTopping`**: Snapshot giá topping tại thời điểm đặt đơn (`priceAtTime >= 0`).
+- **`Payment`**: Giao dịch thanh toán không tiền mặt, khóa chống trùng lặp (`idempotencyKey` UNIQUE), số tiền (`amount >= 0`), phương thức (`WALLET`, `CARD`).
+
+---
+
+### 3. Tài khoản kiểm thử có sẵn (Seeded Accounts)
+Hệ thống đi kèm dữ liệu mẫu được nạp sẵn 3 tài khoản để kiểm thử ngay:
+- **Barista**: `barista@brewlite.com` / Mật khẩu: `barista123` (Truy cập giao diện pha chế tại `/barista`)
+- **Khách hàng thân thiết**: `customer@brewlite.com` / Mật khẩu: `customer123` (Đã có 50 điểm loyalty - Hạng Vàng được giảm giá 10%)
+- **Khách hàng mới**: `khachhang2@example.com` / Mật khẩu: `password123` (Đã có 20 điểm loyalty - Hạng Bạc được giảm giá 5%)
+
+---
+
+## 🚀 Khởi chạy nhanh với Docker Compose (Cách dùng CHÍNH - Khuyên dùng)
+
+Đây là **phương thức sử dụng chính thức và tiện lợi nhất của dự án**. Bạn **hoàn toàn không cần cài đặt hay cấu hình PostgreSQL trên máy tính cá nhân**. Chỉ với **1 câu lệnh duy nhất**, toàn bộ hệ sinh thái (Database, Backend, Frontend) sẽ được khởi chạy và nạp dữ liệu mẫu tự động từ con số 0:
 
 ```bash
 docker compose up --build
 ```
 
-### Quá trình khởi động gồm:
+### Quá trình khởi động tự động gồm:
 1. **Dịch vụ `db`**: Khởi chạy PostgreSQL 16 Alpine, cấu hình volume lưu trữ bền vững `pgdata` và kiểm tra sức khỏe (`healthcheck`).
-2. **Dịch vụ `backend`**: Chờ database sẵn sàng -> chạy migrations (`prisma migrate deploy`) -> khởi chạy máy chủ NestJS tại cổng `3001`.
+2. **Dịch vụ `backend`**: Chờ database sẵn sàng -> tự động tạo cấu trúc bảng (`npx prisma db push`) -> tự động chạy script `seed.js` để đọc và nạp toàn bộ dữ liệu từ file [`brewlite_seed_data.sql`](backend/prisma/database%20local/brewlite_seed_data.sql) (gồm 12 món đồ uống, 3 tài khoản, topping, đơn hàng) -> khởi chạy máy chủ NestJS tại cổng `3001`.
 3. **Dịch vụ `frontend`**: Build mã nguồn Next.js đa tầng (multi-stage) -> phục vụ ứng dụng tại cổng `3000`.
 
 ### Truy cập các dịch vụ:
@@ -100,22 +210,39 @@ docker compose up --build
 - 🔌 **Backend REST API**: [http://localhost:3001](http://localhost:3001)
 - 🗄️ **PostgreSQL Port**: `localhost:5432`
 
-### Dừng hệ thống:
+### Dừng hệ thống & Reset dữ liệu:
 ```bash
+# Dừng container nhưng giữ nguyên dữ liệu
 docker compose down
+
+# Dừng và xóa sạch volume để khởi tạo lại database mới hoàn toàn
+docker compose down -v
 ```
-*(Thêm cờ `-v` nếu bạn muốn dọn sạch dữ liệu database volume: `docker compose down -v`)*
 
 ---
 
-## 💻 Khởi chạy môi trường phát triển (Local Development)
+## 💻 Khởi chạy môi trường phát triển cục bộ (Tùy chọn - Optional Local Development)
+
+Phương thức này là **tùy chọn (optional)** dành cho trường hợp bạn muốn chạy trực tiếp mã nguồn trên máy và sử dụng máy chủ PostgreSQL cục bộ mà không thông qua Docker:
 
 ### Yêu cầu tiên quyết:
 - **Node.js**: >= 20.x
 - **npm**: >= 10.x
-- **PostgreSQL**: Cài đặt cục bộ hoặc sử dụng Docker container cho CSDL.
+- **PostgreSQL**: Đã cài đặt và đang chạy dịch vụ cục bộ trên máy (cổng mặc định `5432`).
 
-### 1. Chuẩn bị biến môi trường
+### Bước 1: Khởi tạo Cơ sở dữ liệu cục bộ bằng File SQL
+Bạn mở công cụ **pgAdmin 4**, **DBeaver** hoặc cửa sổ dòng lệnh `psql` để chạy 2 file SQL đã chuẩn bị sẵn trong thư mục `backend/prisma/database local/`:
+1. Tạo một cơ sở dữ liệu mới tên là `brewlite`.
+2. Mở file [`brewlite_schema.sql`](backend/prisma/database%20local/brewlite_schema.sql) và bấm thực thi (**F5**) để tạo bảng và ràng buộc.
+3. Mở file [`brewlite_seed_data.sql`](backend/prisma/database%20local/brewlite_seed_data.sql) và bấm thực thi (**F5**) để nạp 12 món đồ uống và tài khoản mẫu.
+
+*(Hoặc chạy nhanh bằng lệnh `psql`):*
+```bash
+psql -U postgres -d brewlite -f "backend/prisma/database local/brewlite_schema.sql"
+psql -U postgres -d brewlite -f "backend/prisma/database local/brewlite_seed_data.sql"
+```
+
+### Bước 2: Chuẩn bị biến môi trường
 Tạo file `.env` tại thư mục gốc từ mẫu `.env.example`:
 ```bash
 cp .env.example .env
@@ -123,7 +250,7 @@ cp .env.example .env
 
 Nội dung cấu hình tiêu chuẩn:
 ```env
-# Database URL
+# Database URL kết nối vào PostgreSQL local
 DATABASE_URL="postgresql://brewlite:brewlite123@localhost:5432/brewlite?schema=public"
 
 # Auth Secret
@@ -134,21 +261,20 @@ PORT=3001
 NEXT_PUBLIC_API_URL=http://localhost:3001
 ```
 
-### 2. Chạy Backend (NestJS)
+### Bước 3: Khởi chạy Backend (NestJS)
 ```bash
 cd backend
 npm install
 
-# Tạo schema từ các migration đã có
+# Tạo Prisma Client
 npx prisma generate
-npx prisma migrate deploy
 
 # Khởi chạy chế độ Watch (Development)
 npm run start:dev
 ```
 Backend sẽ lắng nghe tại: `http://localhost:3001`
 
-### 3. Chạy Frontend (Next.js)
+### Bước 4: Khởi chạy Frontend (Next.js)
 Mở một cửa sổ terminal mới:
 ```bash
 cd frontend
@@ -159,18 +285,16 @@ npm run dev
 ```
 Frontend sẽ lắng nghe tại: `http://localhost:3000`
 
-### 4. Các lệnh quản lý & Cập nhật Cơ sở dữ liệu (Database Management)
+### Bước 5: Các lệnh quản lý & Cập nhật Cơ sở dữ liệu (Database Management)
 
 Dưới đây là các câu lệnh hữu ích khi làm việc với Database (chạy trong thư mục `backend`):
 
 | Mục đích | Câu lệnh | Khi nào sử dụng? |
 | :--- | :--- | :--- |
-| **Tạo migration cho schema mới** | `npx prisma migrate dev --name <ten_thay_doi>` | Sau khi chỉnh sửa `prisma/schema.prisma` (thêm cột, thêm bảng, đổi kiểu). |
-| **Nạp dữ liệu mẫu** | `node prisma/seed.js` | Tạo sẵn 6 món cà phê, 5 loại topping và tài khoản test (`customer`, `barista`). |
+| **Nạp dữ liệu mẫu** | `node prisma/seed.js` | Tự động đọc và nạp 12 món đồ uống, topping và tài khoản từ file SQL. |
 | **Xóa sạch & làm mới CSDL** | `npx prisma db push --force-reset`<br>`node prisma/seed.js` | Khi muốn xóa toàn bộ đơn hàng test và đưa CSDL về trạng thái sạch ban đầu. |
 | **Xem & chỉnh sửa dữ liệu (UI)** | `npx prisma studio` | Mở giao diện Web quản trị dữ liệu trực quan tại [http://localhost:5555](http://localhost:5555). |
-
-Từ thay đổi danh mục sản phẩm, schema được quản lý bằng Prisma Migrate. Với database mới, chạy `npx prisma migrate deploy` để tạo toàn bộ schema. Với database đã có các bảng hiện tại nhưng chưa có lịch sử migration, chạy một lần `npx prisma migrate resolve --applied 20261023150000_init`, sau đó `npx prisma migrate deploy` để thêm bảng danh mục và khóa ngoại cho sản phẩm. Khi phát triển thay đổi schema tiếp theo, dùng `npx prisma migrate dev --name <ten_thay_doi>`.
+| **Tạo migration cho schema mới** | `npx prisma migrate dev --name <ten_thay_doi>` | Sau khi chỉnh sửa `prisma/schema.prisma` (thêm cột, thêm bảng, đổi kiểu). |
 
 ### 5. Cấu hình cổng thanh toán trực tuyến (VietQR PayOS & MoMo qua Ngrok)
 

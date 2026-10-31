@@ -1,147 +1,109 @@
+const fs = require('fs');
+const path = require('path');
 const { PrismaClient } = require('@prisma/client');
-const bcrypt = require('bcrypt');
 
 const prisma = new PrismaClient();
 
-async function main() {
-  console.log('--- Đang khởi tạo dữ liệu mẫu (Seeding) ---');
+/**
+ * Phân tích cú pháp file SQL thành từng câu lệnh riêng biệt
+ * - Bỏ qua các dòng chú thích (-- ...)
+ * - Giữ nguyên dấu chấm phẩy nằm trong chuỗi ký tự ('...')
+ * - Tự động loại bỏ BEGIN và COMMIT (vì sẽ chạy qua prisma.$transaction)
+ */
+function splitSqlStatements(sql) {
+  const statements = [];
+  let current = '';
+  let inString = false;
+  let inLineComment = false;
 
-  // 1. Tạo tài khoản mẫu nếu chưa có
-  const baristaHash = await bcrypt.hash('barista123', 10);
-  const customerHash = await bcrypt.hash('customer123', 10);
+  for (let i = 0; i < sql.length; i++) {
+    const char = sql[i];
+    const nextChar = sql[i + 1];
 
-  await prisma.user.upsert({
-    where: { email: 'barista@brewlite.com' },
-    update: {},
-    create: {
-      email: 'barista@brewlite.com',
-      passwordHash: baristaHash,
-      role: 'barista',
-      loyaltyPoints: 100,
-    },
-  });
-
-  await prisma.user.upsert({
-    where: { email: 'customer@brewlite.com' },
-    update: {},
-    create: {
-      email: 'customer@brewlite.com',
-      passwordHash: customerHash,
-      role: 'customer',
-      loyaltyPoints: 50,
-    },
-  });
-
-  // 2. Tạo danh mục đồ uống mặc định (có thể chạy seed nhiều lần)
-  const categoryNames = ['Cà phê', 'Trà', 'Trà sữa', 'Khác'];
-  const categories = {};
-  for (const name of categoryNames) {
-    categories[name] = await prisma.category.upsert({
-      where: { name },
-      update: {},
-      create: { name },
-    });
-  }
-
-  // 3. Thêm sản phẩm mẫu và gán danh mục
-  const count = await prisma.product.count();
-  if (count === 0) {
-    const products = [
-      {
-        name: 'Cà phê sữa đá',
-        price: 35000,
-        imageUrl: 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=600&auto=format&fit=crop&q=60',
-        stock: 100,
-        status: 'active',
-        categoryId: categories['Cà phê'].id,
-      },
-      {
-        name: 'Americano',
-        price: 40000,
-        imageUrl: 'https://images.unsplash.com/photo-1551030173-122aabc4489c?w=600&auto=format&fit=crop&q=60',
-        stock: 100,
-        status: 'active',
-        categoryId: categories['Cà phê'].id,
-      },
-      {
-        name: 'Cappuccino',
-        price: 45000,
-        imageUrl: 'https://images.unsplash.com/photo-1534778101976-62847782c213?w=600&auto=format&fit=crop&q=60',
-        stock: 100,
-        status: 'active',
-        categoryId: categories['Cà phê'].id,
-      },
-      {
-        name: 'Trà đào cam sả',
-        price: 39000,
-        imageUrl: 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=600&auto=format&fit=crop&q=60',
-        stock: 100,
-        status: 'active',
-        categoryId: categories['Trà'].id,
-      },
-      {
-        name: 'Bạc xỉu 3 tầng',
-        price: 38000,
-        imageUrl: 'https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=600&auto=format&fit=crop&q=60',
-        stock: 100,
-        status: 'active',
-        categoryId: categories['Cà phê'].id,
-      },
-      {
-        name: 'Trà sữa Oolong nướng',
-        price: 42000,
-        imageUrl: 'https://images.unsplash.com/photo-1576092768241-dec231879fc3?w=600&auto=format&fit=crop&q=60',
-        stock: 100,
-        status: 'active',
-        categoryId: categories['Trà sữa'].id,
-      },
-    ];
-
-    for (const p of products) {
-      await prisma.product.create({ data: p });
+    if (inLineComment) {
+      if (char === '\n') {
+        inLineComment = false;
+      }
+      continue;
     }
-    console.log(`Đã thêm ${products.length} sản phẩm mẫu vào menu.`);
-  } else {
-    console.log('Sản phẩm menu đã tồn tại, bỏ qua bước tạo sản phẩm.');
+
+    if (!inString && char === '-' && nextChar === '-') {
+      inLineComment = true;
+      i++;
+      continue;
+    }
+
+    if (char === "'") {
+      if (inString && nextChar === "'") {
+        current += "''";
+        i++;
+        continue;
+      }
+      inString = !inString;
+      current += char;
+      continue;
+    }
+
+    if (char === ';' && !inString) {
+      const trimmed = current.trim();
+      if (trimmed && trimmed.toUpperCase() !== 'BEGIN' && trimmed.toUpperCase() !== 'COMMIT') {
+        statements.push(trimmed);
+      }
+      current = '';
+      continue;
+    }
+
+    current += char;
   }
 
-  // Đồng bộ danh mục cho các sản phẩm mẫu đã tồn tại từ trước.
-  const productCategories = [
-    ['Cà phê sữa đá', categories['Cà phê'].id],
-    ['Americano', categories['Cà phê'].id],
-    ['Cappuccino', categories['Cà phê'].id],
-    ['Bạc xỉu 3 tầng', categories['Cà phê'].id],
-    ['Trà đào cam sả', categories['Trà'].id],
-    ['Trà sữa Oolong nướng', categories['Trà sữa'].id],
-  ];
-  for (const [name, categoryId] of productCategories) {
-    await prisma.product.updateMany({ where: { name }, data: { categoryId } });
+  const trimmed = current.trim();
+  if (trimmed && trimmed.toUpperCase() !== 'BEGIN' && trimmed.toUpperCase() !== 'COMMIT') {
+    statements.push(trimmed);
   }
 
-  // 3. Thêm danh sách Topping nếu chưa có
-  const defaultToppings = [
-    { name: 'Trân châu', price: 5000, isAvailable: true },
-    { name: 'Thạch trái cây', price: 5000, isAvailable: true },
-    { name: 'Kem cheese', price: 10000, isAvailable: true },
-    { name: 'Pudding trứng', price: 8000, isAvailable: true },
-    { name: 'Thạch dừa', price: 5000, isAvailable: true },
-  ];
+  return statements;
+}
 
-  for (const t of defaultToppings) {
-    await prisma.topping.upsert({
-      where: { name: t.name },
-      update: { price: t.price, isAvailable: t.isAvailable },
-      create: t,
-    });
+async function main() {
+  console.log('=== BẮT ĐẦU SEED DỮ LIỆU TỪ FILE SQL CHO BREWLITE ===');
+
+  const seedFilePath = path.join(__dirname, 'database local', 'brewlite_seed_data.sql');
+
+  if (!fs.existsSync(seedFilePath)) {
+    throw new Error(`Không tìm thấy file seed SQL tại: ${seedFilePath}`);
   }
-  console.log(`Đã đồng bộ ${defaultToppings.length} loại topping vào hệ thống.`);
 
-  console.log('--- Hoàn tất Seeding thành công! ---');
+  console.log(`[1/3] Đang đọc file SQL: ${seedFilePath}`);
+  const sqlContent = fs.readFileSync(seedFilePath, 'utf-8');
+  const statements = splitSqlStatements(sqlContent);
+
+  console.log(`[2/3] Đã phân tích thành công ${statements.length} câu lệnh SQL.`);
+  console.log('[3/3] Đang thực thi các câu lệnh bên trong Transaction...');
+
+  await prisma.$transaction(
+    async (tx) => {
+      for (let i = 0; i < statements.length; i++) {
+        const stmt = statements[i];
+        try {
+          await tx.$executeRawUnsafe(stmt);
+        } catch (err) {
+          console.error(`❌ Lỗi tại câu lệnh thứ ${i + 1}:`, stmt.slice(0, 120));
+          throw err;
+        }
+      }
+    },
+    {
+      timeout: 30000, // Cho phép tối đa 30s để hoàn tất seed
+    },
+  );
+
+  console.log('✅ Hoàn tất nạp dữ liệu mẫu từ brewlite_seed_data.sql thành công!');
 }
 
 main()
   .catch((e) => {
-    console.error('Lỗi khi seed dữ liệu:', e);
+    console.error('❌ Lỗi khi thực hiện seed dữ liệu:', e);
+    process.exit(1);
   })
   .finally(async () => {
     await prisma.$disconnect();
