@@ -10,6 +10,7 @@
 3. [Kiến trúc hệ thống (Architecture)](#-kiến-trúc-hệ-thống-architecture)
 4. [Khởi chạy nhanh với Docker Compose](#-khởi-chạy-nhanh-với-docker-compose)
 5. [Khởi chạy môi trường phát triển (Local Development)](#-khởi-chạy-môi-trường-phát-triển-local-development)
+   - [Cấu hình thanh toán trực tuyến VietQR & MoMo (Ngrok)](backend/PAYMENT_SETUP.md)
 6. [Danh sách API Endpoints](#-danh-sách-api-endpoints)
 7. [Máy trạng thái đơn hàng (Order State Machine)](#-máy-trạng-thái-đơn-hàng-order-state-machine)
 8. [Cấu trúc thư mục dự án](#-cấu-trúc-thư-mục-dự-án)
@@ -171,6 +172,14 @@ Dưới đây là các câu lệnh hữu ích khi làm việc với Database (ch
 
 Từ thay đổi danh mục sản phẩm, schema được quản lý bằng Prisma Migrate. Với database mới, chạy `npx prisma migrate deploy` để tạo toàn bộ schema. Với database đã có các bảng hiện tại nhưng chưa có lịch sử migration, chạy một lần `npx prisma migrate resolve --applied 20261023150000_init`, sau đó `npx prisma migrate deploy` để thêm bảng danh mục và khóa ngoại cho sản phẩm. Khi phát triển thay đổi schema tiếp theo, dùng `npx prisma migrate dev --name <ten_thay_doi>`.
 
+### 5. Cấu hình cổng thanh toán trực tuyến (VietQR PayOS & MoMo qua Ngrok)
+
+Hệ thống tích hợp cổng thanh toán thực tế thông qua **VietQR (PayOS)** và **Ví điện tử MoMo**. Do các nhà cung cấp cổng thanh toán cần gửi phản hồi xác nhận (Webhook IPN) từ Internet về máy chủ cục bộ (`localhost:3001`), cần thiết lập đường hầm Ngrok.
+
+> 📖 **Xem hướng dẫn chi tiết từng bước:**  
+> 👉 **[Tài liệu cấu hình thanh toán PayOS & MoMo (backend/PAYMENT_SETUP.md)](backend/PAYMENT_SETUP.md)**  
+> *(Bao gồm: Cài đặt Ngrok, lấy Token, gắn Webhook URL trên PayOS, biến môi trường `.env` và quy trình mở 3 Terminal để test)*.
+
 ---
 
 ## 📡 Danh sách API Endpoints
@@ -264,6 +273,7 @@ BrewLite_Nhom/
 ├── README.md                   # Tài liệu hướng dẫn sử dụng và triển khai
 │
 ├── backend/                    # Ứng dụng Backend NestJS
+│   ├── PAYMENT_SETUP.md        # Hướng dẫn chi tiết cấu hình thanh toán VietQR & MoMo
 │   ├── Dockerfile              # Multi-stage Docker build cho Backend
 │   ├── .dockerignore           # Tập tin bỏ qua khi Docker build
 │   ├── package.json            # Thư viện và kịch bản thực thi Backend
@@ -349,7 +359,7 @@ npm test -- src/orders/orders.task10.spec.ts
 3. **Thanh toán & Đăng nhập**:
    Tại trang Giỏ hàng / Checkout, khi bấm "Thanh toán", nếu chưa đăng nhập hệ thống sẽ yêu cầu đăng nhập. Giỏ hàng được giữ nguyên sau khi đăng nhập thành công.
 4. **Ưu đãi thành viên theo loyaltyPoints & Thanh toán**:
-   Tại màn hình Checkout, hệ thống tự động nhận diện hạng thành viên và số điểm tích lũy (`loyaltyPoints`) của khách hàng để áp dụng chiết khấu tự động (ví dụ tài khoản `customer@brewlite.com` có 50 điểm -> Hạng Vàng được giảm ngay 10%). Chọn phương thức Ví điện tử (VietQR / MoMo) và nhấn Thanh toán. Hệ thống sinh `idempotencyKey` và chuyển đơn sang `PAID`.
+   Tại màn hình Checkout, hệ thống tự động nhận diện hạng thành viên và số điểm tích lũy (`loyaltyPoints`) của khách hàng để áp dụng chiết khấu tự động (ví dụ tài khoản `customer@brewlite.com` có 50 điểm -> Hạng Vàng được giảm ngay 10%). Chọn phương thức Ví điện tử (VietQR / MoMo) và nhấn Thanh toán. Hệ thống sinh `idempotencyKey` và chuyển đơn sang `PAID` *(Lưu ý: Để test quét mã QR thực tế, cần cấu hình Ngrok theo [PAYMENT_SETUP.md](backend/PAYMENT_SETUP.md))*.
 5. **Xác nhận & Điểm thưởng**:
    Chuyển hướng đến trang xác nhận `/orders/:id`, hiển thị mã đơn, trạng thái và điểm thưởng vừa được tích lũy.
 6. **Barista nhận đơn & Pha chế**:
