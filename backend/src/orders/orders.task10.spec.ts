@@ -29,6 +29,7 @@ describe('Task 10 - Backend Business Logic Tests', () => {
       payment: {
         create: jest.fn(),
         findUnique: jest.fn(),
+        findFirst: jest.fn().mockResolvedValue(null),
         findMany: jest.fn(),
       },
       user: {
