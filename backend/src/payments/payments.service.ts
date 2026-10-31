@@ -1,4 +1,3 @@
-import '../load-env';
 import {
   BadRequestException,
   ConflictException,
