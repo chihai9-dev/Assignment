@@ -8,13 +8,16 @@
 1. [Giới thiệu dự án](#-giới-thiệu-dự-án)
 2. [Công nghệ sử dụng (Tech Stack)](#-công-nghệ-sử-dụng-tech-stack)
 3. [Kiến trúc hệ thống (Architecture)](#-kiến-trúc-hệ-thống-architecture)
-4. [Khởi chạy nhanh với Docker Compose](#-khởi-chạy-nhanh-với-docker-compose)
-5. [Khởi chạy môi trường phát triển (Local Development)](#-khởi-chạy-môi-trường-phát-triển-local-development)
-6. [Danh sách API Endpoints](#-danh-sách-api-endpoints)
-7. [Máy trạng thái đơn hàng (Order State Machine)](#-máy-trạng-thái-đơn-hàng-order-state-machine)
-8. [Cấu trúc thư mục dự án](#-cấu-trúc-thư-mục-dự-án)
-9. [Kịch bản Demo (End-to-End Flow)](#-kịch-bản-demo-end-to-end-flow)
-10. [Thành viên nhóm phát triển (Contributors)](#-thành-viên-nhóm-phát-triển-contributors)
+4. [Thiết kế & Khởi tạo Cơ sở dữ liệu (Database Setup)](#-thiết-kế--khởi-tạo-cơ-sở-dữ-liệu-database-setup)
+5. [Khởi chạy với Docker Compose (Cách dùng chính)](#-khởi-chạy-nhanh-với-docker-compose-cách-dùng-chính---khuyên-dùng)
+6. [Khởi chạy môi trường phát triển cục bộ (Tùy chọn)](#-khởi-chạy-môi-trường-phát-triển-cục-bộ-tùy-chọn---optional-local-development)
+7. [Danh sách API Endpoints](#-danh-sách-api-endpoints)
+8. [Máy trạng thái đơn hàng (Order State Machine)](#-máy-trạng-thái-đơn-hàng-order-state-machine)
+9. [Cấu trúc thư mục dự án](#-cấu-trúc-thư-mục-dự-án)
+10. [Nghiệp vụ Backend Nâng cao (Task 10) & Kiểm thử tự động](#-nghiệp-vụ-backend-nâng-cao-task-10--kiểm-thử-tự-động)
+11. [Phân hệ Barista / Quầy Pha Chế](#-phân-hệ-barista--quầy-pha-chế-tính-năng-mở-rộng-ngoài-mvp)
+12. [Kịch bản Demo (End-to-End Flow)](#-kịch-bản-demo-end-to-end-flow)
+13. [Thành viên nhóm phát triển (Contributors)](#-thành-viên-nhóm-phát-triển-contributors)
 
 ---
 
@@ -81,17 +84,159 @@ flowchart TD
 
 ---
 
-## 🚀 Khởi chạy nhanh với Docker Compose
+## 🗄️ Thiết kế & Khởi tạo Cơ sở dữ liệu (Database Setup)
 
-Chỉ với **1 câu lệnh duy nhất**, toàn bộ hệ sinh thái (Database, Backend, Frontend) sẽ được khởi chạy tự động:
+Phần cơ sở dữ liệu của dự án được xây dựng trên **PostgreSQL 16**, đồng bộ 100% giữa tài liệu đề bài môn Công nghệ Phần mềm, Prisma ORM và các script SQL khởi tạo.
+
+### 1. Sơ đồ quan hệ thực thể (ERD)
+
+```mermaid
+erDiagram
+    CATEGORY ||--o{ PRODUCT : "chứa"
+    USER ||--o{ ORDER : "đặt"
+    ORDER ||--|{ ORDERITEM : "gồm"
+    PRODUCT ||--o{ ORDERITEM : "được đặt trong"
+    TOPPING ||--o{ ORDERITEMTOPPING : "được thêm vào"
+    ORDERITEM ||--o{ ORDERITEMTOPPING : "chọn topping"
+    ORDER ||--o{ PAYMENT : "thanh toán bằng"
+
+    CATEGORY {
+        SERIAL id PK
+        VARCHAR name UK
+        TIMESTAMPTZ createdAt
+        TIMESTAMPTZ updatedAt
+    }
+
+    USER {
+        BIGSERIAL id PK
+        VARCHAR email UK
+        VARCHAR passwordHash
+        INTEGER loyaltyPoints
+        ENUM role
+        TIMESTAMPTZ createdAt
+        TIMESTAMPTZ updatedAt
+    }
+
+    PRODUCT {
+        BIGSERIAL id PK
+        INTEGER categoryId FK
+        VARCHAR name
+        DECIMAL price
+        VARCHAR imageUrl
+        INTEGER stock
+        INTEGER version
+        ENUM status
+        TIMESTAMPTZ createdAt
+        TIMESTAMPTZ updatedAt
+    }
+
+    TOPPING {
+        SERIAL id PK
+        VARCHAR name UK
+        INTEGER price
+        BOOLEAN isAvailable
+        TIMESTAMPTZ createdAt
+    }
+
+    ORDER {
+        BIGSERIAL id PK
+        BIGINT userId FK
+        ENUM status
+        DECIMAL total
+        TIMESTAMPTZ createdAt
+        TIMESTAMPTZ updatedAt
+    }
+
+    ORDERITEM {
+        BIGSERIAL id PK
+        BIGINT orderId FK
+        BIGINT productId FK
+        ENUM size
+        INTEGER qty
+        DECIMAL lineTotal
+    }
+
+    ORDERITEMTOPPING {
+        BIGINT orderItemId PK,FK
+        INTEGER toppingId PK,FK
+        INTEGER priceAtTime
+    }
+
+    PAYMENT {
+        BIGSERIAL id PK
+        BIGINT orderId FK
+        VARCHAR idempotencyKey UK
+        DECIMAL amount
+        ENUM method
+    }
+```
+
+### 2. Mô tả các bảng dữ liệu & Ràng buộc toàn vẹn
+- **`Category`**: Quản lý danh mục đồ uống (Cà phê, Trà trái cây, Trà sữa, Đá xay & Khác).
+- **`User`**: Quản lý người dùng, mật khẩu băm bcrypt, phân quyền (`role`: `customer`, `barista`), điểm thưởng tích lũy (`loyaltyPoints >= 0`).
+- **`Product`**: Sản phẩm menu, liên kết `categoryId`, giá bán (`DECIMAL`), tồn kho (`stock >= 0`), `version` (phục vụ Optimistic Locking ở Task 10), trạng thái kinh doanh (`status`: `active`, `inactive`).
+- **`Topping`**: Món thêm cho ly nước (`name`, `price`, `isAvailable`).
+- **`Order`**: Đơn hàng với mã tự tăng `id`, liên kết `userId`, trạng thái theo máy trạng thái (`PENDING`, `PAID`, `PREPARING`, `READY`, `COMPLETED`, `PAYMENT_FAILED`, `CANCELLED`), tổng tiền (`total >= 0`).
+- **`OrderItem`**: Chi tiết từng món trong đơn (`orderId` ON DELETE CASCADE, `productId`, `size`, `qty > 0`, `lineTotal >= 0`).
+- **`OrderItemTopping`**: Snapshot giá topping tại thời điểm đặt đơn (`priceAtTime >= 0`).
+- **`Payment`**: Giao dịch thanh toán không tiền mặt, khóa chống trùng lặp (`idempotencyKey` UNIQUE), số tiền (`amount >= 0`), phương thức (`WALLET`, `CARD`).
+
+---
+
+### 3. Hướng dẫn Khởi tạo & Setup Cơ sở dữ liệu
+
+#### 🅰️ Phương thức CHÍNH (Primary / Recommended): Tự động 100% qua Docker Compose
+> **Khuyên dùng**: Bạn **không cần cài đặt PostgreSQL** hay bất kỳ phần mềm quản trị CSDL nào trên máy tính. Docker tự quản lý toàn bộ vòng đời:
+- **Câu lệnh khởi chạy duy nhất**:
+  ```bash
+  docker compose up --build
+  ```
+- **Cơ chế khởi tạo tự động**:
+  1. Service `db`: Tự động khởi chạy PostgreSQL 16 Alpine (`brewlite-db`) và tạo database rỗng `brewlite`.
+  2. Service `backend`: Chờ database sẵn sàng -> tự động sinh cấu trúc bảng qua `npx prisma db push` -> tự động thực thi script `node prisma/seed.js`.
+  3. Script `seed.js` trực tiếp đọc file [`brewlite_seed_data.sql`](backend/prisma/database%20local/brewlite_seed_data.sql) tại thư mục `backend/prisma/database local/` và nạp toàn bộ dữ liệu mẫu (**12 sản phẩm**, 4 danh mục, 3 tài khoản, topping, đơn hàng) vào database.
+- **Reset CSDL về trạng thái sạch ban đầu**:
+  ```bash
+  docker compose down -v
+  docker compose up --build
+  ```
+
+#### 🅱️ Phương thức TÙY CHỌN (Optional): Dùng PostgreSQL cài trên máy (Local Machine)
+> Dành cho thành viên muốn phát triển cục bộ không dùng Docker, hoặc phục vụ báo cáo / kiểm tra độc lập bằng công cụ quản trị (pgAdmin 4, DBeaver):
+- **Vị trí file SQL**: Toàn bộ script nằm trong thư mục `backend/prisma/database local/` (hoặc `c:\CNPM\database\`):
+  - [`brewlite_schema.sql`](backend/prisma/database%20local/brewlite_schema.sql): Script DDL tạo bảng, khóa chính, khóa ngoại, kiểu enum, index.
+  - [`brewlite_seed_data.sql`](backend/prisma/database%20local/brewlite_seed_data.sql): Script DML nạp 12 món đồ uống mẫu, tài khoản mẫu và các giao dịch.
+
+- **Các bước thực hiện**:
+  1. Mở **pgAdmin 4** (hoặc **DBeaver**), kết nối PostgreSQL tại `localhost:5432`.
+  2. Tạo database mới tên là `brewlite`.
+  3. Mở Query Tool trên database `brewlite`, mở file `brewlite_schema.sql` và bấm **Execute (F5)** để tạo cấu trúc bảng.
+  4. Tiếp tục mở file `brewlite_seed_data.sql` và bấm **Execute (F5)** để nạp dữ liệu.
+  
+- **Hoặc chạy nhanh bằng dòng lệnh `psql`**:
+  ```bash
+  psql -U postgres -d brewlite -f "backend/prisma/database local/brewlite_schema.sql"
+  psql -U postgres -d brewlite -f "backend/prisma/database local/brewlite_seed_data.sql"
+  ```
+
+- **Tài khoản test có sẵn sau khi nạp seed data**:
+  - `barista@brewlite.com` / `barista123` (Vai trò: `barista`)
+  - `customer@brewlite.com` / `customer123` (Vai trò: `customer` - 50 điểm loyalty)
+  - `khachhang2@example.com` / `password123` (Vai trò: `customer` - 20 điểm loyalty)
+
+---
+
+## 🚀 Khởi chạy nhanh với Docker Compose (Cách dùng CHÍNH - Khuyên dùng)
+
+Đây là **phương thức sử dụng chính thức và tiện lợi nhất của dự án**. Bạn **hoàn toàn không cần cài đặt hay cấu hình PostgreSQL trên máy tính cá nhân**. Chỉ với **1 câu lệnh duy nhất**, toàn bộ hệ sinh thái (Database, Backend, Frontend) sẽ được khởi chạy và nạp dữ liệu mẫu tự động từ con số 0:
 
 ```bash
 docker compose up --build
 ```
 
-### Quá trình khởi động gồm:
+### Quá trình khởi động tự động gồm:
 1. **Dịch vụ `db`**: Khởi chạy PostgreSQL 16 Alpine, cấu hình volume lưu trữ bền vững `pgdata` và kiểm tra sức khỏe (`healthcheck`).
-2. **Dịch vụ `backend`**: Chờ database sẵn sàng -> chạy migrations (`prisma migrate deploy`) -> khởi chạy máy chủ NestJS tại cổng `3001`.
+2. **Dịch vụ `backend`**: Chờ database sẵn sàng -> tự động tạo cấu trúc bảng (`npx prisma db push`) -> tự động chạy script `seed.js` để đọc và nạp toàn bộ dữ liệu từ file `brewlite_seed_data.sql` (gồm 12 món nước, 3 tài khoản, topping, đơn hàng) -> khởi chạy máy chủ NestJS tại cổng `3001`.
 3. **Dịch vụ `frontend`**: Build mã nguồn Next.js đa tầng (multi-stage) -> phục vụ ứng dụng tại cổng `3000`.
 
 ### Truy cập các dịch vụ:
@@ -99,22 +244,35 @@ docker compose up --build
 - 🔌 **Backend REST API**: [http://localhost:3001](http://localhost:3001)
 - 🗄️ **PostgreSQL Port**: `localhost:5432`
 
-### Dừng hệ thống:
+### Dừng hệ thống & Reset dữ liệu:
 ```bash
+# Dừng container nhưng giữ nguyên dữ liệu
 docker compose down
+
+# Dừng và xóa sạch volume để khởi tạo lại database mới hoàn toàn
+docker compose down -v
 ```
-*(Thêm cờ `-v` nếu bạn muốn dọn sạch dữ liệu database volume: `docker compose down -v`)*
 
 ---
 
-## 💻 Khởi chạy môi trường phát triển (Local Development)
+## 💻 Khởi chạy môi trường phát triển cục bộ (Tùy chọn - Optional Local Development)
+
+Phương thức này là **tùy chọn (optional)** dành cho trường hợp bạn muốn chạy trực tiếp mã nguồn trên máy và sử dụng máy chủ PostgreSQL cục bộ mà không thông qua Docker:
 
 ### Yêu cầu tiên quyết:
 - **Node.js**: >= 20.x
 - **npm**: >= 10.x
-- **PostgreSQL**: Cài đặt cục bộ hoặc sử dụng Docker container cho CSDL.
+- **PostgreSQL**: Đã cài đặt và đang chạy dịch vụ cục bộ trên máy (cổng mặc định `5432`).
 
-### 1. Chuẩn bị biến môi trường
+### 1. Khởi tạo Cơ sở dữ liệu cục bộ bằng File SQL (Tùy chọn)
+Nếu bạn sử dụng PostgreSQL cài trên máy, hãy mở công cụ **pgAdmin 4**, **DBeaver** hoặc cửa sổ dòng lệnh để tạo CSDL:
+1. Tạo một cơ sở dữ liệu mới tên là `brewlite`.
+2. Mở file `brewlite_schema.sql` trong thư mục `backend/prisma/database local/` và bấm thực thi (**F5**) để tạo bảng và ràng buộc.
+3. Mở file `brewlite_seed_data.sql` và bấm thực thi (**F5**) để nạp 12 món nước và tài khoản mẫu.
+
+*(Hoặc chạy nhanh bằng lệnh `psql`: `psql -U postgres -d brewlite -f "backend/prisma/database local/brewlite_schema.sql"`)*
+
+### 2. Chuẩn bị biến môi trường
 Tạo file `.env` tại thư mục gốc từ mẫu `.env.example`:
 ```bash
 cp .env.example .env
