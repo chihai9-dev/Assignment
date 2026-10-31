@@ -1,17 +1,18 @@
 'use client';
+import { API_URL } from '@/services/api';
 
 import React, { useEffect, useState, useCallback, Suspense } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { generateUUIDv4 } from '@/lib/uuid';
-import { useAuthStore } from '../../../store/authStore';
-import { useCartStore } from '../../../store/cartStore';
+import { useAuthStore } from '@/store/authStore';
+import { useCartStore } from '@/store/cartStore';
 import {
   CheckCircleIcon,
   ArrowRightIcon,
   CoffeeCupIcon,
   CoffeeBeanIcon
-} from '../../components/Icons';
+} from '@/components/Icons';
 
 interface OrderItemTopping {
   toppingId: number;
@@ -92,7 +93,7 @@ function OrderConfirmationContent() {
     if (!token || !orderId) return null;
 
     try {
-      const res = await fetch(`http://localhost:3001/api/orders/${orderId}`, {
+      const res = await fetch(`${API_URL}/orders/${orderId}`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -240,7 +241,7 @@ function OrderConfirmationContent() {
     setConfirmMessage(null);
 
     try {
-      const res = await fetch(`http://localhost:3001/api/payments`, {
+      const res = await fetch(`${API_URL}/payments`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

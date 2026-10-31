@@ -1,5 +1,5 @@
-import { fetchApi } from "../api";
-import { Category } from "../types";
+import { fetchApi } from '@/services/api';
+import { Category } from '@/types/types';
 
 interface ApiResponse<T> {
   data?: T;

@@ -1,5 +1,5 @@
-import { fetchApi, assetUrl } from "../api";
-import { Product } from "../types";
+import { fetchApi, assetUrl } from '@/services/api';
+import { Product } from '@/types/types';
 
 interface ApiResponse<T> {
   data?: T;

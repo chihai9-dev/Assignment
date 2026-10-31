@@ -4,16 +4,16 @@ import { useParams, useRouter } from "next/navigation";
 import { useState, useMemo } from "react";
 import Link from "next/link";
 // Import dùng chung từ thư mục app/ ngoài cùng
-import { useProductDetail } from "../../hooks/useProductDetail";
-import { useToppings } from "../../hooks/useToppings";
-import { ProductSize, ProductSizeKey } from "../../types";
-import { useCartStore } from "../../../store/cartStore"; // Hoặc đường dẫn cartStore của bạn
+import { useProductDetail } from '@/hooks/useProductDetail';
+import { useToppings } from '@/hooks/useToppings';
+import { ProductSize, ProductSizeKey } from '@/types/types';
+import { useCartStore } from '@/store/cartStore'; // Hoặc đường dẫn cartStore của bạn
 import {
   ArrowLeftIcon,
   PlusIcon,
   MinusIcon,
   CoffeeCupIcon,
-} from "../../components/Icons";
+} from '@/components/Icons';
 
 const SIZE_PRICES: Record<ProductSizeKey, number> = {
   [ProductSize.S]: 0,

@@ -144,7 +144,7 @@ describe('Task 10 - Backend Business Logic Tests', () => {
         id: BigInt(1),
         orderId: BigInt(orderId),
         amount,
-        method: payment_method.WALLET,
+        method: PaymentMethod.WALLET,
         idempotencyKey,
       };
       mockPrisma.payment.create.mockResolvedValue(mockPayment);
@@ -156,12 +156,12 @@ describe('Task 10 - Backend Business Logic Tests', () => {
       const result = await paymentsService.create({
         orderId,
         amount,
-        method: payment_method.WALLET,
+        method: PaymentMethod.WALLET,
         idempotencyKey,
       });
 
       expect(result.payment).toBeDefined();
-      expect(result.order.status).toBe(order_status.PAID);
+      expect(result.order?.status).toBe(order_status.PAID);
       expect(mockPrisma.payment.create).toHaveBeenCalledTimes(1);
     });
 
@@ -174,7 +174,7 @@ describe('Task 10 - Backend Business Logic Tests', () => {
         id: BigInt(1),
         orderId: BigInt(orderId),
         amount,
-        method: payment_method.WALLET,
+        method: PaymentMethod.WALLET,
         idempotencyKey,
       };
 
@@ -190,7 +190,7 @@ describe('Task 10 - Backend Business Logic Tests', () => {
       const result = await paymentsService.create({
         orderId,
         amount,
-        method: payment_method.WALLET,
+        method: PaymentMethod.WALLET,
         idempotencyKey,
       });
 
@@ -431,7 +431,7 @@ describe('Task 10 - Backend Business Logic Tests', () => {
       const result = await paymentsService.create({
         orderId,
         amount,
-        method: payment_method.WALLET,
+        method: PaymentMethod.WALLET,
         idempotencyKey: 'c3d4e5f6-a7b8-4c9d-8e1f-2a3b4c5d6e7f',
       });
 

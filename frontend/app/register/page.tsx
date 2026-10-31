@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { EyeIcon, EyeOffIcon, BrewLiteLogo } from '../components/Icons';
+import { EyeIcon, EyeOffIcon, BrewLiteLogo } from '../../components/Icons';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -17,44 +17,60 @@ export default function RegisterPage() {
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    setError('');
+  if (e) e.preventDefault();
+  setError('');
 
-    if (!email.trim() || !password.trim()) {
-      setError('Vui lòng điền email và mật khẩu.');
+  const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+  const phoneRe = /^(0|\+84)(3|5|7|8|9)\d{8}$/;
+  const nameRe = /^[\p{L}\s'.-]{2,100}$/u;
+  const cleanPhone = phone.replace(/[\s.-]/g, '');
+
+  if (!nameRe.test(fullName.trim())) {
+    setError('tên phải từ 2-100 ký tự chỉ chữ ');
+    return;
+  }
+  if (!emailRe.test(email.trim())) {
+    setError('Email không hợp lệ.');
+    return;
+  }
+  if (!phoneRe.test(cleanPhone)) {
+    setError('Số điện thoại không hợp lệ (VD: 0912345678).');
+    return;
+  }
+  if (password.length < 8 || password.length > 30) {
+    setError('Mật khẩu từ 8 đến 30 ký tự.');
+    return;
+  }
+  if (password !== confirmPassword) {
+    setError('Mật khẩu xác nhận không khớp.');
+    return;
+  }
+
+  setIsLoading(true);
+  try {
+    const res = await fetch('http://localhost:3001/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        fullName: fullName.trim().replace(/\s+/g, ' '),
+        email: email.trim(),
+        phone: cleanPhone,
+        password,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      setError(Array.isArray(data.message) ? data.message.join(', ') : data.message || 'Đăng ký không thành công');
       return;
     }
-
-    if (password.length < 6) {
-      setError('Mật khẩu cần tối thiểu 6 ký tự.');
-      return;
-    }
-
-    if (password !== confirmPassword) {
-      setError('Mật khẩu xác nhận không khớp.');
-      return;
-    }
-
-    setIsLoading(true);
-    try {
-      const res = await fetch('http://localhost:3001/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: email.trim(), password }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setError(Array.isArray(data.message) ? data.message.join(', ') : data.message || 'Đăng ký không thành công');
-        return;
-      }
-      alert('Đăng ký tài khoản thành công! Vui lòng đăng nhập.');
-      router.push('/login');
-    } catch {
-      setError('Không thể kết nối máy chủ. Vui lòng kiểm tra lại backend.');
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    alert('Đăng ký tài khoản thành công! Vui lòng đăng nhập.');
+    router.push('/login');
+  } catch {
+    setError('Không thể kết nối máy chủ. Vui lòng kiểm tra lại backend.');
+  } finally {
+    setIsLoading(false);
+  }
+};
 
   return (
     <main className="min-h-screen bg-[#FBF8F2] flex items-center justify-center p-4 py-12">
@@ -84,6 +100,7 @@ export default function RegisterPage() {
               placeholder="Nhập họ và tên"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
+              required
               className="w-full bg-[#FDFBF7] border border-[#E8DFD8] rounded-xl px-3.5 py-2.5 text-sm text-[#1F1F1F] placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-[#8D6E63] focus:border-[#8D6E63]"
             />
           </div>
@@ -111,6 +128,7 @@ export default function RegisterPage() {
               placeholder="Nhập số điện thoại"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
+              required
               className="w-full bg-[#FDFBF7] border border-[#E8DFD8] rounded-xl px-3.5 py-2.5 text-sm text-[#1F1F1F] placeholder-gray-400 focus:outline-none focus:ring-1 focus:ring-[#8D6E63] focus:border-[#8D6E63]"
             />
           </div>

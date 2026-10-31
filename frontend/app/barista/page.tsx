@@ -1,4 +1,5 @@
 'use client';
+import { API_URL } from '@/services/api';
 
 import React, { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
@@ -90,7 +91,7 @@ export default function BaristaDashboardPage() {
     try {
       if (!isSilent) setLoading(true);
       setError(null);
-      const res = await fetch('http://localhost:3001/api/orders/barista/queue', {
+      const res = await fetch(`${API_URL}/orders/barista/queue`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -144,7 +145,7 @@ export default function BaristaDashboardPage() {
     try {
       setUpdatingId(orderId);
       const res = await fetch(
-        `http://localhost:3001/api/orders/barista/${orderId}/${action}`,
+        `${API_URL}/orders/barista/${orderId}/${action}`,
         {
           method: 'PATCH',
           headers: {

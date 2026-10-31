@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { useAuthStore } from './authStore';
-import { CHECKOUT_DURATION_MINUTES } from '../hooks/useCheckoutTimer';
+import { CHECKOUT_DURATION_MINUTES } from '@/hooks/useCheckoutTimer';
 
 export interface CartItem {
   cartItemId: string;

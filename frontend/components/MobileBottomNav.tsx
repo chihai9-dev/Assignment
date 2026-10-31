@@ -3,8 +3,8 @@
 import React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useCartStore } from '../../store/cartStore';
-import { useAuthStore } from '../../store/authStore';
+import { useCartStore } from '@/store/cartStore';
+import { useAuthStore } from '@/store/authStore';
 import { CoffeeCupIcon, BagIcon, UserIcon } from './Icons';
 
 export default function MobileBottomNav() {

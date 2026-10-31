@@ -11,7 +11,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { useCartStore } from '../store/cartStore';
+import { useCartStore } from '@/store/cartStore';
 
 // ─── Hằng số thời gian (phút) ────────────────────────────────────────────────
 /** Thời gian giữ đơn hàng (phút). Đồng bộ với PayOS expiredAt ở backend. */

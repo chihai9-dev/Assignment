@@ -1,10 +1,11 @@
 'use client';
+import { API_URL } from '@/services/api';
 
 import React, { useEffect, useState, useMemo } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useAuthStore } from '../../store/authStore';
-import { CoffeeCupIcon, ArrowRightIcon } from '../components/Icons';
+import { useAuthStore } from '@/store/authStore';
+import { CoffeeCupIcon, ArrowRightIcon } from '@/components/Icons';
 
 interface OrderItemTopping {
   toppingId: number;
@@ -77,7 +78,7 @@ export default function OrderHistoryPage() {
       try {
         setLoading(true);
         setError(null);
-        const res = await fetch('http://localhost:3001/api/orders/me', {
+        const res = await fetch(`${API_URL}/orders/me`, {
           headers: {
             Authorization: `Bearer ${token}`,
           },

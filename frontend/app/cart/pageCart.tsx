@@ -1,11 +1,12 @@
 'use client';
+import { API_URL } from '@/services/api';
 
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useCartStore } from '../../store/cartStore';
-import { useAuthStore } from '../../store/authStore';
-import { CHECKOUT_DURATION_MINUTES } from '../../hooks/useCheckoutTimer';
+import { useCartStore } from '@/store/cartStore';
+import { useAuthStore } from '@/store/authStore';
+import { CHECKOUT_DURATION_MINUTES } from '@/hooks/useCheckoutTimer';
 import {
   ArrowLeftIcon,
   ArrowRightIcon,
@@ -14,7 +15,7 @@ import {
   TrashIcon,
   CoffeeCupIcon,
   BagIcon,
-} from '../components/Icons';
+} from '@/components/Icons';
 
 export default function CartPage() {
   const router = useRouter();
@@ -49,7 +50,7 @@ export default function CartPage() {
       const cancelId = orderIdParam ? Number(orderIdParam) : store.pendingOrderId;
 
       if (cancelId && token) {
-        fetch(`http://localhost:3001/api/orders/${cancelId}/cancel`, {
+        fetch(`${API_URL}/orders/${cancelId}/cancel`, {
           method: 'PATCH',
           headers: { Authorization: `Bearer ${token}` },
         }).catch((e) => console.error('Lỗi hoàn trả tồn kho PayOS:', e));
@@ -84,7 +85,7 @@ export default function CartPage() {
       if (isExpired) {
         const cancelId = store.pendingOrderId;
         if (cancelId && token) {
-          fetch(`http://localhost:3001/api/orders/${cancelId}/cancel`, {
+          fetch(`${API_URL}/orders/${cancelId}/cancel`, {
             method: 'PATCH',
             headers: { Authorization: `Bearer ${token}` },
           }).catch((e) => console.error('Lỗi hoàn trả tồn kho khi hết hạn:', e));
@@ -135,7 +136,7 @@ export default function CartPage() {
       isSubmittingRef.current = true;
       setIsSubmitting(true);
       // Gọi API POST /api/orders: Backend tự động kiểm tra tồn kho & trừ stock ngay trong DB
-      const orderResponse = await fetch('http://localhost:3001/api/orders', {
+      const orderResponse = await fetch(`${API_URL}/orders`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -218,7 +219,7 @@ export default function CartPage() {
                   onClick={() => {
                     const store = useCartStore.getState();
                     if (store.pendingOrderId && token) {
-                      fetch(`http://localhost:3001/api/orders/${store.pendingOrderId}/cancel`, {
+                      fetch(`${API_URL}/orders/${store.pendingOrderId}/cancel`, {
                         method: 'PATCH',
                         headers: { Authorization: `Bearer ${token}` },
                       }).catch(() => {});

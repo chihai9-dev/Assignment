@@ -1,11 +1,12 @@
 "use client";
+import { API_URL } from '@/services/api';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { generateUUIDv4 } from "../../lib/uuid";
+import { generateUUIDv4 } from '@/lib/uuid';
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useCartStore } from "../../store/cartStore";
-import { useAuthStore } from "../../store/authStore";
+import { useCartStore } from '@/store/cartStore';
+import { useAuthStore } from '@/store/authStore';
 import {
   ArrowLeftIcon,
   BankIcon,
@@ -14,12 +15,12 @@ import {
   PlusIcon,
   MinusIcon,
   InfoIcon,
-} from "../components/Icons";
+} from '@/components/Icons';
 import {
   useCheckoutTimer,
   CHECKOUT_DURATION_MINUTES,
   formatTimer,
-} from "../../hooks/useCheckoutTimer";
+} from '@/hooks/useCheckoutTimer';
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -133,7 +134,7 @@ export default function CheckoutPage() {
   useEffect(() => {
     setHasHydrated(true);
     if (token) {
-      fetch("http://localhost:3001/api/auth/me", {
+      fetch(`${API_URL}/auth/me`, {
         headers: { Authorization: `Bearer ${token}` },
       })
         .then((res) => (res.ok ? res.json() : null))
@@ -194,7 +195,7 @@ export default function CheckoutPage() {
     if (orderIdToCancel && token) {
       try {
         await fetch(
-          `http://localhost:3001/api/orders/${orderIdToCancel}/cancel`,
+          `${API_URL}/orders/${orderIdToCancel}/cancel`,
           {
             method: "PATCH",
             headers: { Authorization: `Bearer ${token}` },
@@ -225,7 +226,7 @@ export default function CheckoutPage() {
     if (orderIdToCancel && token) {
       try {
         await fetch(
-          `http://localhost:3001/api/orders/${orderIdToCancel}/cancel`,
+          `${API_URL}/orders/${orderIdToCancel}/cancel`,
           {
             method: "PATCH",
             headers: { Authorization: `Bearer ${token}` },
@@ -246,10 +247,14 @@ export default function CheckoutPage() {
 
 
 
-  // Tạo mã nội dung chuyển khoản động
+  // Mã đơn hàng đang thanh toán và nội dung chuyển khoản chuẩn BrewLite
+  const currentOrderId = createdOrderData?.id || pendingOrderId;
   const transferContent = useMemo(() => {
-    return `BrewLite_#ORD${Math.floor(100000 + Math.random() * 900000)}`;
-  }, []);
+    if (currentOrderId) {
+      return `BL${String(currentOrderId).padStart(8, '0')}`;
+    }
+    return `BL--------`;
+  }, [currentOrderId]);
 
   // Tiến hành thanh toán
   const handleCheckoutSubmit = async () => {
@@ -278,7 +283,7 @@ export default function CheckoutPage() {
       // BƯỚC 2A: Nếu chọn VietQR -> Tạo link PayOS (PayOS tự có đếm ngược 5 phút)
       if (paymentMethod === "VIETQR") {
         const payosResponse = await fetch(
-          "http://localhost:3001/api/payments/create-payos-link",
+          `${API_URL}/payments/create-payos-link`,
           {
             method: "POST",
             headers: {
@@ -316,7 +321,7 @@ export default function CheckoutPage() {
       if (paymentMethod === "MOMO") {
         try {
           const payosResponse = await fetch(
-            "http://localhost:3001/api/payments/create-payos-link",
+            `${API_URL}/payments/create-payos-link`,
             {
               method: "POST",
               headers: {
@@ -366,7 +371,7 @@ export default function CheckoutPage() {
     const interval = setInterval(async () => {
       try {
         const res = await fetch(
-          `http://localhost:3001/api/orders/${createdOrderData.id}`,
+          `${API_URL}/orders/${createdOrderData.id}`,
           {
             headers: { Authorization: `Bearer ${token}` },
           },
@@ -413,7 +418,7 @@ export default function CheckoutPage() {
     try {
       setIsPaying(true);
       const paymentResponse = await fetch(
-        "http://localhost:3001/api/payments",
+        `${API_URL}/payments`,
         {
           method: "POST",
           headers: {
@@ -823,11 +828,18 @@ export default function CheckoutPage() {
           <div className="lg:col-span-5 xl:col-span-4 sticky top-24">
             <div className="bg-white border border-[#E8DFD8] rounded-3xl p-6 sm:p-7 shadow-sm space-y-6">
               {/* Header Right Sidebar */}
-              <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
-                <BagIcon className="w-5 h-5 text-[#8D6E63]" />
-                <h2 className="font-extrabold text-lg text-[#3E2723]">
-                  Đơn hàng đang giữ ({activeItems.length} món)
-                </h2>
+              <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+                <div className="flex items-center gap-2">
+                  <BagIcon className="w-5 h-5 text-[#8D6E63]" />
+                  <h2 className="font-extrabold text-lg text-[#3E2723]">
+                    Đơn hàng đang giữ ({activeItems.length} món)
+                  </h2>
+                </div>
+                {currentOrderId && (
+                  <span className="text-xs font-extrabold text-[#8D6E63] bg-[#F5F0E6] px-2.5 py-1 rounded-full border border-[#E8DFD8] font-mono">
+                    #BL{String(currentOrderId).padStart(8, '0')}
+                  </span>
+                )}
               </div>
 
               {/* Danh sách món trong checkoutItems */}
@@ -1152,7 +1164,7 @@ export default function CheckoutPage() {
                 </span>
                 <span className="font-bold text-[#A50064] bg-pink-50 px-1.5 py-0.5 rounded border border-pink-200">
                   {payosPaymentData?.description ||
-                    `BrewLite #${createdOrderData.id}`}
+                    `BL${String(createdOrderData.id).padStart(8, '0')}`}
                 </span>
               </div>
             </div>

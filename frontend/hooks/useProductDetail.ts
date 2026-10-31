@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { fetchProductById } from "../services/productService";
-import { Product } from "../types";
+import { fetchProductById } from '@/services/productService';
+import { Product } from '@/types/types';
 
 export function useProductDetail(productIdStr: string) {
   const [product, setProduct] = useState<Product | null>(null);
