@@ -183,46 +183,11 @@ erDiagram
 
 ---
 
-### 3. Hướng dẫn Khởi tạo & Setup Cơ sở dữ liệu
-
-#### 🅰️ Phương thức CHÍNH (Primary / Recommended): Tự động 100% qua Docker Compose
-> **Khuyên dùng**: Bạn **không cần cài đặt PostgreSQL** hay bất kỳ phần mềm quản trị CSDL nào trên máy tính. Docker tự quản lý toàn bộ vòng đời:
-- **Câu lệnh khởi chạy duy nhất**:
-  ```bash
-  docker compose up --build
-  ```
-- **Cơ chế khởi tạo tự động**:
-  1. Service `db`: Tự động khởi chạy PostgreSQL 16 Alpine (`brewlite-db`) và tạo database rỗng `brewlite`.
-  2. Service `backend`: Chờ database sẵn sàng -> tự động sinh cấu trúc bảng qua `npx prisma db push` -> tự động thực thi script `node prisma/seed.js`.
-  3. Script `seed.js` trực tiếp đọc file [`brewlite_seed_data.sql`](backend/prisma/database%20local/brewlite_seed_data.sql) tại thư mục `backend/prisma/database local/` và nạp toàn bộ dữ liệu mẫu (**12 sản phẩm**, 4 danh mục, 3 tài khoản, topping, đơn hàng) vào database.
-- **Reset CSDL về trạng thái sạch ban đầu**:
-  ```bash
-  docker compose down -v
-  docker compose up --build
-  ```
-
-#### 🅱️ Phương thức TÙY CHỌN (Optional): Dùng PostgreSQL cài trên máy (Local Machine)
-> Dành cho thành viên muốn phát triển cục bộ không dùng Docker, hoặc phục vụ báo cáo / kiểm tra độc lập bằng công cụ quản trị (pgAdmin 4, DBeaver):
-- **Vị trí file SQL**: Toàn bộ script nằm trong thư mục `backend/prisma/database local/` (hoặc `c:\CNPM\database\`):
-  - [`brewlite_schema.sql`](backend/prisma/database%20local/brewlite_schema.sql): Script DDL tạo bảng, khóa chính, khóa ngoại, kiểu enum, index.
-  - [`brewlite_seed_data.sql`](backend/prisma/database%20local/brewlite_seed_data.sql): Script DML nạp 12 món đồ uống mẫu, tài khoản mẫu và các giao dịch.
-
-- **Các bước thực hiện**:
-  1. Mở **pgAdmin 4** (hoặc **DBeaver**), kết nối PostgreSQL tại `localhost:5432`.
-  2. Tạo database mới tên là `brewlite`.
-  3. Mở Query Tool trên database `brewlite`, mở file `brewlite_schema.sql` và bấm **Execute (F5)** để tạo cấu trúc bảng.
-  4. Tiếp tục mở file `brewlite_seed_data.sql` và bấm **Execute (F5)** để nạp dữ liệu.
-  
-- **Hoặc chạy nhanh bằng dòng lệnh `psql`**:
-  ```bash
-  psql -U postgres -d brewlite -f "backend/prisma/database local/brewlite_schema.sql"
-  psql -U postgres -d brewlite -f "backend/prisma/database local/brewlite_seed_data.sql"
-  ```
-
-- **Tài khoản test có sẵn sau khi nạp seed data**:
-  - `barista@brewlite.com` / `barista123` (Vai trò: `barista`)
-  - `customer@brewlite.com` / `customer123` (Vai trò: `customer` - 50 điểm loyalty)
-  - `khachhang2@example.com` / `password123` (Vai trò: `customer` - 20 điểm loyalty)
+### 3. Tài khoản kiểm thử có sẵn (Seeded Accounts)
+Hệ thống đi kèm dữ liệu mẫu được nạp sẵn 3 tài khoản để kiểm thử ngay:
+- **Barista**: `barista@brewlite.com` / Mật khẩu: `barista123` (Truy cập giao diện pha chế tại `/barista`)
+- **Khách hàng thân thiết**: `customer@brewlite.com` / Mật khẩu: `customer123` (Đã có 50 điểm loyalty - Hạng Vàng được giảm giá 10%)
+- **Khách hàng mới**: `khachhang2@example.com` / Mật khẩu: `password123` (Đã có 20 điểm loyalty - Hạng Bạc được giảm giá 5%)
 
 ---
 
@@ -236,7 +201,7 @@ docker compose up --build
 
 ### Quá trình khởi động tự động gồm:
 1. **Dịch vụ `db`**: Khởi chạy PostgreSQL 16 Alpine, cấu hình volume lưu trữ bền vững `pgdata` và kiểm tra sức khỏe (`healthcheck`).
-2. **Dịch vụ `backend`**: Chờ database sẵn sàng -> tự động tạo cấu trúc bảng (`npx prisma db push`) -> tự động chạy script `seed.js` để đọc và nạp toàn bộ dữ liệu từ file `brewlite_seed_data.sql` (gồm 12 món nước, 3 tài khoản, topping, đơn hàng) -> khởi chạy máy chủ NestJS tại cổng `3001`.
+2. **Dịch vụ `backend`**: Chờ database sẵn sàng -> tự động tạo cấu trúc bảng (`npx prisma db push`) -> tự động chạy script `seed.js` để đọc và nạp toàn bộ dữ liệu từ file [`brewlite_seed_data.sql`](backend/prisma/database%20local/brewlite_seed_data.sql) (gồm 12 món đồ uống, 3 tài khoản, topping, đơn hàng) -> khởi chạy máy chủ NestJS tại cổng `3001`.
 3. **Dịch vụ `frontend`**: Build mã nguồn Next.js đa tầng (multi-stage) -> phục vụ ứng dụng tại cổng `3000`.
 
 ### Truy cập các dịch vụ:
@@ -264,15 +229,19 @@ Phương thức này là **tùy chọn (optional)** dành cho trường hợp b�
 - **npm**: >= 10.x
 - **PostgreSQL**: Đã cài đặt và đang chạy dịch vụ cục bộ trên máy (cổng mặc định `5432`).
 
-### 1. Khởi tạo Cơ sở dữ liệu cục bộ bằng File SQL (Tùy chọn)
-Nếu bạn sử dụng PostgreSQL cài trên máy, hãy mở công cụ **pgAdmin 4**, **DBeaver** hoặc cửa sổ dòng lệnh để tạo CSDL:
+### Bước 1: Khởi tạo Cơ sở dữ liệu cục bộ bằng File SQL
+Bạn mở công cụ **pgAdmin 4**, **DBeaver** hoặc cửa sổ dòng lệnh `psql` để chạy 2 file SQL đã chuẩn bị sẵn trong thư mục `backend/prisma/database local/`:
 1. Tạo một cơ sở dữ liệu mới tên là `brewlite`.
-2. Mở file `brewlite_schema.sql` trong thư mục `backend/prisma/database local/` và bấm thực thi (**F5**) để tạo bảng và ràng buộc.
-3. Mở file `brewlite_seed_data.sql` và bấm thực thi (**F5**) để nạp 12 món nước và tài khoản mẫu.
+2. Mở file [`brewlite_schema.sql`](backend/prisma/database%20local/brewlite_schema.sql) và bấm thực thi (**F5**) để tạo bảng và ràng buộc.
+3. Mở file [`brewlite_seed_data.sql`](backend/prisma/database%20local/brewlite_seed_data.sql) và bấm thực thi (**F5**) để nạp 12 món đồ uống và tài khoản mẫu.
 
-*(Hoặc chạy nhanh bằng lệnh `psql`: `psql -U postgres -d brewlite -f "backend/prisma/database local/brewlite_schema.sql"`)*
+*(Hoặc chạy nhanh bằng lệnh `psql`):*
+```bash
+psql -U postgres -d brewlite -f "backend/prisma/database local/brewlite_schema.sql"
+psql -U postgres -d brewlite -f "backend/prisma/database local/brewlite_seed_data.sql"
+```
 
-### 2. Chuẩn bị biến môi trường
+### Bước 2: Chuẩn bị biến môi trường
 Tạo file `.env` tại thư mục gốc từ mẫu `.env.example`:
 ```bash
 cp .env.example .env
@@ -280,7 +249,7 @@ cp .env.example .env
 
 Nội dung cấu hình tiêu chuẩn:
 ```env
-# Database URL
+# Database URL kết nối vào PostgreSQL local
 DATABASE_URL="postgresql://brewlite:brewlite123@localhost:5432/brewlite?schema=public"
 
 # Auth Secret
@@ -291,21 +260,20 @@ PORT=3001
 NEXT_PUBLIC_API_URL=http://localhost:3001
 ```
 
-### 2. Chạy Backend (NestJS)
+### Bước 3: Khởi chạy Backend (NestJS)
 ```bash
 cd backend
 npm install
 
-# Tạo schema từ các migration đã có
+# Tạo Prisma Client
 npx prisma generate
-npx prisma migrate deploy
 
 # Khởi chạy chế độ Watch (Development)
 npm run start:dev
 ```
 Backend sẽ lắng nghe tại: `http://localhost:3001`
 
-### 3. Chạy Frontend (Next.js)
+### Bước 4: Khởi chạy Frontend (Next.js)
 Mở một cửa sổ terminal mới:
 ```bash
 cd frontend
@@ -316,18 +284,16 @@ npm run dev
 ```
 Frontend sẽ lắng nghe tại: `http://localhost:3000`
 
-### 4. Các lệnh quản lý & Cập nhật Cơ sở dữ liệu (Database Management)
+### Bước 5: Các lệnh quản lý & Cập nhật Cơ sở dữ liệu (Database Management)
 
 Dưới đây là các câu lệnh hữu ích khi làm việc với Database (chạy trong thư mục `backend`):
 
 | Mục đích | Câu lệnh | Khi nào sử dụng? |
 | :--- | :--- | :--- |
-| **Tạo migration cho schema mới** | `npx prisma migrate dev --name <ten_thay_doi>` | Sau khi chỉnh sửa `prisma/schema.prisma` (thêm cột, thêm bảng, đổi kiểu). |
-| **Nạp dữ liệu mẫu** | `node prisma/seed.js` | Tạo sẵn 6 món cà phê, 5 loại topping và tài khoản test (`customer`, `barista`). |
+| **Nạp dữ liệu mẫu** | `node prisma/seed.js` | Tự động đọc và nạp 12 món đồ uống, topping và tài khoản từ file SQL. |
 | **Xóa sạch & làm mới CSDL** | `npx prisma db push --force-reset`<br>`node prisma/seed.js` | Khi muốn xóa toàn bộ đơn hàng test và đưa CSDL về trạng thái sạch ban đầu. |
 | **Xem & chỉnh sửa dữ liệu (UI)** | `npx prisma studio` | Mở giao diện Web quản trị dữ liệu trực quan tại [http://localhost:5555](http://localhost:5555). |
-
-Từ thay đổi danh mục sản phẩm, schema được quản lý bằng Prisma Migrate. Với database mới, chạy `npx prisma migrate deploy` để tạo toàn bộ schema. Với database đã có các bảng hiện tại nhưng chưa có lịch sử migration, chạy một lần `npx prisma migrate resolve --applied 20261023150000_init`, sau đó `npx prisma migrate deploy` để thêm bảng danh mục và khóa ngoại cho sản phẩm. Khi phát triển thay đổi schema tiếp theo, dùng `npx prisma migrate dev --name <ten_thay_doi>`.
+| **Tạo migration cho schema mới** | `npx prisma migrate dev --name <ten_thay_doi>` | Sau khi chỉnh sửa `prisma/schema.prisma` (thêm cột, thêm bảng, đổi kiểu). |
 
 ---
 
