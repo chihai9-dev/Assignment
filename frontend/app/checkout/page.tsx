@@ -1,11 +1,12 @@
 "use client";
+import { API_URL } from '@/services/api';
 
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { generateUUIDv4 } from "../../lib/uuid";
+import { generateUUIDv4 } from '@/lib/uuid';
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useCartStore } from "../../store/cartStore";
-import { useAuthStore } from "../../store/authStore";
+import { useCartStore } from '@/store/cartStore';
+import { useAuthStore } from '@/store/authStore';
 import {
   ArrowLeftIcon,
   BankIcon,
@@ -14,12 +15,12 @@ import {
   PlusIcon,
   MinusIcon,
   InfoIcon,
-} from "../components/Icons";
+} from '@/components/Icons';
 import {
   useCheckoutTimer,
   CHECKOUT_DURATION_MINUTES,
   formatTimer,
-} from "../../hooks/useCheckoutTimer";
+} from '@/hooks/useCheckoutTimer';
 
 export default function CheckoutPage() {
   const router = useRouter();
@@ -133,7 +134,7 @@ export default function CheckoutPage() {
   useEffect(() => {
     setHasHydrated(true);
     if (token) {
-      fetch("http://localhost:3001/api/auth/me", {
+      fetch(`${API_URL}/auth/me`, {
         headers: { Authorization: `Bearer ${token}` },
       })
         .then((res) => (res.ok ? res.json() : null))
@@ -194,7 +195,7 @@ export default function CheckoutPage() {
     if (orderIdToCancel && token) {
       try {
         await fetch(
-          `http://localhost:3001/api/orders/${orderIdToCancel}/cancel`,
+          `${API_URL}/orders/${orderIdToCancel}/cancel`,
           {
             method: "PATCH",
             headers: { Authorization: `Bearer ${token}` },
@@ -225,7 +226,7 @@ export default function CheckoutPage() {
     if (orderIdToCancel && token) {
       try {
         await fetch(
-          `http://localhost:3001/api/orders/${orderIdToCancel}/cancel`,
+          `${API_URL}/orders/${orderIdToCancel}/cancel`,
           {
             method: "PATCH",
             headers: { Authorization: `Bearer ${token}` },
@@ -278,7 +279,7 @@ export default function CheckoutPage() {
       // BƯỚC 2A: Nếu chọn VietQR -> Tạo link PayOS (PayOS tự có đếm ngược 5 phút)
       if (paymentMethod === "VIETQR") {
         const payosResponse = await fetch(
-          "http://localhost:3001/api/payments/create-payos-link",
+          `${API_URL}/payments/create-payos-link`,
           {
             method: "POST",
             headers: {
@@ -316,7 +317,7 @@ export default function CheckoutPage() {
       if (paymentMethod === "MOMO") {
         try {
           const payosResponse = await fetch(
-            "http://localhost:3001/api/payments/create-payos-link",
+            `${API_URL}/payments/create-payos-link`,
             {
               method: "POST",
               headers: {
@@ -366,7 +367,7 @@ export default function CheckoutPage() {
     const interval = setInterval(async () => {
       try {
         const res = await fetch(
-          `http://localhost:3001/api/orders/${createdOrderData.id}`,
+          `${API_URL}/orders/${createdOrderData.id}`,
           {
             headers: { Authorization: `Bearer ${token}` },
           },
@@ -413,7 +414,7 @@ export default function CheckoutPage() {
     try {
       setIsPaying(true);
       const paymentResponse = await fetch(
-        "http://localhost:3001/api/payments",
+        `${API_URL}/payments`,
         {
           method: "POST",
           headers: {

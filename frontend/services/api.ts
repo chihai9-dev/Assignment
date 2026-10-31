@@ -1,5 +1,6 @@
 // Lấy URL từ biến môi trường (file .env), dự phòng về localhost:3001 nếu chưa có
-export const API_URL = "http://localhost:3001/api";
+const rawApiUrl = (process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001").replace(/\/+$/, '');
+export const API_URL = rawApiUrl.endsWith('/api') ? rawApiUrl : `${rawApiUrl}/api`;
 
 /**
  * Hàm gọi API dùng chung cho toàn bộ frontend

@@ -3,16 +3,16 @@
 import Link from "next/link";
 import { useEffect, useState, useMemo, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useProducts } from "./hooks/useProducts";
-import { fetchCategories } from "./services/categoryService";
-import { Category } from "./types";
+import { useProducts } from '@/hooks/useProducts';
+import { fetchCategories } from '@/services/categoryService';
+import { Category } from '@/types/types';
 import {
   CoffeeCupIcon,
   CardIcon,
   PlusIcon,
   ArrowRightIcon,
   SearchIcon,
-} from "./components/Icons";
+} from '@/components/Icons';
 
 function HomeContent() {
   const searchParams = useSearchParams();

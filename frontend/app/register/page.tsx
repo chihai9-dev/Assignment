@@ -1,9 +1,10 @@
 'use client';
+import { API_URL } from '@/services/api';
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
-import { EyeIcon, EyeOffIcon, BrewLiteLogo } from '../components/Icons';
+import { EyeIcon, EyeOffIcon, BrewLiteLogo } from '@/components/Icons';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -37,7 +38,7 @@ export default function RegisterPage() {
 
     setIsLoading(true);
     try {
-      const res = await fetch('http://localhost:3001/api/auth/register', {
+      const res = await fetch(`${API_URL}/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim(), password }),

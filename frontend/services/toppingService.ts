@@ -1,5 +1,5 @@
-import { fetchApi } from "../api";
-import { ToppingItem } from "../types";
+import { fetchApi } from '@/services/api';
+import { ToppingItem } from '@/types/types';
 
 interface ApiResponse<T> {
   data?: T;

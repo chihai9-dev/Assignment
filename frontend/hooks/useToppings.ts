@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
-import { fetchToppings } from "../services/toppingService";
-import { ToppingItem } from "../types";
+import { fetchToppings } from '@/services/toppingService';
+import { ToppingItem } from '@/types/types';
 
 export function useToppings() {
   const [toppingsList, setToppingsList] = useState<ToppingItem[]>([]);

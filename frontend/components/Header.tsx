@@ -3,8 +3,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useAuthStore } from '../../store/authStore';
-import { useCartStore } from '../../store/cartStore';
+import { useAuthStore } from '@/store/authStore';
+import { useCartStore } from '@/store/cartStore';
 import { BrewLiteLogo, SearchIcon, CartIcon, UserIcon } from './Icons';
 
 export default function Header() {

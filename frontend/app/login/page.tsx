@@ -1,11 +1,12 @@
 'use client';
+import { API_URL } from '@/services/api';
 
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useState } from 'react';
-import { useAuthStore } from '../../store/authStore';
-import { useCartStore } from '../../store/cartStore';
-import { EyeIcon, EyeOffIcon, BrewLiteLogo, CoffeeBeanIcon } from '../components/Icons';
+import { useAuthStore } from '@/store/authStore';
+import { useCartStore } from '@/store/cartStore';
+import { EyeIcon, EyeOffIcon, BrewLiteLogo, CoffeeBeanIcon } from '@/components/Icons';
 
 function LoginForm() {
   const router = useRouter();
@@ -32,7 +33,7 @@ function LoginForm() {
 
     setIsLoading(true);
     try {
-      const res = await fetch('http://localhost:3001/api/auth/login', {
+      const res = await fetch(`${API_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: email.trim(), password }),
