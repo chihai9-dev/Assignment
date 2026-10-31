@@ -12,6 +12,7 @@ import {
 } from '@nestjs/common';
 import { PaymentsService } from './payments.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
+import { VerifyPayOSDto } from './dto/verify-payos.dto';
 
 @Controller('api/payments')
 export class PaymentsController {
@@ -20,6 +21,13 @@ export class PaymentsController {
   @Post()
   create(@Body() createPaymentDto: CreatePaymentDto) {
     return this.paymentsService.create(createPaymentDto);
+  }
+
+  // Xác thực và đồng bộ thanh toán PayOS tự động (từ returnUrl hoặc polling)
+  @Post(['payos-verify', 'verify-payos'])
+  @UsePipes(new ValidationPipe({ whitelist: false, forbidNonWhitelisted: false, transform: true }))
+  verifyPayOSPayment(@Body() body: VerifyPayOSDto) {
+    return this.paymentsService.verifyPayOSPayment(body);
   }
 
   // Tạo liên kết thanh toán PayOS (Sinh mã VietQR / MoMo quét được trên điện thoại)
