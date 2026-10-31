@@ -9,6 +9,8 @@ import { PaginationQueryDto } from './dto/pagination-query.dto';
 // Không bao giờ trả passwordHash
 const userSelect = {
   id: true,
+  fullName: true, 
+  phone: true,
   email: true,
   role: true,
   loyaltyPoints: true,
@@ -26,6 +28,8 @@ export class UsersService {
       return await this.prisma.user.create({
         data: {
           email: dto.email,
+          fullName: dto.fullName, 
+          phone: dto.phone,
           passwordHash,
           ...(isBaristaEmail ? { role: 'barista' as any } : {}),
         },
@@ -58,6 +62,8 @@ export class UsersService {
   async update(id: number, dto: UpdateUserDto) {
     const data: Prisma.UserUpdateInput = {};
     if (dto.email) data.email = dto.email;
+    if (dto.fullName) data.fullName = dto.fullName;
+    if (dto.phone) data.phone = dto.phone;
     if (dto.password) data.passwordHash = await bcrypt.hash(dto.password, 10);
 
     try {
@@ -91,10 +97,14 @@ export class UsersService {
 
   private handleError(e: unknown, id?: number): never {
     if (e instanceof Prisma.PrismaClientKnownRequestError) {
-      if (e.code === 'P2002') throw new ConflictException('Email đã được sử dụng');
+      if (e.code === 'P2002') {
+        const t = (e.meta?.target as string[]) ?? [];
+        if (t.includes('phone')) throw new ConflictException('Số điện thoại đã được sử dụng');
+        throw new ConflictException('Email đã được sử dụng');};
       if (e.code === 'P2025') throw new NotFoundException(`User ${id} không tồn tại`);
       // P2003: xóa user đang có Order (FK) -> nên xử lý riêng nếu cần
     }
     throw e;
   }
+  
 }
