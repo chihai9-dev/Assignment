@@ -1,3 +1,4 @@
+import '../load-env';
 import {
   BadRequestException,
   ConflictException,
@@ -23,7 +24,8 @@ export class PaymentsService implements OnModuleInit {
     private readonly usersService: UsersService,
   ) {}
 
-  onModuleInit() {
+  public initPayOS() {
+    if (this.payOS) return;
     const clientId = process.env.PAYOS_CLIENT_ID;
     const apiKey = process.env.PAYOS_API_KEY;
     const checksumKey = process.env.PAYOS_CHECKSUM_KEY;
@@ -40,6 +42,10 @@ export class PaymentsService implements OnModuleInit {
         console.error('[PayOS] Initialization error:', err?.message || err);
       }
     }
+  }
+
+  onModuleInit() {
+    this.initPayOS();
   }
 
   async create(createPaymentDto: CreatePaymentDto) {
@@ -66,6 +72,7 @@ export class PaymentsService implements OnModuleInit {
         payment: existingPayment,
         order: existingOrder,
         idempotent: true,
+        pointsEarned: 0,
         message: 'Giao dịch thanh toán đã được xử lý thành công trước đó (Idempotent)',
       };
     }
@@ -180,6 +187,9 @@ export class PaymentsService implements OnModuleInit {
     options?: { returnUrl?: string; cancelUrl?: string },
   ) {
     if (!this.payOS) {
+      this.initPayOS();
+    }
+    if (!this.payOS) {
       throw new BadRequestException('PayOS chưa được khởi tạo, vui lòng kiểm tra cấu hình .env');
     }
 
@@ -209,7 +219,8 @@ export class PaymentsService implements OnModuleInit {
     const timestampSuffix = Date.now().toString().slice(-6);
     const orderCode = Number(`${order.id}${timestampSuffix}`);
     const amount = Math.round(Number(order.total));
-    const description = `BrewLite #${orderId}`.slice(0, 25);
+    const formattedOrderId = String(orderId).padStart(8, '0');
+    const description = `BL${formattedOrderId}`;
     const cancelUrl =
       options?.cancelUrl ||
       `http://localhost:3000/cart?status=cancelled&reason=payos_timeout&orderId=${orderId}`;

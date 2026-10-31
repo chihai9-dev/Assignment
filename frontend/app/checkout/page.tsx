@@ -247,10 +247,14 @@ export default function CheckoutPage() {
 
 
 
-  // Tạo mã nội dung chuyển khoản động
+  // Mã đơn hàng đang thanh toán và nội dung chuyển khoản chuẩn BrewLite
+  const currentOrderId = createdOrderData?.id || pendingOrderId;
   const transferContent = useMemo(() => {
-    return `BrewLite_#ORD${Math.floor(100000 + Math.random() * 900000)}`;
-  }, []);
+    if (currentOrderId) {
+      return `BL${String(currentOrderId).padStart(8, '0')}`;
+    }
+    return `BL--------`;
+  }, [currentOrderId]);
 
   // Tiến hành thanh toán
   const handleCheckoutSubmit = async () => {
@@ -824,11 +828,18 @@ export default function CheckoutPage() {
           <div className="lg:col-span-5 xl:col-span-4 sticky top-24">
             <div className="bg-white border border-[#E8DFD8] rounded-3xl p-6 sm:p-7 shadow-sm space-y-6">
               {/* Header Right Sidebar */}
-              <div className="flex items-center gap-2 pb-2 border-b border-gray-100">
-                <BagIcon className="w-5 h-5 text-[#8D6E63]" />
-                <h2 className="font-extrabold text-lg text-[#3E2723]">
-                  Đơn hàng đang giữ ({activeItems.length} món)
-                </h2>
+              <div className="flex items-center justify-between pb-2 border-b border-gray-100">
+                <div className="flex items-center gap-2">
+                  <BagIcon className="w-5 h-5 text-[#8D6E63]" />
+                  <h2 className="font-extrabold text-lg text-[#3E2723]">
+                    Đơn hàng đang giữ ({activeItems.length} món)
+                  </h2>
+                </div>
+                {currentOrderId && (
+                  <span className="text-xs font-extrabold text-[#8D6E63] bg-[#F5F0E6] px-2.5 py-1 rounded-full border border-[#E8DFD8] font-mono">
+                    #BL{String(currentOrderId).padStart(8, '0')}
+                  </span>
+                )}
               </div>
 
               {/* Danh sách món trong checkoutItems */}
@@ -1153,7 +1164,7 @@ export default function CheckoutPage() {
                 </span>
                 <span className="font-bold text-[#A50064] bg-pink-50 px-1.5 py-0.5 rounded border border-pink-200">
                   {payosPaymentData?.description ||
-                    `BrewLite #${createdOrderData.id}`}
+                    `BL${String(createdOrderData.id).padStart(8, '0')}`}
                 </span>
               </div>
             </div>
