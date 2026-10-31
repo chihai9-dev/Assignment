@@ -206,7 +206,8 @@ export class PaymentsService implements OnModuleInit {
       throw new BadRequestException('Đơn hàng này đã bị hủy, không thể thanh toán');
     }
 
-    const orderCode = Number(order.id);
+    const timestampSuffix = Date.now().toString().slice(-6);
+    const orderCode = Number(`${order.id}${timestampSuffix}`);
     const amount = Math.round(Number(order.total));
     const description = `BrewLite #${orderId}`.slice(0, 25);
     const cancelUrl =
@@ -241,7 +242,7 @@ export class PaymentsService implements OnModuleInit {
         status: paymentLinkRes.status,
       };
     } catch (err: any) {
-      if (err?.message?.includes('đã tồn tại') || err?.code === '231') {
+      if (err?.message?.includes('đã tồn t ại') || err?.code === '231') {
         try {
           const existingLink = await this.payOS.paymentRequests.get(orderCode);
           return {
@@ -251,7 +252,7 @@ export class PaymentsService implements OnModuleInit {
             amount: existingLink.amount,
             accountName: (existingLink as any).accountName,
             accountNumber: (existingLink as any).accountNumber,
-            bin: (existingLink as any).bin,
+            bin: (existingLink as any).bin, 
             description: (existingLink as any).description,
             checkoutUrl: (existingLink as any).checkoutUrl || (existingLink.id ? `https://pay.payos.vn/web/${existingLink.id}` : undefined),
             qrCode: (existingLink as any).qrCode,
@@ -360,8 +361,9 @@ export class PaymentsService implements OnModuleInit {
     });
     let orderId = rawOrderCode;
 
-    if (!order && rawOrderCode > 100000) {
-      orderId = Math.floor(rawOrderCode / 100000);
+    if (!order && rawOrderCode > 1000000) {
+      const strCode = rawOrderCode.toString();
+      orderId = Number(strCode.slice(0, strCode.length - 6));
       order = await this.prisma.order.findUnique({
         where: { id: BigInt(orderId) as any },
       });
