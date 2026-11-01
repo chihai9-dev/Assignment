@@ -81,6 +81,7 @@ CREATE TABLE "Product" (
     "name"        VARCHAR(255) NOT NULL,
     "price"       DECIMAL(12,2) NOT NULL CHECK ("price" >= 0),
     "imageUrl"    VARCHAR(500),
+    "description" TEXT,
     "stock"       INTEGER NOT NULL DEFAULT 0 CHECK ("stock" >= 0),
     "version"     INTEGER NOT NULL DEFAULT 0, -- Dùng cho Optimistic Locking ở Task 10
     "status"      "ProductStatus" NOT NULL DEFAULT 'active',

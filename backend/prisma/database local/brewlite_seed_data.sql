@@ -32,27 +32,36 @@ ON CONFLICT (id) DO NOTHING;
 -- ---------------------------------------------------------------------
 -- 3. BẢNG Product (ĐÚNG 12 SẢN PHẨM PHÂN BỔ ĐỀU CÁC DANH MỤC)
 -- ---------------------------------------------------------------------
-INSERT INTO "Product" (id, "categoryId", name, price, "imageUrl", stock, version, status, "createdAt", "updatedAt") VALUES
+INSERT INTO "Product" (id, "categoryId", name, price, "imageUrl", description, stock, version, status, "createdAt", "updatedAt") VALUES
     -- [Nhóm Cà phê - CategoryId = 1]
-    (1, 1, 'Cà phê sữa đá',              35000.00, 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=600&auto=format&fit=crop&q=60', 100, 0, 'active', now(), now()),
-    (2, 1, 'Americano',                  40000.00, 'https://images.unsplash.com/photo-1551030173-122aabc4489c?w=600&auto=format&fit=crop&q=60',  80, 0, 'active', now(), now()),
-    (3, 1, 'Cappuccino',                 45000.00, 'https://images.unsplash.com/photo-1534778101976-62847782c213?w=600&auto=format&fit=crop&q=60',  60, 0, 'active', now(), now()),
-    (4, 1, 'Bạc xỉu 3 tầng',             38000.00, 'https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=600&auto=format&fit=crop&q=60',  90, 0, 'active', now(), now()),
-    (5, 1, 'Caramel Macchiato',          48000.00, 'https://images.unsplash.com/photo-1485808191679-5f86510681a2?w=600&auto=format&fit=crop&q=60',  50, 0, 'active', now(), now()),
+    (1, 1, 'Cà phê sữa đá',              35000.00, 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=600&auto=format&fit=crop&q=60', 'Cà phê Robusta Đắk Lắk truyền thống pha phin đậm đà, hòa quyện hài hòa cùng sữa đặc béo ngọt, chuẩn gu cà phê sữa đá đậm chất Việt Nam đánh thức mọi giác quan.', 100, 0, 'active', now(), now()),
+    (2, 1, 'Americano',                  40000.00, 'https://images.unsplash.com/photo-1551030173-122aabc4489c?w=600&auto=format&fit=crop&q=60', 'Sự kết hợp tinh tế giữa hai shot Espresso nguyên chất và nước nóng tinh khiết, mang lại hương vị cà phê êm dịu thanh thoát, đượm chút đắng nhẹ và hậu vị ngọt sâu lắng.',  80, 0, 'active', now(), now()),
+    (3, 1, 'Cappuccino',                 45000.00, 'https://images.unsplash.com/photo-1534778101976-62847782c213?w=600&auto=format&fit=crop&q=60', 'Thức uống phong cách Ý trứ danh với tỷ lệ vàng giữa Espresso thượng hạng, sữa nóng thơm béo và lớp bọt sữa mịn màng bồng bềnh phủ bột ca cao hảo hạng.',  60, 0, 'active', now(), now()),
+    (4, 1, 'Bạc xỉu 3 tầng',             38000.00, 'https://images.unsplash.com/photo-1461023058943-07fcbe16d735?w=600&auto=format&fit=crop&q=60', 'Phiên bản nâng cấp đặc sắc của món bạc xỉu quen thuộc với 3 tầng phân tầng đẹp mắt: sữa đặc ngọt ngào, sữa tươi thanh mát và lớp cà phê sóng sánh đậm hương.',  90, 0, 'active', now(), now()),
+    (5, 1, 'Caramel Macchiato',          48000.00, 'https://images.unsplash.com/photo-1485808191679-5f86510681a2?w=600&auto=format&fit=crop&q=60', 'Hương vị ngọt ngào quyến rũ từ những đường vân sốt caramel thơm lừng phủ trên nền sữa tươi đánh bọt béo mịn, hòa cùng vị nồng nàn của cà phê rang xay đậm đặc.',  50, 0, 'active', now(), now()),
 
     -- [Nhóm Trà trái cây - CategoryId = 2]
-    (6, 2, 'Trà đào cam sả',             39000.00, 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=600&auto=format&fit=crop&q=60', 100, 0, 'active', now(), now()),
-    (7, 2, 'Trà vải lài thanh long',     42000.00, 'https://images.unsplash.com/photo-1544787219-7f47ccb76574?w=600&auto=format&fit=crop&q=60',  75, 0, 'active', now(), now()),
-    (8, 2, 'Trà sen vàng hạt sen',       45000.00, 'https://images.unsplash.com/photo-1576092768241-dec231879fc3?w=600&auto=format&fit=crop&q=60',  65, 0, 'active', now(), now()),
+    (6, 2, 'Trà đào cam sả',             39000.00, 'https://images.unsplash.com/photo-1556679343-c7306c1976bc?w=600&auto=format&fit=crop&q=60', 'Vị thanh tao của trà đen tự nhiên hòa quyện với những lát cam vàng mọng nước, hương sả thơm lừng thoang thoảng cùng những miếng đào tươi giòn sần sật mát lạnh.', 100, 0, 'active', now(), now()),
+    (7, 2, 'Trà vải lài thanh long',     42000.00, 'https://images.unsplash.com/photo-1544787219-7f47ccb76574?w=600&auto=format&fit=crop&q=60', 'Sắc hồng rực rỡ tươi mới chiết xuất từ thanh long đỏ tươi, kết hợp nền trà hoa lài ngát hương và thịt quả vải ngọt thơm mọng nước giải nhiệt cực đã.',  75, 0, 'active', now(), now()),
+    (8, 2, 'Trà sen vàng hạt sen',       45000.00, 'https://images.unsplash.com/photo-1576092768241-dec231879fc3?w=600&auto=format&fit=crop&q=60', 'Vị trà Ô Long sen thơm ngát thanh tao, kết hợp cùng những hạt sen ninh mềm ngọt bùi tự nhiên, mang lại cảm giác thanh mát và an yên thuần khiết.',  65, 0, 'active', now(), now()),
 
     -- [Nhóm Trà sữa - CategoryId = 3]
-    (9, 3, 'Trà sữa Oolong nướng',       42000.00, 'https://images.unsplash.com/photo-1576092768241-dec231879fc3?w=600&auto=format&fit=crop&q=60', 120, 0, 'active', now(), now()),
-    (10, 3, 'Trà sữa trân châu đường đen', 45000.00, 'https://images.unsplash.com/photo-1558857563-b37cf5a41764?w=600&auto=format&fit=crop&q=60', 110, 0, 'active', now(), now()),
-    (11, 3, 'Trà sữa Matcha kem cheese', 48000.00, 'https://images.unsplash.com/photo-1517256064527-09c73fc73e38?w=600&auto=format&fit=crop&q=60',  85, 0, 'active', now(), now()),
+    (9, 3, 'Trà sữa Oolong nướng',       42000.00, 'https://images.unsplash.com/photo-1576092768241-dec231879fc3?w=600&auto=format&fit=crop&q=60', 'Lá trà Ô Long cao cấp được sao nướng kỹ lưỡng tạo nên mùi thơm khói caramel đặc trưng, quyện cùng sữa béo bùi ngậy đậm đà, lưu luyến vị ngọt dịu nơi đầu lưỡi.', 120, 0, 'active', now(), now()),
+    (10, 3, 'Trà sữa trân châu đường đen', 45000.00, 'https://images.unsplash.com/photo-1558857563-b37cf5a41764?w=600&auto=format&fit=crop&q=60', 'Món trà sữa quốc dân vạn người mê với siro đường đen đậm đặc phủ quanh thành ly, hòa cùng sữa tươi béo ngậy và trân châu dẻo mềm ấm nóng ngon khó cưỡng.', 110, 0, 'active', now(), now()),
+    (11, 3, 'Trà sữa Matcha kem cheese', 48000.00, 'https://images.unsplash.com/photo-1517256064527-09c73fc73e38?w=600&auto=format&fit=crop&q=60', 'Bột Matcha Uji nguyên chất thơm thanh, đắng nhẹ hậu ngọt sâu, được phủ lớp foam kem cheese Macchiato sánh mịn béo ngậy điểm chút mằn mặn đầy lôi cuốn.',  85, 0, 'active', now(), now()),
 
     -- [Nhóm Đá xay & Khác - CategoryId = 4]
-    (12, 4, 'Cà phê dừa đá xay',         49000.00, 'https://images.unsplash.com/photo-1536256263959-770b48d82b0a?w=600&auto=format&fit=crop&q=60',  70, 0, 'active', now(), now())
-ON CONFLICT (id) DO NOTHING;
+    (12, 4, 'Cà phê dừa đá xay',         49000.00, 'https://images.unsplash.com/photo-1536256263959-770b48d82b0a?w=600&auto=format&fit=crop&q=60', 'Sự hòa quyện tuyệt đỉnh giữa vị cà phê thơm đắng nồng nàn và cốt dừa Bến Tre xay nhuyễn mát lạnh, béo ngọt thơm ngậy đem lại cảm giác sảng khoái bất tận.',  70, 0, 'active', now(), now())
+ON CONFLICT (id) DO UPDATE SET
+    "categoryId" = EXCLUDED."categoryId",
+    name = EXCLUDED.name,
+    price = EXCLUDED.price,
+    "imageUrl" = EXCLUDED."imageUrl",
+    description = EXCLUDED.description,
+    stock = EXCLUDED.stock,
+    version = EXCLUDED.version,
+    status = EXCLUDED.status,
+    "updatedAt" = now();
 
 -- ---------------------------------------------------------------------
 -- 4. BẢNG Topping (3 món topping thêm)

@@ -18,6 +18,10 @@ export class CreateProductDto {
   imageUrl?: string;
 
   @IsOptional()
+  @IsString({ message: 'Mô tả sản phẩm phải là chuỗi' })
+  description?: string;
+
+  @IsOptional()
   @IsInt({ message: 'Số lượng tồn kho phải là số nguyên' })
   @Min(0, { message: 'Số lượng tồn kho không được nhỏ hơn 0' })
   stock?: number;

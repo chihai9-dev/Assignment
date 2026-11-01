@@ -124,6 +124,7 @@ erDiagram
         VARCHAR name
         DECIMAL price
         VARCHAR imageUrl
+        TEXT description
         INTEGER stock
         INTEGER version
         ENUM status
@@ -175,7 +176,7 @@ erDiagram
 ### 2. Mô tả các bảng dữ liệu & Ràng buộc toàn vẹn
 - **`Category`**: Quản lý danh mục đồ uống (Cà phê, Trà trái cây, Trà sữa, Đá xay & Khác).
 - **`User`**: Quản lý người dùng, mật khẩu băm bcrypt, phân quyền (`role`: `customer`, `barista`), điểm thưởng tích lũy (`loyaltyPoints >= 0`).
-- **`Product`**: Sản phẩm menu, liên kết `categoryId`, giá bán (`DECIMAL`), tồn kho (`stock >= 0`), `version` (phục vụ Optimistic Locking ở Task 10), trạng thái kinh doanh (`status`: `active`, `inactive`).
+- **`Product`**: Sản phẩm menu, liên kết `categoryId`, giá bán (`DECIMAL`), mô tả (`description`), tồn kho (`stock >= 0`), `version` (phục vụ Optimistic Locking ở Task 10), trạng thái kinh doanh (`status`: `active`, `inactive`).
 - **`Topping`**: Món thêm cho ly nước (`name`, `price`, `isAvailable`).
 - **`Order`**: Đơn hàng với mã tự tăng `id`, liên kết `userId`, trạng thái theo máy trạng thái (`PENDING`, `PAID`, `PREPARING`, `READY`, `COMPLETED`, `PAYMENT_FAILED`, `CANCELLED`), tổng tiền (`total >= 0`).
 - **`OrderItem`**: Chi tiết từng món trong đơn (`orderId` ON DELETE CASCADE, `productId`, `size`, `qty > 0`, `lineTotal >= 0`).

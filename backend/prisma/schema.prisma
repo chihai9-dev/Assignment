@@ -58,7 +58,8 @@ model Product {
   categoryId Int?
   name       String        @db.VarChar(255)
   price      Decimal       @db.Decimal(12, 2)
-  imageUrl   String?       @db.VarChar(500)
+  imageUrl    String?       @db.VarChar(500)
+  description String?       @db.Text
   stock      Int           @default(0)
   version    Int           @default(0)
   status     ProductStatus @default(active)
