@@ -9,6 +9,7 @@ import { order_status, payment_method } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { UsersService } from '../users/users.service';
 import { CreatePaymentDto } from './dto/create-payment.dto';
+import { VerifyPayOSDto } from './dto/verify-payos.dto';
 import * as crypto from 'crypto';
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
@@ -17,6 +18,8 @@ const { PayOS } = require('@payos/node');
 @Injectable()
 export class PaymentsService implements OnModuleInit {
   private payOS: any = null;
+  // Lưu map tạm thời giữa orderId (DB) và orderCode sinh ra cho PayOS
+  private latestOrderCodes = new Map<number, number>();
 
   constructor(
     private readonly prisma: PrismaService,
@@ -47,7 +50,103 @@ export class PaymentsService implements OnModuleInit {
     this.initPayOS();
   }
 
-  async create(createPaymentDto: CreatePaymentDto) {
+  // Danh dau don hang la da thanh toan thanh cong (PAID), tao Payment va cong diem thuong
+  async markOrderAsPaid(
+    orderId: number,
+    amount?: number,
+    reference?: string,
+    method: payment_method = payment_method.WALLET,
+  ) {
+    const order = await this.prisma.order.findUnique({
+      where: { id: BigInt(orderId) as any },
+      include: {
+        OrderItem: {
+          include: {
+            Product: true,
+            OrderItemTopping: {
+              include: {
+                Topping: true,
+              },
+            },
+          },
+        },
+        Payment: true,
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Không tìm thấy đơn hàng #${orderId}`);
+    }
+
+    if (order.status === order_status.PAID || order.status === order_status.COMPLETED) {
+      return {
+        alreadyPaid: true,
+        order,
+      };
+    }
+
+    const payAmount = Number(amount || order.total);
+    const idempotencyKey = `PAYOS-${orderId}-${reference || Date.now()}`;
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      // Kiểm tra xem đã có bản ghi payment nào cho đơn này chưa
+      const existingPayment = await tx.payment.findFirst({
+        where: { orderId: BigInt(orderId) as any },
+      });
+
+      let payment = existingPayment;
+      if (!existingPayment) {
+        payment = await tx.payment.create({
+          data: {
+            orderId: BigInt(orderId) as any,
+            amount: payAmount,
+            method,
+            idempotencyKey,
+          },
+        });
+      }
+
+      const updatedOrder = await tx.order.update({
+        where: { id: BigInt(orderId) as any },
+        data: { status: order_status.PAID },
+        include: {
+          OrderItem: {
+            include: {
+              Product: true,
+              OrderItemTopping: {
+                include: {
+                  Topping: true,
+                },
+              },
+            },
+          },
+          Payment: true,
+        },
+      });
+
+      return { payment, order: updatedOrder };
+    });
+
+    // Cộng điểm thưởng tích lũy (Loyalty Points) sau khi thanh toán thành công (1 điểm / 10.000đ)
+    const pointsEarned = Math.floor(payAmount / 10000);
+    if (pointsEarned > 0) {
+      try {
+        await this.usersService.addLoyaltyPoints(Number(order.userId), pointsEarned);
+      } catch (err) {
+        console.error('[PayOS] Lỗi cộng điểm thưởng:', err);
+      }
+    }
+
+    console.log(`[PayOS] Đơn hàng #${orderId} đã chuyển trạng thái thành công sang PAID!`);
+
+    return {
+      alreadyPaid: false,
+      ...result,
+      pointsEarned,
+    };
+  }
+
+  async create(createPaymentDto: CreatePaymentDto): Promise<any> {
     const {
       orderId,
       amount,
@@ -113,49 +212,8 @@ export class PaymentsService implements OnModuleInit {
       );
     }
 
-    // 5. Tạo Payment và cập nhật Order sang PAID trong Transaction
-    const result = await this.prisma.$transaction(
-      async (tx) => {
-        const payment = await tx.payment.create({
-          data: {
-            orderId: BigInt(orderId) as any,
-            amount,
-            method,
-            idempotencyKey,
-          },
-        });
-
-        const updatedOrder =
-          await tx.order.update({
-            where: {
-              id: BigInt(orderId) as any,
-            },
-            data: {
-              status: order_status.PAID,
-            },
-          });
-
-        return {
-          payment,
-          order: updatedOrder,
-        };
-      },
-    );
-
-    // 6. Cộng điểm thưởng tích lũy (Loyalty Points) sau khi thanh toán thành công (1 điểm / 10.000đ)
-    const pointsEarned = Math.floor(amount / 10000);
-    if (pointsEarned > 0) {
-      try {
-        await this.usersService.addLoyaltyPoints(Number(order.userId), pointsEarned);
-      } catch (err) {
-        console.error('Lỗi cộng điểm tích lũy:', err);
-      }
-    }
-
-    return {
-      ...result,
-      pointsEarned,
-    };
+    // 5. Cập nhật Order sang PAID
+    return this.markOrderAsPaid(orderId, amount, idempotencyKey, method);
   }
 
   async findByOrder(orderId: number) {
@@ -217,6 +275,8 @@ export class PaymentsService implements OnModuleInit {
 
     const timestampSuffix = Date.now().toString().slice(-6);
     const orderCode = Number(`${order.id}${timestampSuffix}`);
+    this.latestOrderCodes.set(Number(order.id), orderCode);
+
     const amount = Math.round(Number(order.total));
     const formattedOrderId = String(orderId).padStart(8, '0');
     const description = `BL${formattedOrderId}`;
@@ -252,7 +312,7 @@ export class PaymentsService implements OnModuleInit {
         status: paymentLinkRes.status,
       };
     } catch (err: any) {
-      if (err?.message?.includes('đã tồn t ại') || err?.code === '231') {
+      if (err?.message?.includes('đã tồn tại') || err?.code === '231') {
         try {
           const existingLink = await this.payOS.paymentRequests.get(orderCode);
           return {
@@ -262,7 +322,7 @@ export class PaymentsService implements OnModuleInit {
             amount: existingLink.amount,
             accountName: (existingLink as any).accountName,
             accountNumber: (existingLink as any).accountNumber,
-            bin: (existingLink as any).bin, 
+            bin: (existingLink as any).bin,
             description: (existingLink as any).description,
             checkoutUrl: (existingLink as any).checkoutUrl || (existingLink.id ? `https://pay.payos.vn/web/${existingLink.id}` : undefined),
             qrCode: (existingLink as any).qrCode,
@@ -289,6 +349,108 @@ export class PaymentsService implements OnModuleInit {
   }
 
   /**
+   * Xác thực và đồng bộ tự động trạng thái thanh toán từ PayOS
+   * Giải quyết triệt để trường hợp PayOS đã hoàn tất nhưng Webhook chưa kịp/không gửi về được localhost
+   */
+  async verifyPayOSPayment(body: VerifyPayOSDto) {
+    const orderId = Number(body.orderId);
+    if (!orderId) {
+      throw new BadRequestException('Mã đơn hàng không hợp lệ');
+    }
+
+    const order = await this.prisma.order.findUnique({
+      where: { id: BigInt(orderId) as any },
+      include: {
+        OrderItem: {
+          include: {
+            Product: true,
+            OrderItemTopping: {
+              include: {
+                Topping: true,
+              },
+            },
+          },
+        },
+        Payment: true,
+      },
+    });
+
+    if (!order) {
+      throw new NotFoundException(`Không tìm thấy đơn hàng #${orderId}`);
+    }
+
+    // 1. Nếu đơn hàng đã PAID hoặc COMPLETED -> trả về kết quả thành công ngay
+    if (order.status === order_status.PAID || order.status === order_status.COMPLETED) {
+      return {
+        success: true,
+        isPaid: true,
+        message: 'Đơn hàng đã được thanh toán hoàn tất',
+        order,
+      };
+    }
+
+    if (order.status === order_status.CANCELLED) {
+      throw new BadRequestException('Đơn hàng này đã bị hủy');
+    }
+
+    // Xác định orderCode tương ứng
+    let parsedOrderCode: number | null = null;
+    if (body.orderCode) {
+      parsedOrderCode = Number(body.orderCode);
+    } else if (this.latestOrderCodes.has(orderId)) {
+      parsedOrderCode = this.latestOrderCodes.get(orderId)!;
+    }
+
+    // 2. Tra cứu trực tiếp với PayOS API nếu có SDK
+    if (this.payOS && parsedOrderCode) {
+      try {
+        const payosInfo = await this.payOS.paymentRequests.get(parsedOrderCode);
+        console.log(`[PayOS Verify] PayOS API check orderCode=${parsedOrderCode} result status:`, payosInfo?.status);
+        if (payosInfo && (payosInfo.status === 'PAID' || payosInfo.amountRemaining === 0)) {
+          const res = await this.markOrderAsPaid(
+            orderId,
+            payosInfo.amountPaid || Number(order.total),
+            payosInfo.transactions?.[0]?.reference || `PAYOS-${parsedOrderCode}`,
+            payment_method.WALLET,
+          );
+          return {
+            success: true,
+            isPaid: true,
+            message: 'Thanh toán PayOS được xác thực thành công!',
+            order: res.order,
+          };
+        }
+      } catch (err: any) {
+        console.warn(`[PayOS Verify] Lỗi kiểm tra PayOS API:`, err?.message || err);
+      }
+    }
+
+    // 3. Nếu PayOS redirect về trình duyệt với tham số status=PAID và code=00
+    if (body.status === 'PAID' && (body.code === '00' || !body.code)) {
+      const res = await this.markOrderAsPaid(
+        orderId,
+        Number(order.total),
+        `PAYOS-RETURN-${orderId}-${Date.now()}`,
+        payment_method.WALLET,
+      );
+      return {
+        success: true,
+        isPaid: true,
+        message: 'Thanh toán được xác nhận tự động từ thông tin trả về của PayOS!',
+        order: res.order,
+      };
+    }
+
+    return {
+      success: false,
+      isPaid: false,
+      status: order.status,
+      message: 'Đơn hàng chưa hoàn tất thanh toán trên PayOS',
+      order,
+    };
+  }
+
+  /**
    * Đăng ký tự động Webhook URL với PayOS API
    */
   async confirmPayOSWebhookUrl(webhookUrl: string) {
@@ -308,25 +470,64 @@ export class PaymentsService implements OnModuleInit {
 
   /**
    * Lấy trạng thái thanh toán hiện tại của đơn hàng
+   * Tự động kiểm tra PayOS API nếu đơn hàng đang ở trạng thái PENDING
    */
   async getPaymentStatus(orderId: number) {
-    const order = await this.prisma.order.findUnique({
+    const existingOrder = await this.prisma.order.findUnique({
       where: { id: BigInt(orderId) as any },
-      include: { Payment: true },
+      include: {
+        Payment: true,
+        OrderItem: {
+          include: {
+            Product: true,
+            OrderItemTopping: {
+              include: {
+                Topping: true,
+              },
+            },
+          },
+        },
+      },
     });
 
-    if (!order) {
+    if (!existingOrder) {
       throw new NotFoundException(`Không tìm thấy đơn hàng #${orderId}`);
+    }
+
+    let currentOrder: any = existingOrder;
+
+    // Nếu đơn hàng đang PENDING, chủ động kiểm tra với PayOS API
+    if (existingOrder.status === order_status.PENDING && this.payOS) {
+      const cachedCode = this.latestOrderCodes.get(orderId);
+      if (cachedCode) {
+        try {
+          const payosInfo = await this.payOS.paymentRequests.get(cachedCode);
+          if (payosInfo && (payosInfo.status === 'PAID' || payosInfo.amountRemaining === 0)) {
+            const updated = await this.markOrderAsPaid(
+              orderId,
+              payosInfo.amountPaid || Number(existingOrder.total),
+              payosInfo.transactions?.[0]?.reference || `PAYOS-${cachedCode}`,
+              payment_method.WALLET,
+            );
+            if (updated.order) {
+              currentOrder = updated.order;
+            }
+          }
+        } catch (e: any) {
+          // Bỏ qua lỗi kết nối trong polling ngầm
+        }
+      }
     }
 
     return {
       orderId,
-      status: order.status,
+      status: currentOrder.status,
       isPaid:
-        order.status === order_status.PAID ||
-        order.status === order_status.COMPLETED,
-      total: Number(order.total),
-      payment: order.Payment,
+        currentOrder.status === order_status.PAID ||
+        currentOrder.status === order_status.COMPLETED,
+      total: Number(currentOrder.total),
+      payment: currentOrder.Payment,
+      order: currentOrder,
     };
   }
 
@@ -390,38 +591,13 @@ export class PaymentsService implements OnModuleInit {
     }
 
     const amount = Number(verifiedData.amount || order.total);
-    const idempotencyKey = `PAYOS-${orderId}-${verifiedData.reference || Date.now()}`;
-
-    // Cập nhật trạng thái đơn hàng sang PAID trong transaction
-    const result = await this.prisma.$transaction(async (tx) => {
-      const payment = await tx.payment.create({
-        data: {
-          orderId: BigInt(orderId) as any,
-          amount,
-          method: payment_method.WALLET,
-          idempotencyKey,
-        },
-      });
-
-      const updatedOrder = await tx.order.update({
-        where: { id: BigInt(orderId) as any },
-        data: { status: order_status.PAID },
-      });
-
-      return { payment, order: updatedOrder };
-    });
-
-    // Cộng điểm thưởng
-    const pointsEarned = Math.floor(amount / 10000);
-    if (pointsEarned > 0) {
-      try {
-        await this.usersService.addLoyaltyPoints(Number(order.userId), pointsEarned);
-      } catch (err) {
-        console.error('[PayOS Webhook] Lỗi cộng điểm tích lũy:', err);
-      }
-    }
-
-    console.log(`[PayOS Webhook] Đơn hàng #${orderId} đã thanh toán thành công qua VietQR!`);
+    const reference = verifiedData.reference || `${Date.now()}`;
+    const result = await this.markOrderAsPaid(
+      orderId,
+      amount,
+      reference,
+      payment_method.WALLET,
+    );
 
     return {
       success: true,
@@ -543,4 +719,3 @@ export class PaymentsService implements OnModuleInit {
     return { message: 'Received' };
   }
 }
-

@@ -10,3 +10,5 @@ dist/
 # Bỏ qua log và file hệ thống
 *.log
 .DS_Store
+
+.vscode/

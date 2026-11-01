@@ -1,8 +1,8 @@
 'use client';
 import { API_URL } from '@/services/api';
 
-import React, { useEffect, useState, useCallback } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import React, { useEffect, useState, useCallback, Suspense } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { generateUUIDv4 } from '@/lib/uuid';
 import { useAuthStore } from '@/store/authStore';
@@ -70,10 +70,15 @@ const statusBadgeMap: Record<string, { label: string; className: string }> = {
 // Các trạng thái chưa thanh toán -> cần polling
 const PENDING_STATUSES = ['PENDING'];
 
-export default function OrderConfirmationPage() {
+function OrderConfirmationContent() {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const orderId = params?.id as string;
+
+  const paymentStatus = searchParams?.get('status');
+  const payosCode = searchParams?.get('code');
+  const orderCode = searchParams?.get('orderCode');
 
   const { token, user, logout } = useAuthStore();
   const [order, setOrder] = useState<OrderDetail | null>(null);
@@ -81,6 +86,8 @@ export default function OrderConfirmationPage() {
   const [error, setError] = useState<string | null>(null);
   const [isConfirming, setIsConfirming] = useState(false);
   const [confirmMessage, setConfirmMessage] = useState<string | null>(null);
+
+  const { clearActiveCart, clearCheckoutItems } = useCartStore();
 
   const fetchOrder = useCallback(async () => {
     if (!token || !orderId) return null;
@@ -126,7 +133,44 @@ export default function OrderConfirmationPage() {
     }
   }, [orderId, token, user, logout]);
 
-  const { clearActiveCart, clearCheckoutItems } = useCartStore();
+  // Tự động kiểm tra và xác thực với PayOS khi có redirect từ PayOS hoặc đơn đang PENDING
+  const verifyAndFetchOrder = useCallback(async () => {
+    if (!token || !orderId) return null;
+
+    // Nếu trình duyệt được PayOS redirect về sau khi thanh toán thành công
+    if (paymentStatus === 'PAID' || payosCode === '00' || orderCode) {
+      try {
+        const verifyRes = await fetch('http://localhost:3001/api/payments/payos-verify', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            orderId: Number(orderId),
+            orderCode: orderCode ? Number(orderCode) : undefined,
+            status: paymentStatus || undefined,
+            code: payosCode || undefined,
+          }),
+        });
+
+        if (verifyRes.ok) {
+          const verifyData = await verifyRes.json();
+          if (verifyData.success && verifyData.order) {
+            setOrder(verifyData.order);
+            clearActiveCart();
+            clearCheckoutItems();
+            return verifyData.order;
+          }
+        }
+      } catch (err) {
+        console.warn('Lỗi tự động xác thực PayOS:', err);
+      }
+    }
+
+    // Tải thông tin đơn hàng bình thường
+    return fetchOrder();
+  }, [token, orderId, paymentStatus, payosCode, orderCode, fetchOrder, clearActiveCart, clearCheckoutItems]);
 
   // Tải đơn hàng lần đầu và xóa giỏ hàng vì đơn đã được tạo thành công
   useEffect(() => {
@@ -137,27 +181,58 @@ export default function OrderConfirmationPage() {
     if (!orderId) return;
 
     setLoading(true);
-    fetchOrder().then((data) => {
+    verifyAndFetchOrder().then((data) => {
       // Khi đã vào trang chi tiết đơn hàng (hoặc PayOS redirect về), xóa sạch giỏ hàng
       if (data) {
         clearActiveCart();
+        clearCheckoutItems();
       }
     }).finally(() => setLoading(false));
-  }, [orderId, token, fetchOrder, clearActiveCart]);
+  }, [orderId, token, verifyAndFetchOrder, clearActiveCart, clearCheckoutItems]);
 
-  // Polling tự động mỗi 3 giây khi đơn ở trạng thái PENDING
+  // Polling tự động mỗi 2.5 giây khi đơn ở trạng thái PENDING
   useEffect(() => {
     if (!order || !PENDING_STATUSES.includes(order.status)) return;
 
     const interval = setInterval(async () => {
+      // Thử gọi payos-verify để cập nhật nếu khách quét mã trực tiếp trên điện thoại
+      try {
+        const verifyRes = await fetch('http://localhost:3001/api/payments/payos-verify', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            orderId: Number(orderId),
+            orderCode: orderCode ? Number(orderCode) : undefined,
+            status: paymentStatus || undefined,
+            code: payosCode || undefined,
+          }),
+        });
+
+        if (verifyRes.ok) {
+          const verifyData = await verifyRes.json();
+          if (verifyData.success && verifyData.order && verifyData.isPaid) {
+            setOrder(verifyData.order);
+            clearActiveCart();
+            clearCheckoutItems();
+            clearInterval(interval);
+            return;
+          }
+        }
+      } catch {
+        // Bỏ qua lỗi polling ngầm
+      }
+
       const updated = await fetchOrder();
       if (updated && !PENDING_STATUSES.includes(updated.status)) {
         clearInterval(interval);
       }
-    }, 3000);
+    }, 2500);
 
     return () => clearInterval(interval);
-  }, [order?.status, fetchOrder]);
+  }, [order?.status, fetchOrder, token, orderId, orderCode, paymentStatus, payosCode, clearActiveCart, clearCheckoutItems]);
 
   // Xác nhận thanh toán thủ công (cho trường hợp webhook không gửi được)
   const handleManualConfirm = async () => {
@@ -216,7 +291,9 @@ export default function OrderConfirmationPage() {
     return (
       <main className="min-h-screen bg-[#FBF8F2] p-8 flex flex-col items-center justify-center">
         <div className="w-10 h-10 border-4 border-[#8D6E63] border-t-transparent rounded-full animate-spin mb-4" />
-        <p className="text-sm font-medium text-[#756C65]">Đang tải thông tin đơn hàng...</p>
+        <p className="text-sm font-medium text-[#756C65]">
+          {paymentStatus === 'PAID' ? 'Đang hoàn tất xác nhận thanh toán...' : 'Đang tải thông tin đơn hàng...'}
+        </p>
       </main>
     );
   }
@@ -359,9 +436,7 @@ export default function OrderConfirmationPage() {
     <main className="min-h-screen bg-[#FBF8F2] py-10 px-4 sm:px-6 lg:px-8 text-[#1F1F1F]">
       <div className="max-w-4xl mx-auto space-y-8">
         
-        {/* =========================================================
-            CARD ĐẶT HÀNG THÀNH CÔNG (Theo Mockup 7. Đặt hàng thành công!)
-        ========================================================= */}
+        {/* CARD ĐẶT HÀNG THÀNH CÔNG */}
         <div className="bg-white border border-[#E8DFD8] rounded-3xl p-6 sm:p-10 shadow-sm grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
           
           {/* CỘT TRÁI: HÌNH ẢNH LY CÀ PHÊ NHƯ MOCKUP */}
@@ -422,7 +497,7 @@ export default function OrderConfirmationPage() {
                 </span>
               </div>
 
-              {/* Polling indicator khi đang chờ thanh toán */}
+              {/* Polling indicator khi đang chờ thanh toán (chỉ hiện khi chưa thanh toán xong) */}
               {PENDING_STATUSES.includes(order.status) && (
                 <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-3">
                   <div className="flex items-center gap-2 text-amber-700 text-xs">
@@ -483,9 +558,7 @@ export default function OrderConfirmationPage() {
 
         </div>
 
-        {/* =========================================================
-            CHI TIẾT DANH SÁCH MÓN ĐÃ ĐẶT
-        ========================================================= */}
+        {/* CHI TIẾT DANH SÁCH MÓN ĐÃ ĐẶT */}
         <div className="bg-white border border-[#E8DFD8] rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
           <h2 className="font-extrabold text-lg text-[#3E2723] pb-3 border-b border-gray-100">
             Chi tiết món đã đặt
@@ -534,5 +607,20 @@ export default function OrderConfirmationPage() {
 
       </div>
     </main>
+  );
+}
+
+export default function OrderConfirmationPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="min-h-screen bg-[#FBF8F2] p-8 flex flex-col items-center justify-center">
+          <div className="w-10 h-10 border-4 border-[#8D6E63] border-t-transparent rounded-full animate-spin mb-4" />
+          <p className="text-sm font-medium text-[#756C65]">Đang tải thông tin đơn hàng...</p>
+        </main>
+      }
+    >
+      <OrderConfirmationContent />
+    </Suspense>
   );
 }
