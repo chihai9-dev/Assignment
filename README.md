@@ -5,6 +5,7 @@
 ---
 
 ## 📑 Mục lục
+
 1. [Giới thiệu dự án](#-giới-thiệu-dự-án)
 2. [Công nghệ sử dụng (Tech Stack)](#-công-nghệ-sử-dụng-tech-stack)
 3. [Kiến trúc hệ thống (Architecture)](#-kiến-trúc-hệ-thống-architecture)
@@ -25,6 +26,7 @@
 ## 📖 Giới thiệu dự án
 
 Trong nhịp sống hiện đại, việc xếp hàng chờ đợi gọi món và thanh toán tiền mặt tại quán cà phê gây mất nhiều thời gian cho khách hàng và tăng tải vận hành cho nhân viên. **BrewLite** được thiết kế nhằm giải quyết bài toán này với các tính năng cốt lõi:
+
 - **Thực đơn trực quan**: Xem danh mục sản phẩm, tùy biến size (S, M, L) và toppings.
 - **Thanh toán không tiền mặt an toàn**: Tích hợp thanh toán qua Ví điện tử (WALLET) và Thẻ (CARD) với cơ chế chống giao dịch trùng lặp (**Idempotency Key**).
 - **Xác thực bảo mật**: Quản lý phiên làm việc bằng JSON Web Token (JWT) qua Passport.
@@ -34,20 +36,20 @@ Trong nhịp sống hiện đại, việc xếp hàng chờ đợi gọi món v�
 
 ## 🛠 Công nghệ sử dụng (Tech Stack)
 
-| Tầng hệ thống | Công nghệ / Thư viện | Mô tả |
-| :--- | :--- | :--- |
-| **Frontend** | [Next.js 16](https://nextjs.org/) (App Router) | Framework React render phía server và client hiệu năng cao |
-| | [React 19](https://react.dev/) | Thư viện UI hiện đại |
-| | [Tailwind CSS 4](https://tailwindcss.com/) | Styling giao diện linh hoạt, responsive |
-| | [Zustand](https://zustand-demo.pmnd.rs/) | Quản lý trạng thái giỏ hàng (Cart) và phiên đăng nhập (Auth) |
-| **Backend** | [NestJS 12](https://nestjs.com/) | Framework Node.js dạng module hướng đối tượng kiến trúc mở |
-| | [TypeScript](https://www.typescriptlang.org/) | Ngôn ngữ tĩnh giúp hạn chế lỗi runtime |
-| | [Prisma ORM 5](https://www.prisma.io/) | Tương tác CSDL PostgreSQL với type-safety |
-| | [Passport & JWT](http://www.passportjs.org/) | Xác thực và phân quyền người dùng qua JSON Web Tokens |
-| | [class-validator](https://github.com/typestack/class-validator) | Xác thực dữ liệu đầu vào (DTOs) |
-| | [bcrypt](https://github.com/kelektiv/node.bcrypt.js) | Băm mật khẩu người dùng bảo mật |
-| **Database** | [PostgreSQL 16](https://www.postgresql.org/) | Cơ sở dữ liệu quan hệ mạnh mẽ, hỗ trợ giao dịch ACID |
-| **DevOps** | [Docker](https://www.docker.com/) & Docker Compose | Đóng gói và điều phối toàn bộ các dịch vụ |
+| Tầng hệ thống | Công nghệ / Thư viện                                            | Mô tả                                                        |
+| :------------ | :-------------------------------------------------------------- | :----------------------------------------------------------- |
+| **Frontend**  | [Next.js 16](https://nextjs.org/) (App Router)                  | Framework React render phía server và client hiệu năng cao   |
+|               | [React 19](https://react.dev/)                                  | Thư viện UI hiện đại                                         |
+|               | [Tailwind CSS 4](https://tailwindcss.com/)                      | Styling giao diện linh hoạt, responsive                      |
+|               | [Zustand](https://zustand-demo.pmnd.rs/)                        | Quản lý trạng thái giỏ hàng (Cart) và phiên đăng nhập (Auth) |
+| **Backend**   | [NestJS 12](https://nestjs.com/)                                | Framework Node.js dạng module hướng đối tượng kiến trúc mở   |
+|               | [TypeScript](https://www.typescriptlang.org/)                   | Ngôn ngữ tĩnh giúp hạn chế lỗi runtime                       |
+|               | [Prisma ORM 5](https://www.prisma.io/)                          | Tương tác CSDL PostgreSQL với type-safety                    |
+|               | [Passport & JWT](http://www.passportjs.org/)                    | Xác thực và phân quyền người dùng qua JSON Web Tokens        |
+|               | [class-validator](https://github.com/typestack/class-validator) | Xác thực dữ liệu đầu vào (DTOs)                              |
+|               | [bcrypt](https://github.com/kelektiv/node.bcrypt.js)            | Băm mật khẩu người dùng bảo mật                              |
+| **Database**  | [PostgreSQL 16](https://www.postgresql.org/)                    | Cơ sở dữ liệu quan hệ mạnh mẽ, hỗ trợ giao dịch ACID         |
+| **DevOps**    | [Docker](https://www.docker.com/) & Docker Compose              | Đóng gói và điều phối toàn bộ các dịch vụ                    |
 
 ---
 
@@ -174,6 +176,7 @@ erDiagram
 ```
 
 ### 2. Mô tả các bảng dữ liệu & Ràng buộc toàn vẹn
+
 - **`Category`**: Quản lý danh mục đồ uống (Cà phê, Trà trái cây, Trà sữa, Đá xay & Khác).
 - **`User`**: Quản lý người dùng, mật khẩu băm bcrypt, phân quyền (`role`: `customer`, `barista`), điểm thưởng tích lũy (`loyaltyPoints >= 0`).
 - **`Product`**: Sản phẩm menu, liên kết `categoryId`, giá bán (`DECIMAL`), mô tả (`description`), tồn kho (`stock >= 0`), `version` (phục vụ Optimistic Locking ở Task 10), trạng thái kinh doanh (`status`: `active`, `inactive`).
@@ -186,7 +189,9 @@ erDiagram
 ---
 
 ### 3. Tài khoản kiểm thử có sẵn (Seeded Accounts)
+
 Hệ thống đi kèm dữ liệu mẫu được nạp sẵn 3 tài khoản để kiểm thử ngay:
+
 - **Barista**: `barista@brewlite.com` / Mật khẩu: `barista123` (Truy cập giao diện pha chế tại `/barista`)
 - **Khách hàng thân thiết**: `customer@brewlite.com` / Mật khẩu: `customer123` (Đã có 50 điểm loyalty - Hạng Vàng được giảm giá 10%)
 - **Khách hàng mới**: `khachhang2@example.com` / Mật khẩu: `password123` (Đã có 20 điểm loyalty - Hạng Bạc được giảm giá 5%)
@@ -202,16 +207,19 @@ docker compose up --build
 ```
 
 ### Quá trình khởi động tự động gồm:
+
 1. **Dịch vụ `db`**: Khởi chạy PostgreSQL 16 Alpine, cấu hình volume lưu trữ bền vững `pgdata` và kiểm tra sức khỏe (`healthcheck`).
 2. **Dịch vụ `backend`**: Chờ database sẵn sàng -> tự động tạo cấu trúc bảng (`npx prisma db push`) -> tự động chạy script `seed.js` để đọc và nạp toàn bộ dữ liệu từ file [`brewlite_seed_data.sql`](backend/prisma/database%20local/brewlite_seed_data.sql) (gồm 12 món đồ uống, 3 tài khoản, topping, đơn hàng) -> khởi chạy máy chủ NestJS tại cổng `3001`.
 3. **Dịch vụ `frontend`**: Build mã nguồn Next.js đa tầng (multi-stage) -> phục vụ ứng dụng tại cổng `3000`.
 
 ### Truy cập các dịch vụ:
+
 - 🌐 **Frontend Web App**: [http://localhost:3000](http://localhost:3000)
 - 🔌 **Backend REST API**: [http://localhost:3001](http://localhost:3001)
 - 🗄️ **PostgreSQL Port**: `localhost:5432`
 
 ### Dừng hệ thống & Reset dữ liệu:
+
 ```bash
 # Dừng container nhưng giữ nguyên dữ liệu
 docker compose down
@@ -227,29 +235,36 @@ docker compose down -v
 Phương thức này là **tùy chọn (optional)** dành cho trường hợp bạn muốn chạy trực tiếp mã nguồn trên máy và sử dụng máy chủ PostgreSQL cục bộ mà không thông qua Docker:
 
 ### Yêu cầu tiên quyết:
+
 - **Node.js**: >= 20.x
 - **npm**: >= 10.x
 - **PostgreSQL**: Đã cài đặt và đang chạy dịch vụ cục bộ trên máy (cổng mặc định `5432`).
 
 ### Bước 1: Khởi tạo Cơ sở dữ liệu cục bộ bằng File SQL
+
 Bạn mở công cụ **pgAdmin 4**, **DBeaver** hoặc cửa sổ dòng lệnh `psql` để chạy 2 file SQL đã chuẩn bị sẵn trong thư mục `backend/prisma/database local/`:
+
 1. Tạo một cơ sở dữ liệu mới tên là `brewlite`.
 2. Mở file [`brewlite_schema.sql`](backend/prisma/database%20local/brewlite_schema.sql) và bấm thực thi (**F5**) để tạo bảng và ràng buộc.
 3. Mở file [`brewlite_seed_data.sql`](backend/prisma/database%20local/brewlite_seed_data.sql) và bấm thực thi (**F5**) để nạp 12 món đồ uống và tài khoản mẫu.
 
-*(Hoặc chạy nhanh bằng lệnh `psql`):*
+_(Hoặc chạy nhanh bằng lệnh `psql`):_
+
 ```bash
 psql -U postgres -d brewlite -f "backend/prisma/database local/brewlite_schema.sql"
 psql -U postgres -d brewlite -f "backend/prisma/database local/brewlite_seed_data.sql"
 ```
 
 ### Bước 2: Chuẩn bị biến môi trường
+
 Tạo file `.env` tại thư mục gốc từ mẫu `.env.example`:
+
 ```bash
 cp .env.example .env
 ```
 
 Nội dung cấu hình tiêu chuẩn:
+
 ```env
 # Database URL kết nối vào PostgreSQL local
 DATABASE_URL="postgresql://brewlite:brewlite123@localhost:5432/brewlite?schema=public"
@@ -263,6 +278,7 @@ NEXT_PUBLIC_API_URL=http://localhost:3001
 ```
 
 ### Bước 3: Khởi chạy Backend (NestJS)
+
 ```bash
 cd backend
 npm install
@@ -273,10 +289,13 @@ npx prisma generate
 # Khởi chạy chế độ Watch (Development)
 npm run start:dev
 ```
+
 Backend sẽ lắng nghe tại: `http://localhost:3001`
 
 ### Bước 4: Khởi chạy Frontend (Next.js)
+
 Mở một cửa sổ terminal mới:
+
 ```bash
 cd frontend
 npm install
@@ -284,18 +303,19 @@ npm install
 # Khởi chạy giao diện phát triển
 npm run dev
 ```
+
 Frontend sẽ lắng nghe tại: `http://localhost:3000`
 
 ### Bước 5: Các lệnh quản lý & Cập nhật Cơ sở dữ liệu (Database Management)
 
 Dưới đây là các câu lệnh hữu ích khi làm việc với Database (chạy trong thư mục `backend`):
 
-| Mục đích | Câu lệnh | Khi nào sử dụng? |
-| :--- | :--- | :--- |
-| **Nạp dữ liệu mẫu** | `node prisma/seed.js` | Tự động đọc và nạp 12 món đồ uống, topping và tài khoản từ file SQL. |
-| **Xóa sạch & làm mới CSDL** | `npx prisma db push --force-reset`<br>`node prisma/seed.js` | Khi muốn xóa toàn bộ đơn hàng test và đưa CSDL về trạng thái sạch ban đầu. |
-| **Xem & chỉnh sửa dữ liệu (UI)** | `npx prisma studio` | Mở giao diện Web quản trị dữ liệu trực quan tại [http://localhost:5555](http://localhost:5555). |
-| **Tạo migration cho schema mới** | `npx prisma migrate dev --name <ten_thay_doi>` | Sau khi chỉnh sửa `prisma/schema.prisma` (thêm cột, thêm bảng, đổi kiểu). |
+| Mục đích                         | Câu lệnh                                                    | Khi nào sử dụng?                                                                                |
+| :------------------------------- | :---------------------------------------------------------- | :---------------------------------------------------------------------------------------------- |
+| **Nạp dữ liệu mẫu**              | `node prisma/seed.js`                                       | Tự động đọc và nạp 12 món đồ uống, topping và tài khoản từ file SQL.                            |
+| **Xóa sạch & làm mới CSDL**      | `npx prisma db push --force-reset`<br>`node prisma/seed.js` | Khi muốn xóa toàn bộ đơn hàng test và đưa CSDL về trạng thái sạch ban đầu.                      |
+| **Xem & chỉnh sửa dữ liệu (UI)** | `npx prisma studio`                                         | Mở giao diện Web quản trị dữ liệu trực quan tại [http://localhost:5555](http://localhost:5555). |
+| **Tạo migration cho schema mới** | `npx prisma migrate dev --name <ten_thay_doi>`              | Sau khi chỉnh sửa `prisma/schema.prisma` (thêm cột, thêm bảng, đổi kiểu).                       |
 
 ### 5. Cấu hình cổng thanh toán trực tuyến (VietQR PayOS & MoMo qua Ngrok)
 
@@ -303,7 +323,7 @@ Hệ thống tích hợp cổng thanh toán thực tế thông qua **VietQR (Pay
 
 > 📖 **Xem hướng dẫn chi tiết từng bước:**  
 > 👉 **[Tài liệu cấu hình thanh toán PayOS & MoMo (backend/PAYMENT_SETUP.md)](backend/PAYMENT_SETUP.md)**  
-> *(Bao gồm: Cài đặt Ngrok, lấy Token, gắn Webhook URL trên PayOS, biến môi trường `.env` và quy trình mở 3 Terminal để test)*.
+> _(Bao gồm: Cài đặt Ngrok, lấy Token, gắn Webhook URL trên PayOS, biến môi trường `.env` và quy trình mở 3 Terminal để test)_.
 
 ---
 
@@ -312,48 +332,54 @@ Hệ thống tích hợp cổng thanh toán thực tế thông qua **VietQR (Pay
 Tất cả các route của ứng dụng đều sử dụng tiền tố chuẩn `/api/` (hoặc `/users`).
 
 ### 1. Xác thực & Tài khoản (`/api/auth`)
-| Phương thức | Đường dẫn | Xác thực | Mô tả chức năng |
-| :--- | :--- | :---: | :--- |
-| `POST` | `/api/auth/register` | Không | Đăng ký tài khoản người dùng mới (`email`, `password`) |
-| `POST` | `/api/auth/login` | Không | Đăng nhập hệ thống, trả về JWT access token |
-| `GET` | `/api/auth/me` | Bearer Token | Kiểm tra thông tin người dùng đang đăng nhập |
+
+| Phương thức | Đường dẫn            |   Xác thực   | Mô tả chức năng                                        |
+| :---------- | :------------------- | :----------: | :----------------------------------------------------- |
+| `POST`      | `/api/auth/register` |    Không     | Đăng ký tài khoản người dùng mới (`email`, `password`) |
+| `POST`      | `/api/auth/login`    |    Không     | Đăng nhập hệ thống, trả về JWT access token            |
+| `GET`       | `/api/auth/me`       | Bearer Token | Kiểm tra thông tin người dùng đang đăng nhập           |
 
 ### 2. Thực đơn & Sản phẩm (`/api/products`)
-| Phương thức | Đường dẫn | Xác thực | Mô tả chức năng |
-| :--- | :--- | :---: | :--- |
-| `GET` | `/api/products` | Không | Lấy danh sách toàn bộ món nước trong thực đơn |
-| `GET` | `/api/products/:id` | Không | Tra cứu thông tin chi tiết một sản phẩm theo ID |
-| `POST` | `/api/products` | Yêu cầu | Thêm món mới vào thực đơn |
-| `PATCH` | `/api/products/:id` | Yêu cầu | Cập nhật thông tin/giá/trạng thái sản phẩm |
-| `DELETE` | `/api/products/:id` | Yêu cầu | Xóa sản phẩm khỏi menu |
+
+| Phương thức | Đường dẫn           | Xác thực | Mô tả chức năng                                 |
+| :---------- | :------------------ | :------: | :---------------------------------------------- |
+| `GET`       | `/api/products`     |  Không   | Lấy danh sách toàn bộ món nước trong thực đơn   |
+| `GET`       | `/api/products/:id` |  Không   | Tra cứu thông tin chi tiết một sản phẩm theo ID |
+| `POST`      | `/api/products`     | Yêu cầu  | Thêm món mới vào thực đơn                       |
+| `PATCH`     | `/api/products/:id` | Yêu cầu  | Cập nhật thông tin/giá/trạng thái sản phẩm      |
+| `DELETE`    | `/api/products/:id` | Yêu cầu  | Xóa sản phẩm khỏi menu                          |
 
 ### 3. Toppings (`/api/toppings`)
-| Phương thức | Đường dẫn | Xác thực | Mô tả chức năng |
-| :--- | :--- | :---: | :--- |
-| `GET` | `/api/toppings` | Không | Lấy danh sách topping đính kèm |
-| `GET` | `/api/toppings/:id` | Không | Lấy chi tiết topping theo ID |
-| `POST` | `/api/toppings` | Yêu cầu | Tạo topping mới |
-| `PATCH` | `/api/toppings/:id` | Yêu cầu | Chỉnh sửa thông tin topping |
-| `DELETE` | `/api/toppings/:id` | Yêu cầu | Xóa topping |
+
+| Phương thức | Đường dẫn           | Xác thực | Mô tả chức năng                |
+| :---------- | :------------------ | :------: | :----------------------------- |
+| `GET`       | `/api/toppings`     |  Không   | Lấy danh sách topping đính kèm |
+| `GET`       | `/api/toppings/:id` |  Không   | Lấy chi tiết topping theo ID   |
+| `POST`      | `/api/toppings`     | Yêu cầu  | Tạo topping mới                |
+| `PATCH`     | `/api/toppings/:id` | Yêu cầu  | Chỉnh sửa thông tin topping    |
+| `DELETE`    | `/api/toppings/:id` | Yêu cầu  | Xóa topping                    |
 
 ### 4. Đơn hàng (`/api/orders`)
-| Phương thức | Đường dẫn | Xác thực | Mô tả chức năng |
-| :--- | :--- | :---: | :--- |
-| `POST` | `/api/orders` | Bearer Token | Khởi tạo đơn hàng mới từ giỏ hàng (Khởi tạo ở trạng thái `PENDING`) |
+
+| Phương thức | Đường dẫn     |   Xác thực   | Mô tả chức năng                                                     |
+| :---------- | :------------ | :----------: | :------------------------------------------------------------------ |
+| `POST`      | `/api/orders` | Bearer Token | Khởi tạo đơn hàng mới từ giỏ hàng (Khởi tạo ở trạng thái `PENDING`) |
 
 ### 5. Thanh toán (`/api/payments`)
-| Phương thức | Đường dẫn | Xác thực | Mô tả chức năng |
-| :--- | :--- | :---: | :--- |
-| `POST` | `/api/payments` | Bearer Token | Thực hiện thanh toán đơn hàng (sử dụng `idempotencyKey`) |
-| `GET` | `/api/payments/order/:orderId` | Bearer Token | Tra cứu lịch sử và trạng thái thanh toán của đơn hàng |
+
+| Phương thức | Đường dẫn                      |   Xác thực   | Mô tả chức năng                                          |
+| :---------- | :----------------------------- | :----------: | :------------------------------------------------------- |
+| `POST`      | `/api/payments`                | Bearer Token | Thực hiện thanh toán đơn hàng (sử dụng `idempotencyKey`) |
+| `GET`       | `/api/payments/order/:orderId` | Bearer Token | Tra cứu lịch sử và trạng thái thanh toán của đơn hàng    |
 
 ### 6. Quản lý người dùng (`/users`)
-| Phương thức | Đường dẫn | Xác thực | Mô tả chức năng |
-| :--- | :--- | :---: | :--- |
-| `GET` | `/users` | Admin | Lấy danh sách tài khoản (hỗ trợ phân trang) |
-| `GET` | `/users/:id` | Tùy quyền | Lấy chi tiết tài khoản theo ID |
-| `PATCH` | `/users/:id` | Tùy quyền | Cập nhật thông tin người dùng |
-| `DELETE` | `/users/:id` | Admin | Xóa tài khoản người dùng |
+
+| Phương thức | Đường dẫn    | Xác thực  | Mô tả chức năng                             |
+| :---------- | :----------- | :-------: | :------------------------------------------ |
+| `GET`       | `/users`     |   Admin   | Lấy danh sách tài khoản (hỗ trợ phân trang) |
+| `GET`       | `/users/:id` | Tùy quyền | Lấy chi tiết tài khoản theo ID              |
+| `PATCH`     | `/users/:id` | Tùy quyền | Cập nhật thông tin người dùng               |
+| `DELETE`    | `/users/:id` |   Admin   | Xóa tài khoản người dùng                    |
 
 ---
 
@@ -379,6 +405,7 @@ stateDiagram-v2
 ```
 
 ### Diễn giải các trạng thái:
+
 - `PENDING`: Đơn hàng vừa được tạo từ giỏ hàng, chờ khách hàng hoàn tất thanh toán.
 - `PAID`: Đơn hàng đã nhận tiền thành công qua giao dịch `Payment` được bảo vệ bởi khóa định danh chống trùng lặp.
 - `PREPARING`: Nhân viên quầy bar tiếp nhận và thực hiện pha chế đồ uống.
@@ -392,35 +419,60 @@ stateDiagram-v2
 ## 📂 Cấu trúc thư mục dự án
 
 ```
-BrewLite_Nhom/
+BrewLite/
 ├── .env.example                # File mẫu các biến môi trường cấu hình
 ├── docker-compose.yml          # Cấu hình khởi chạy toàn bộ dịch vụ với Docker
-├── README.md                   # Tài liệu hướng dẫn sử dụng và triển khai
+├── README.md                   # Tài liệu hướng dẫn sử dụng và triển khai dự án
 │
-├── backend/                    # Ứng dụng Backend NestJS
-│   ├── PAYMENT_SETUP.md        # Hướng dẫn chi tiết cấu hình thanh toán VietQR & MoMo
+├── docs/                       # Tài liệu thiết kế và đặc tả yêu cầu dự án
+│   ├── diagrams/               # Sơ đồ Usecase, kiến trúc hệ thống (PUML, SVG)
+│   ├── requirements/           # Tài liệu đặc tả yêu cầu (SRS, User Stories, Context & Scope)
+│   ├── deployment.md           # Hướng dẫn chi tiết quy trình triển khai
+│   └── traceability-matrix.md  # Ma trận truy vết yêu cầu (Traceability Matrix)
+│
+├── backend/                    # Phân hệ Backend (NestJS, TypeScript, Prisma ORM)
 │   ├── Dockerfile              # Multi-stage Docker build cho Backend
-│   ├── .dockerignore           # Tập tin bỏ qua khi Docker build
-│   ├── package.json            # Thư viện và kịch bản thực thi Backend
-│   ├── prisma/
-│   │   └── schema.prisma       # Mô hình cơ sở dữ liệu (PostgreSQL Schema)
-│   └── src/
-│       ├── auth/               # Module xác thực JWT, Password Hashing & Guard
-│       ├── orders/             # Module xử lý đặt món và tính toán giá
-│       ├── payments/           # Module thanh toán và cơ chế Idempotency
-│       ├── products/           # Module thực đơn, danh mục cà phê
-│       ├── toppings/           # Module quản lý toppings kèm theo
-│       ├── users/              # Module tài khoản và phân quyền
-│       ├── prisma/             # Service kết nối Prisma Database Client
-│       ├── app.module.ts       # Module gốc kết nối toàn bộ hệ thống
-│       └── main.ts             # Điểm khởi chạy NestJS, tiền tố /api, BigInt serializer
+│   ├── .dockerignore           # Tập tin loại trừ khi Docker build
+│   ├── PAYMENT_SETUP.md        # Hướng dẫn chi tiết cấu hình thanh toán VietQR & MoMo
+│   ├── package.json            # Quản lý thư viện và kịch bản thực thi Backend
+│   ├── prisma/                 # Cấu hình ORM Prisma & Cơ sở dữ liệu
+│   │   ├── schema.prisma       # Mô hình cơ sở dữ liệu (PostgreSQL Schema & Enums)
+│   │   ├── seed.js             # Kịch bản nạp dữ liệu mẫu tự động
+│   │   ├── database local/     # File SQL khởi tạo schema và dữ liệu mẫu cục bộ
+│   │   └── migrations/         # Lịch sử các phiên bản migration cơ sở dữ liệu
+│   ├── src/                    # Mã nguồn chính của Backend
+│   │   ├── auth/               # Module xác thực JWT, Password Hashing & Guard phân quyền
+│   │   ├── categories/         # Module quản lý danh mục sản phẩm đồ uống
+│   │   ├── orders/             # Module xử lý đơn hàng, State Machine & Task 10 unit tests
+│   │   ├── payments/           # Module thanh toán (VietQR/MoMo) và cơ chế Idempotency Key
+│   │   ├── products/           # Module thực đơn đồ uống & Optimistic Locking tồn kho
+│   │   ├── toppings/           # Module quản lý toppings kèm theo
+│   │   ├── users/              # Module người dùng, phân quyền Role & tích điểm Loyalty
+│   │   ├── prisma/             # Service kết nối Prisma Database Client
+│   │   ├── app.module.ts       # Module gốc kết nối toàn bộ hệ thống
+│   │   └── main.ts             # Điểm khởi chạy NestJS, tiền tố /api, BigInt serializer
+│   └── test/                   # Kiểm thử tích hợp & E2E (End-to-End tests)
 │
-└── frontend/                   # Ứng dụng Frontend Next.js
+└── frontend/                   # Phân hệ Frontend (Next.js 15, React, Tailwind CSS)
     ├── Dockerfile              # Multi-stage Docker build cho Frontend
-    ├── .dockerignore           # Tập tin bỏ qua khi Docker build
-    ├── package.json            # Thư viện và kịch bản thực thi Frontend
-    ├── app/                    # Next.js App Router (Layout, Trang menu, Đơn hàng, v.v.)
-    └── store/                  # Quản lý State toàn cục bằng Zustand (cartStore, authStore)
+    ├── .dockerignore           # Tập tin loại trừ khi Docker build
+    ├── package.json            # Quản lý thư viện và kịch bản thực thi Frontend
+    ├── app/                    # Next.js App Router (Layout & các trang giao diện)
+    │   ├── barista/            # Giao diện quầy pha chế cho Barista cập nhật trạng thái
+    │   ├── cart/               # Trang giỏ hàng và tùy chỉnh sản phẩm
+    │   ├── checkout/           # Trang thanh toán đơn hàng (VietQR / MoMo / Tiền mặt)
+    │   ├── login/              # Trang đăng nhập tài khoản
+    │   ├── orders/             # Lịch sử đơn hàng và theo dõi trạng thái đơn ([id])
+    │   ├── product/            # Trang chi tiết món đồ uống & lựa chọn topping ([id])
+    │   ├── register/           # Trang đăng ký tài khoản mới
+    │   ├── layout.tsx          # Layout tổng thể (Header, Footer, Toast notifications)
+    │   └── page.tsx            # Trang chủ hiển thị banner và thực đơn món
+    ├── components/             # Các UI components tái sử dụng (Header, Footer, Icons...)
+    ├── hooks/                  # Custom React hooks (useProducts, useProductDetail, ...)
+    ├── services/               # Tầng giao tiếp REST API Backend (api.ts, productService...)
+    ├── store/                  # Quản lý State toàn cục bằng Zustand (cartStore, authStore)
+    ├── types/                  # Định nghĩa TypeScript interfaces & data types
+    └── public/                 # Tài nguyên tĩnh (ảnh đồ uống, hero banner, icons)
 ```
 
 ---
@@ -453,12 +505,16 @@ Hệ thống đã triển khai đầy đủ 4 tiêu chí cốt lõi của Task 1
    - Khi đơn chuyển sang `PAID`, hệ thống tự động tích lũy thêm điểm thưởng theo tỷ lệ 1 điểm / 10.000đ vào tài khoản khách hàng.
 
 ### 🏃 Chạy kiểm thử tự động (Unit Tests)
+
 Toàn bộ 28 tests trong hệ thống (bao gồm 14 tests dành riêng cho Task 10) đều đã sẵn sàng:
+
 ```bash
 cd backend
 npm test
 ```
+
 Hoặc chỉ chạy riêng bộ test kiểm chứng Task 10:
+
 ```bash
 npm test -- src/orders/orders.task10.spec.ts
 ```
@@ -484,7 +540,7 @@ npm test -- src/orders/orders.task10.spec.ts
 3. **Thanh toán & Đăng nhập**:
    Tại trang Giỏ hàng / Checkout, khi bấm "Thanh toán", nếu chưa đăng nhập hệ thống sẽ yêu cầu đăng nhập. Giỏ hàng được giữ nguyên sau khi đăng nhập thành công.
 4. **Ưu đãi thành viên theo loyaltyPoints & Thanh toán**:
-   Tại màn hình Checkout, hệ thống tự động nhận diện hạng thành viên và số điểm tích lũy (`loyaltyPoints`) của khách hàng để áp dụng chiết khấu tự động (ví dụ tài khoản `customer@brewlite.com` có 50 điểm -> Hạng Vàng được giảm ngay 10%). Chọn phương thức Ví điện tử (VietQR / MoMo) và nhấn Thanh toán. Hệ thống sinh `idempotencyKey` và chuyển đơn sang `PAID` *(Lưu ý: Để test quét mã QR thực tế, cần cấu hình Ngrok theo [PAYMENT_SETUP.md](backend/PAYMENT_SETUP.md))*.
+   Tại màn hình Checkout, hệ thống tự động nhận diện hạng thành viên và số điểm tích lũy (`loyaltyPoints`) của khách hàng để áp dụng chiết khấu tự động (ví dụ tài khoản `customer@brewlite.com` có 50 điểm -> Hạng Vàng được giảm ngay 10%). Chọn phương thức Ví điện tử (VietQR / MoMo) và nhấn Thanh toán. Hệ thống sinh `idempotencyKey` và chuyển đơn sang `PAID` _(Lưu ý: Để test quét mã QR thực tế, cần cấu hình Ngrok theo [PAYMENT_SETUP.md](backend/PAYMENT_SETUP.md))_.
 5. **Xác nhận & Điểm thưởng**:
    Chuyển hướng đến trang xác nhận `/orders/:id`, hiển thị mã đơn, trạng thái và điểm thưởng vừa được tích lũy.
 6. **Barista nhận đơn & Pha chế**:
@@ -494,13 +550,12 @@ npm test -- src/orders/orders.task10.spec.ts
 
 ## 👥 Thành viên nhóm phát triển (Contributors)
 
-| STT | Họ và tên | MSSV | Vai trò chính |
-| :---: | :--- | :---: | :--- |
-| 1 | *Thành viên 1* | *MSSV 1* | Backend Development (NestJS, Prisma, Docker) |
-| 2 | *Thành viên 2* | *MSSV 2* | Frontend Development (Next.js, UI/UX, Zustand) |
-| 3 | *Thành viên 3* | *MSSV 3* | Database Design, API Integration & Testing |
+| STT | Họ và tên      |   MSSV   | Vai trò chính                                  |
+| :-: | :------------- | :------: | :--------------------------------------------- |
+|  1  | _Thành viên 1_ | _MSSV 1_ | Backend Development (NestJS, Prisma, Docker)   |
+|  2  | _Thành viên 2_ | _MSSV 2_ | Frontend Development (Next.js, UI/UX, Zustand) |
+|  3  | _Thành viên 3_ | _MSSV 3_ | Database Design, API Integration & Testing     |
 
 ---
 
-*Dự án được xây dựng trong khuôn khổ môn học Công nghệ phần mềm.*
-
+_Dự án được xây dựng trong khuôn khổ môn học Công nghệ phần mềm._
