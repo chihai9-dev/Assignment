@@ -12,6 +12,14 @@ export interface CartItem {
   toppings: string[];
   quantity: number;
   imageUrl?: string;
+  stock?: number;
+}
+
+export interface AddToCartResult {
+  success: boolean;
+  addedQty: number;
+  isCapped?: boolean;
+  message?: string;
 }
 
 interface CartStore {
@@ -24,7 +32,7 @@ interface CartStore {
   pendingOrderId: number | null;
 
   setPendingOrderId: (orderId: number | null) => void;
-  addToCart: (newItem: CartItem) => void;
+  addToCart: (newItem: CartItem) => AddToCartResult;
   removeFromCart: (cartItemId: string) => void;
   updateQuantity: (cartItemId: string, quantity: number) => void;
   loadCartForUser: (email: string) => void;
@@ -47,49 +55,90 @@ export const useCartStore = create<CartStore>()(
 
       setPendingOrderId: (orderId) => set({ pendingOrderId: orderId }),
 
-      addToCart: (newItem) =>
-        set((state) => {
-          const authUser = useAuthStore.getState().user;
-          const email = authUser?.email;
+      addToCart: (newItem) => {
+        const authUser = useAuthStore.getState().user;
+        const email = authUser?.email;
+        const currentItems = get().items;
 
-          const currentItems = state.items;
+        const pId = Number(newItem.productId);
+        const hasStockLimit = newItem.stock !== undefined && newItem.stock !== null;
+        const stockLimit = hasStockLimit ? Math.max(0, Number(newItem.stock)) : 999;
 
-          const normalizedItem: CartItem = {
-            ...newItem,
-            productId: Number(newItem.productId),
-            price: Number(newItem.price),
-            quantity: Math.max(1, Number(newItem.quantity) || 1),
-          };
+        // Tổng số lượng của productId này hiện đã có trong giỏ hàng
+        const existingProductTotalQty = currentItems
+          .filter((item) => Number(item.productId) === pId)
+          .reduce((sum, item) => sum + Number(item.quantity || 0), 0);
 
-          const existingItemIndex = currentItems.findIndex(
-            (item) => item.cartItemId === normalizedItem.cartItemId
-          );
-
-          let updatedItems: CartItem[];
-
-          if (existingItemIndex !== -1) {
-            updatedItems = [...currentItems];
-            updatedItems[existingItemIndex] = {
-              ...updatedItems[existingItemIndex],
-              quantity:
-                Number(updatedItems[existingItemIndex].quantity) +
-                Number(normalizedItem.quantity || 1),
-            };
-          } else {
-            updatedItems = [...currentItems, normalizedItem];
-          }
-
+        if (hasStockLimit && stockLimit <= 0) {
           return {
-            items: updatedItems,
-            cartsByUser: email
-              ? {
-                  ...state.cartsByUser,
-                  [email]: updatedItems,
-                }
-              : state.cartsByUser,
-            activeUserEmail: email || state.activeUserEmail,
+            success: false,
+            addedQty: 0,
+            message: 'Sản phẩm này hiện đã hết hàng trong kho.',
           };
-        }),
+        }
+
+        const maxCanAdd = hasStockLimit
+          ? Math.max(0, stockLimit - existingProductTotalQty)
+          : 999;
+
+        if (maxCanAdd <= 0) {
+          return {
+            success: false,
+            addedQty: 0,
+            message: `Bạn đã thêm tối đa số lượng tồn kho (${stockLimit}) của sản phẩm này vào giỏ hàng.`,
+          };
+        }
+
+        const requestedQty = Math.max(1, Number(newItem.quantity) || 1);
+        const actualQtyToAdd = Math.min(requestedQty, maxCanAdd);
+
+        const normalizedItem: CartItem = {
+          ...newItem,
+          productId: pId,
+          price: Number(newItem.price),
+          quantity: actualQtyToAdd,
+          stock: hasStockLimit ? stockLimit : undefined,
+        };
+
+        const existingItemIndex = currentItems.findIndex(
+          (item) => item.cartItemId === normalizedItem.cartItemId
+        );
+
+        let updatedItems: CartItem[];
+
+        if (existingItemIndex !== -1) {
+          updatedItems = [...currentItems];
+          updatedItems[existingItemIndex] = {
+            ...updatedItems[existingItemIndex],
+            quantity:
+              Number(updatedItems[existingItemIndex].quantity) + actualQtyToAdd,
+            stock: hasStockLimit ? stockLimit : updatedItems[existingItemIndex].stock,
+          };
+        } else {
+          updatedItems = [...currentItems, normalizedItem];
+        }
+
+        set((state) => ({
+          items: updatedItems,
+          cartsByUser: email
+            ? {
+                ...state.cartsByUser,
+                [email]: updatedItems,
+              }
+            : state.cartsByUser,
+          activeUserEmail: email || state.activeUserEmail,
+        }));
+
+        return {
+          success: true,
+          addedQty: actualQtyToAdd,
+          isCapped: actualQtyToAdd < requestedQty,
+          message:
+            actualQtyToAdd < requestedQty
+              ? `Chỉ có thể thêm ${actualQtyToAdd} sản phẩm do giới hạn tồn kho còn lại (${maxCanAdd}/${stockLimit}).`
+              : undefined,
+        };
+      },
 
       removeFromCart: (cartItemId) =>
         set((state) => {
@@ -114,7 +163,26 @@ export const useCartStore = create<CartStore>()(
 
       updateQuantity: (cartItemId, quantity) =>
         set((state) => {
-          const safeQty = Math.max(1, Math.floor(Number(quantity) || 1));
+          const itemToUpdate =
+            state.items.find((item) => item.cartItemId === cartItemId) ||
+            state.checkoutItems.find((item) => item.cartItemId === cartItemId);
+
+          let safeQty = Math.max(1, Math.floor(Number(quantity) || 1));
+
+          if (itemToUpdate && itemToUpdate.stock !== undefined && itemToUpdate.stock !== null) {
+            const stockLimit = Number(itemToUpdate.stock);
+            const otherItemsQty = (state.items.length > 0 ? state.items : state.checkoutItems)
+              .filter(
+                (i) =>
+                  Number(i.productId) === Number(itemToUpdate.productId) &&
+                  i.cartItemId !== cartItemId
+              )
+              .reduce((sum, i) => sum + Number(i.quantity || 0), 0);
+
+            const maxAllowed = Math.max(1, stockLimit - otherItemsQty);
+            safeQty = Math.min(safeQty, maxAllowed);
+          }
+
           const updatedItems = state.items.map((item) =>
             item.cartItemId === cartItemId
               ? {

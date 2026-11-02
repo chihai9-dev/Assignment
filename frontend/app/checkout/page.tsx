@@ -25,10 +25,12 @@ import {
 
 function CheckoutItemQuantityControl({
   quantity,
+  max = 999,
   onChange,
   onRemove,
 }: {
   quantity: number;
+  max?: number;
   onChange: (qty: number) => void;
   onRemove: () => void;
 }) {
@@ -43,9 +45,9 @@ function CheckoutItemQuantityControl({
     if (isNaN(parsed) || parsed < 1) {
       setInputValue('1');
       onChange(1);
-    } else if (parsed > 999) {
-      setInputValue('999');
-      onChange(999);
+    } else if (parsed > max) {
+      setInputValue(String(max));
+      onChange(max);
     } else {
       setInputValue(String(parsed));
       onChange(parsed);
@@ -58,7 +60,7 @@ function CheckoutItemQuantityControl({
       setInputValue(val);
       const parsed = parseInt(val, 10);
       if (!isNaN(parsed) && parsed >= 1) {
-        onChange(Math.min(999, parsed));
+        onChange(Math.min(max, parsed));
       }
     }
   };
@@ -93,13 +95,15 @@ function CheckoutItemQuantityControl({
         }}
         className="w-7 text-center font-bold text-[11px] text-[#3E2723] bg-transparent focus:outline-none focus:bg-white rounded px-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
         aria-label="Nhập số lượng"
+        title={`Tối đa: ${max}`}
       />
       <button
         type="button"
-        onClick={() => onChange(Math.min(999, quantity + 1))}
-        disabled={quantity >= 999}
+        onClick={() => onChange(Math.min(max, quantity + 1))}
+        disabled={quantity >= max}
         className="w-5 h-5 flex items-center justify-center text-gray-500 hover:text-black disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
         aria-label="Tăng số lượng"
+        title={quantity >= max ? `Đã đạt giới hạn tồn kho (${max})` : 'Tăng 1'}
       >
         <PlusIcon className="w-2.5 h-2.5" />
       </button>
@@ -925,7 +929,27 @@ export default function CheckoutPage() {
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
-                      <CheckoutItemQuantityControl quantity={item.quantity} onChange={(newQty) => updateQuantity(item.cartItemId, newQty)} onRemove={() => removeFromCart(item.cartItemId)} />
+                      {(() => {
+  const otherQtySameProduct = activeItems
+    .filter(
+      (i) =>
+        Number(i.productId) === Number(item.productId) &&
+        i.cartItemId !== item.cartItemId
+    )
+    .reduce((sum, i) => sum + Number(i.quantity || 0), 0);
+  const hasStockLimit = item.stock !== undefined && item.stock !== null;
+  const itemStock = hasStockLimit ? Math.max(0, Number(item.stock)) : 999;
+  const maxAllowed = hasStockLimit ? Math.max(1, itemStock - otherQtySameProduct) : 999;
+
+  return (
+    <CheckoutItemQuantityControl
+      quantity={item.quantity}
+      max={maxAllowed}
+      onChange={(newQty) => updateQuantity(item.cartItemId, newQty)}
+      onRemove={() => removeFromCart(item.cartItemId)}
+    />
+  );
+})()}
 
                       <button
                         type="button"

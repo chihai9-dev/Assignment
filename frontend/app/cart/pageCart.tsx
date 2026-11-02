@@ -19,10 +19,12 @@ import {
 
 function CartItemQuantityControl({
   quantity,
+  max = 999,
   onChange,
   onRemove,
 }: {
   quantity: number;
+  max?: number;
   onChange: (qty: number) => void;
   onRemove: () => void;
 }) {
@@ -37,9 +39,9 @@ function CartItemQuantityControl({
     if (isNaN(parsed) || parsed < 1) {
       setInputValue('1');
       onChange(1);
-    } else if (parsed > 999) {
-      setInputValue('999');
-      onChange(999);
+    } else if (parsed > max) {
+      setInputValue(String(max));
+      onChange(max);
     } else {
       setInputValue(String(parsed));
       onChange(parsed);
@@ -52,7 +54,7 @@ function CartItemQuantityControl({
       setInputValue(val);
       const parsed = parseInt(val, 10);
       if (!isNaN(parsed) && parsed >= 1) {
-        onChange(Math.min(999, parsed));
+        onChange(Math.min(max, parsed));
       }
     }
   };
@@ -88,15 +90,15 @@ function CartItemQuantityControl({
         }}
         className="w-10 text-center text-sm font-bold text-[#3E2723] bg-transparent focus:outline-none focus:bg-white rounded px-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none transition-colors"
         aria-label="Nhập số lượng trực tiếp"
-        title="Nhập số lượng trực tiếp"
+        title={`Tối đa: ${max}`}
       />
       <button
         type="button"
-        onClick={() => onChange(Math.min(999, quantity + 1))}
-        disabled={quantity >= 999}
+        onClick={() => onChange(Math.min(max, quantity + 1))}
+        disabled={quantity >= max}
         className="w-7 h-7 flex items-center justify-center text-[#8D6E63] hover:bg-white hover:text-[#3E2723] rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition cursor-pointer"
         aria-label="Tăng số lượng"
-        title="Tăng 1"
+        title={quantity >= max ? `Đã đạt giới hạn tồn kho (${max})` : 'Tăng 1'}
       >
         <PlusIcon className="w-3.5 h-3.5" />
       </button>
@@ -205,8 +207,22 @@ export default function CartPage() {
   const discount = Math.round((subtotal * discountPercent) / 100);
   const grandTotal = Math.max(0, subtotal - discount);
 
+  // Kiểm tra xem có sản phẩm nào đang vượt quá số lượng tồn kho hay không
+  const hasOverStockItem = safeItems.some((item) => {
+    if (item.stock === undefined || item.stock === null) return false;
+    const sameProductTotalQty = safeItems
+      .filter((i) => Number(i.productId) === Number(item.productId))
+      .reduce((sum, i) => sum + Number(i.quantity || 0), 0);
+    return sameProductTotalQty > Number(item.stock);
+  });
+
   const handleProceedToCheckout = async () => {
     if (safeItems.length === 0 || isSubmitting || isSubmittingRef.current || isNavigatingRef.current) return;
+
+    if (hasOverStockItem) {
+      alert('Một số sản phẩm trong giỏ hàng vượt quá số lượng tồn kho hiện có. Vui lòng điều chỉnh lại số lượng trước khi tiếp tục!');
+      return;
+    }
 
     if (!token) {
       alert('Vui lòng đăng nhập để thanh toán đơn hàng!');
@@ -362,6 +378,15 @@ export default function CartPage() {
           </div>
         )}
 
+        {hasOverStockItem && (
+          <div className="p-4 bg-red-50 border border-red-200 rounded-2xl flex items-start justify-between gap-3 text-red-900 shadow-sm animate-fade-in">
+            <div className="flex items-center gap-2.5 text-sm font-medium">
+              <span className="text-xl">⚠️</span>
+              <span>Một số món trong giỏ hàng đang vượt quá số lượng tồn kho còn lại. Vui lòng điều chỉnh giảm số lượng trước khi thanh toán.</span>
+            </div>
+          </div>
+        )}
+
         <div className="space-y-2">
           <Link
             href="/#menu"
@@ -381,10 +406,25 @@ export default function CartPage() {
           <div className="lg:col-span-7 xl:col-span-8 space-y-4">
             {safeItems.map((item) => {
               const itemTotal = Number(item.price) * Number(item.quantity);
+              const otherQtySameProduct = safeItems
+                .filter(
+                  (i) =>
+                    Number(i.productId) === Number(item.productId) &&
+                    i.cartItemId !== item.cartItemId
+                )
+                .reduce((sum, i) => sum + Number(i.quantity || 0), 0);
+
+              const hasStockLimit = item.stock !== undefined && item.stock !== null;
+              const itemStock = hasStockLimit ? Math.max(0, Number(item.stock)) : 999;
+              const maxAllowed = hasStockLimit ? Math.max(1, itemStock - otherQtySameProduct) : 999;
+              const isOverStock = hasStockLimit && item.quantity > maxAllowed;
+
               return (
                 <div
                   key={item.cartItemId}
-                  className="bg-white border border-[#E8DFD8] rounded-2xl p-4 sm:p-5 flex items-center justify-between gap-4 shadow-sm hover:shadow-md transition-shadow"
+                  className={`bg-white border rounded-2xl p-4 sm:p-5 flex items-center justify-between gap-4 shadow-sm hover:shadow-md transition-shadow ${
+                    isOverStock ? 'border-red-300 ring-1 ring-red-300 bg-red-50/20' : 'border-[#E8DFD8]'
+                  }`}
                 >
                   <div className="flex items-center gap-4 min-w-0">
                     <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden bg-[#F5F0E6] flex-shrink-0 flex items-center justify-center">
@@ -412,16 +452,31 @@ export default function CartPage() {
                             +{item.toppings.join(', ')}
                           </span>
                         )}
+                        {hasStockLimit && (
+                          <span className={`px-2 py-0.5 rounded-md text-[11px] font-semibold ${
+                            isOverStock
+                              ? 'bg-red-100 text-red-700'
+                              : 'bg-emerald-50 text-emerald-800'
+                          }`}>
+                            Kho còn: {itemStock}
+                          </span>
+                        )}
                       </div>
                       <p className="font-extrabold text-sm sm:text-base text-[#8D6E63]">
                         {Number(item.price).toLocaleString('vi-VN')}đ
                       </p>
+                      {isOverStock && (
+                        <p className="text-[11px] font-bold text-red-600">
+                          ⚠️ Vượt quá tồn kho có thể đặt (tối đa {maxAllowed})
+                        </p>
+                      )}
                     </div>
                   </div>
 
                   <div className="flex flex-col sm:flex-row items-end sm:items-center gap-3 sm:gap-6 flex-shrink-0">
                     <CartItemQuantityControl
                       quantity={item.quantity}
+                      max={maxAllowed}
                       onChange={(newQty) => updateQuantity(item.cartItemId, newQty)}
                       onRemove={() => removeFromCart(item.cartItemId)}
                     />
@@ -489,11 +544,17 @@ export default function CartPage() {
 
               <button
                 type="button"
-                disabled={isSubmitting}
+                disabled={isSubmitting || hasOverStockItem}
                 onClick={handleProceedToCheckout}
-                className="w-full bg-[#3E2723] hover:bg-[#2E1C12] disabled:opacity-60 disabled:pointer-events-none text-white font-bold py-3.5 px-4 rounded-xl transition shadow-md shadow-[#3E2723]/20 hover:-translate-y-0.5 active:translate-y-0 text-center flex items-center justify-center gap-2 cursor-pointer"
+                className="w-full bg-[#3E2723] hover:bg-[#2E1C12] disabled:opacity-50 disabled:pointer-events-none text-white font-bold py-3.5 px-4 rounded-xl transition shadow-md shadow-[#3E2723]/20 hover:-translate-y-0.5 active:translate-y-0 text-center flex items-center justify-center gap-2 cursor-pointer"
               >
-                <span>{isSubmitting ? 'Đang kiểm tra tồn kho...' : 'Thanh toán'}</span>
+                <span>
+                  {isSubmitting
+                    ? 'Đang kiểm tra tồn kho...'
+                    : hasOverStockItem
+                    ? 'Vượt tồn kho, hãy chỉnh lại'
+                    : 'Thanh toán'}
+                </span>
                 <ArrowRightIcon className="w-4 h-4" />
               </button>
 

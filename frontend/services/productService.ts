@@ -23,6 +23,7 @@ export async function fetchAllProducts(): Promise<Product[]> {
           : assetUrl(p.imageUrl)
         : "",
       description: p.description || "",
+      stock: p.stock !== undefined ? Number(p.stock) : 0,
       categoryId: p.categoryId ? Number(p.categoryId) : undefined,
       category: p.category ? { id: Number(p.category.id), name: p.category.name } : null,
     }));
@@ -50,5 +51,8 @@ export async function fetchProductById(id: string): Promise<Product | null> {
     price: Number(p.price),
     imageUrl,
     description: p.description || "Chưa có mô tả cho sản phẩm này.",
+    stock: p.stock !== undefined ? Number(p.stock) : 0,
+    categoryId: p.categoryId ? Number(p.categoryId) : undefined,
+    category: p.category ? { id: Number(p.category.id), name: p.category.name } : null,
   };
 }
