@@ -17,6 +17,93 @@ import {
   BagIcon,
 } from '@/components/Icons';
 
+function CartItemQuantityControl({
+  quantity,
+  onChange,
+  onRemove,
+}: {
+  quantity: number;
+  onChange: (qty: number) => void;
+  onRemove: () => void;
+}) {
+  const [inputValue, setInputValue] = useState(String(quantity));
+
+  useEffect(() => {
+    setInputValue(String(quantity));
+  }, [quantity]);
+
+  const commitValue = (val: string) => {
+    const parsed = parseInt(val, 10);
+    if (isNaN(parsed) || parsed < 1) {
+      setInputValue('1');
+      onChange(1);
+    } else if (parsed > 999) {
+      setInputValue('999');
+      onChange(999);
+    } else {
+      setInputValue(String(parsed));
+      onChange(parsed);
+    }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    if (/^\d*$/.test(val)) {
+      setInputValue(val);
+      const parsed = parseInt(val, 10);
+      if (!isNaN(parsed) && parsed >= 1) {
+        onChange(Math.min(999, parsed));
+      }
+    }
+  };
+
+  return (
+    <div className="flex items-center border border-[#E8DFD8] rounded-xl bg-[#FDFBF7] p-1 shadow-inner focus-within:border-[#8D6E63] focus-within:ring-1 focus-within:ring-[#8D6E63] transition-all">
+      <button
+        type="button"
+        onClick={() => {
+          if (quantity > 1) {
+            onChange(quantity - 1);
+          } else {
+            onRemove();
+          }
+        }}
+        className="w-7 h-7 flex items-center justify-center text-[#8D6E63] hover:bg-white hover:text-[#3E2723] rounded-lg transition cursor-pointer"
+        aria-label="Giảm số lượng"
+        title="Giảm 1"
+      >
+        <MinusIcon className="w-3.5 h-3.5" />
+      </button>
+      <input
+        type="text"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        value={inputValue}
+        onChange={handleInputChange}
+        onBlur={() => commitValue(inputValue)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            (e.target as HTMLInputElement).blur();
+          }
+        }}
+        className="w-10 text-center text-sm font-bold text-[#3E2723] bg-transparent focus:outline-none focus:bg-white rounded px-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none transition-colors"
+        aria-label="Nhập số lượng trực tiếp"
+        title="Nhập số lượng trực tiếp"
+      />
+      <button
+        type="button"
+        onClick={() => onChange(Math.min(999, quantity + 1))}
+        disabled={quantity >= 999}
+        className="w-7 h-7 flex items-center justify-center text-[#8D6E63] hover:bg-white hover:text-[#3E2723] rounded-lg disabled:opacity-30 disabled:cursor-not-allowed transition cursor-pointer"
+        aria-label="Tăng số lượng"
+        title="Tăng 1"
+      >
+        <PlusIcon className="w-3.5 h-3.5" />
+      </button>
+    </div>
+  );
+}
+
 export default function CartPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -333,29 +420,11 @@ export default function CartPage() {
                   </div>
 
                   <div className="flex flex-col sm:flex-row items-end sm:items-center gap-3 sm:gap-6 flex-shrink-0">
-                    <div className="flex items-center border border-[#E8DFD8] rounded-xl bg-[#FDFBF7] p-1 shadow-inner">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          item.quantity > 1
-                            ? updateQuantity(item.cartItemId, item.quantity - 1)
-                            : removeFromCart(item.cartItemId)
-                        }
-                        className="w-7 h-7 flex items-center justify-center text-[#8D6E63] hover:bg-white hover:text-[#3E2723] rounded-lg transition cursor-pointer"
-                      >
-                        <MinusIcon className="w-3.5 h-3.5" />
-                      </button>
-                      <span className="w-8 text-center text-sm font-bold text-[#3E2723]">
-                        {item.quantity}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => updateQuantity(item.cartItemId, item.quantity + 1)}
-                        className="w-7 h-7 flex items-center justify-center text-[#8D6E63] hover:bg-white hover:text-[#3E2723] rounded-lg transition cursor-pointer"
-                      >
-                        <PlusIcon className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
+                    <CartItemQuantityControl
+                      quantity={item.quantity}
+                      onChange={(newQty) => updateQuantity(item.cartItemId, newQty)}
+                      onRemove={() => removeFromCart(item.cartItemId)}
+                    />
 
                     <div className="text-right min-w-[80px]">
                       <div className="font-black text-sm sm:text-base text-[#3E2723]">

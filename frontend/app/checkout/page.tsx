@@ -22,6 +22,91 @@ import {
   formatTimer,
 } from '@/hooks/useCheckoutTimer';
 
+
+function CheckoutItemQuantityControl({
+  quantity,
+  onChange,
+  onRemove,
+}: {
+  quantity: number;
+  onChange: (qty: number) => void;
+  onRemove: () => void;
+}) {
+  const [inputValue, setInputValue] = useState(String(quantity));
+
+  useEffect(() => {
+    setInputValue(String(quantity));
+  }, [quantity]);
+
+  const commitValue = (val: string) => {
+    const parsed = parseInt(val, 10);
+    if (isNaN(parsed) || parsed < 1) {
+      setInputValue('1');
+      onChange(1);
+    } else if (parsed > 999) {
+      setInputValue('999');
+      onChange(999);
+    } else {
+      setInputValue(String(parsed));
+      onChange(parsed);
+    }
+  };
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    if (/^\d*$/.test(val)) {
+      setInputValue(val);
+      const parsed = parseInt(val, 10);
+      if (!isNaN(parsed) && parsed >= 1) {
+        onChange(Math.min(999, parsed));
+      }
+    }
+  };
+
+  return (
+    <div className="flex items-center border border-gray-200 rounded-lg bg-[#FDFBF7] focus-within:border-[#8D6E63] focus-within:ring-1 focus-within:ring-[#8D6E63] transition-all">
+      <button
+        type="button"
+        onClick={() => {
+          if (quantity > 1) {
+            onChange(quantity - 1);
+          } else {
+            onRemove();
+          }
+        }}
+        className="w-5 h-5 flex items-center justify-center text-gray-500 hover:text-black cursor-pointer"
+        aria-label="Giảm số lượng"
+      >
+        <MinusIcon className="w-2.5 h-2.5" />
+      </button>
+      <input
+        type="text"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        value={inputValue}
+        onChange={handleInputChange}
+        onBlur={() => commitValue(inputValue)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            (e.target as HTMLInputElement).blur();
+          }
+        }}
+        className="w-7 text-center font-bold text-[11px] text-[#3E2723] bg-transparent focus:outline-none focus:bg-white rounded px-0.5 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+        aria-label="Nhập số lượng"
+      />
+      <button
+        type="button"
+        onClick={() => onChange(Math.min(999, quantity + 1))}
+        disabled={quantity >= 999}
+        className="w-5 h-5 flex items-center justify-center text-gray-500 hover:text-black disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer"
+        aria-label="Tăng số lượng"
+      >
+        <PlusIcon className="w-2.5 h-2.5" />
+      </button>
+    </div>
+  );
+}
+
 export default function CheckoutPage() {
   const router = useRouter();
   const isNavigatingToOrderRef = useRef(false);
@@ -840,36 +925,7 @@ export default function CheckoutPage() {
                     </div>
 
                     <div className="flex items-center gap-2 shrink-0">
-                      <div className="flex items-center border border-gray-200 rounded-lg bg-[#FDFBF7]">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (item.quantity > 1) {
-                              updateQuantity(
-                                item.cartItemId,
-                                item.quantity - 1,
-                              );
-                            } else {
-                              removeFromCart(item.cartItemId);
-                            }
-                          }}
-                          className="w-5 h-5 flex items-center justify-center text-gray-500 hover:text-black cursor-pointer"
-                        >
-                          <MinusIcon className="w-2.5 h-2.5" />
-                        </button>
-                        <span className="px-1.5 font-bold text-[11px]">
-                          {item.quantity}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            updateQuantity(item.cartItemId, item.quantity + 1)
-                          }
-                          className="w-5 h-5 flex items-center justify-center text-gray-500 hover:text-black cursor-pointer"
-                        >
-                          <PlusIcon className="w-2.5 h-2.5" />
-                        </button>
-                      </div>
+                      <CheckoutItemQuantityControl quantity={item.quantity} onChange={(newQty) => updateQuantity(item.cartItemId, newQty)} onRemove={() => removeFromCart(item.cartItemId)} />
 
                       <button
                         type="button"

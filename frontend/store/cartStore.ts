@@ -58,7 +58,7 @@ export const useCartStore = create<CartStore>()(
             ...newItem,
             productId: Number(newItem.productId),
             price: Number(newItem.price),
-            quantity: Number(newItem.quantity),
+            quantity: Math.max(1, Number(newItem.quantity) || 1),
           };
 
           const existingItemIndex = currentItems.findIndex(
@@ -96,9 +96,13 @@ export const useCartStore = create<CartStore>()(
           const updatedItems = state.items.filter(
             (item) => item.cartItemId !== cartItemId
           );
+          const updatedCheckoutItems = (state.checkoutItems || []).filter(
+            (item) => item.cartItemId !== cartItemId
+          );
 
           return {
             items: updatedItems,
+            checkoutItems: updatedCheckoutItems,
             cartsByUser: state.activeUserEmail
               ? {
                   ...state.cartsByUser,
@@ -110,17 +114,27 @@ export const useCartStore = create<CartStore>()(
 
       updateQuantity: (cartItemId, quantity) =>
         set((state) => {
+          const safeQty = Math.max(1, Math.floor(Number(quantity) || 1));
           const updatedItems = state.items.map((item) =>
             item.cartItemId === cartItemId
               ? {
                   ...item,
-                  quantity: Math.max(1, quantity),
+                  quantity: safeQty,
+                }
+              : item
+          );
+          const updatedCheckoutItems = (state.checkoutItems || []).map((item) =>
+            item.cartItemId === cartItemId
+              ? {
+                  ...item,
+                  quantity: safeQty,
                 }
               : item
           );
 
           return {
             items: updatedItems,
+            checkoutItems: updatedCheckoutItems,
             cartsByUser: state.activeUserEmail
               ? {
                   ...state.cartsByUser,

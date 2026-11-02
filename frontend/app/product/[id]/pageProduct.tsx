@@ -34,8 +34,37 @@ export default function ProductDetailPage() {
     ProductSize.S,
   );
   const [quantity, setQuantity] = useState<number>(1);
+  const [quantityInput, setQuantityInput] = useState<string>("1");
   const [activeImage, setActiveImage] = useState<string>("");
   const [isAddedSuccess, setIsAddedSuccess] = useState<boolean>(false);
+
+  const changeQuantity = (newQty: number) => {
+    const safe = Math.min(999, Math.max(1, newQty));
+    setQuantity(safe);
+    setQuantityInput(String(safe));
+  };
+
+  const handleQuantityInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    if (/^\d*$/.test(val)) {
+      setQuantityInput(val);
+      const parsed = parseInt(val, 10);
+      if (!isNaN(parsed) && parsed > 0) {
+        setQuantity(Math.min(999, parsed));
+      }
+    }
+  };
+
+  const handleQuantityBlur = () => {
+    const parsed = parseInt(quantityInput, 10);
+    if (isNaN(parsed) || parsed < 1) {
+      changeQuantity(1);
+    } else if (parsed > 999) {
+      changeQuantity(999);
+    } else {
+      changeQuantity(parsed);
+    }
+  };
 
   const currentImage = activeImage || product?.imageUrl || "";
 
@@ -55,6 +84,9 @@ export default function ProductDetailPage() {
   const handleAddToCart = () => {
     if (!product) return;
 
+    // Đảm bảo số lượng hợp lệ trước khi thêm
+    const finalQty = Math.max(1, quantity);
+
     const sortedToppings = [...selectedToppings].sort();
     const cartItemId = `${product.id}-${selectedSize}-${sortedToppings.join("-")}`;
 
@@ -65,7 +97,7 @@ export default function ProductDetailPage() {
       price: unitPrice,
       size: selectedSize,
       toppings: sortedToppings,
-      quantity: quantity,
+      quantity: finalQty,
       imageUrl: product.imageUrl,
     });
 
@@ -132,7 +164,6 @@ export default function ProductDetailPage() {
                 className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
               />
             </div>
-
           </div>
 
           <div className="md:col-span-7 flex flex-col justify-between space-y-6">
@@ -227,22 +258,38 @@ export default function ProductDetailPage() {
 
             <div className="pt-6 border-t border-[#E8DFD8] space-y-4">
               <div className="flex items-center gap-4">
-                <div className="flex items-center border border-[#E8DFD8] rounded-xl bg-[#FDFBF7] p-1">
+                <div className="flex items-center border border-[#E8DFD8] rounded-xl bg-[#FDFBF7] p-1 shadow-inner focus-within:border-[#8D6E63] focus-within:ring-1 focus-within:ring-[#8D6E63] transition-all">
                   <button
                     type="button"
-                    onClick={() => setQuantity((q) => Math.max(1, q - 1))}
+                    onClick={() => changeQuantity(quantity - 1)}
                     disabled={quantity <= 1}
-                    className="w-9 h-9 flex items-center justify-center text-[#3E2723] hover:bg-[#F5F0E6] rounded-lg disabled:opacity-30 cursor-pointer"
+                    className="w-9 h-9 flex items-center justify-center text-[#3E2723] hover:bg-[#F5F0E6] rounded-lg disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                    aria-label="Giảm số lượng"
                   >
                     <MinusIcon className="w-3.5 h-3.5" />
                   </button>
-                  <span className="w-10 text-center font-bold text-sm text-[#3E2723]">
-                    {quantity}
-                  </span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={quantityInput}
+                    onChange={handleQuantityInputChange}
+                    onBlur={handleQuantityBlur}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        (e.target as HTMLInputElement).blur();
+                      }
+                    }}
+                    className="w-14 text-center font-bold text-sm text-[#3E2723] bg-transparent focus:outline-none focus:bg-white rounded py-1 px-1 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none transition-colors"
+                    aria-label="Nhập số lượng trực tiếp"
+                    title="Nhập số lượng trực tiếp"
+                  />
                   <button
                     type="button"
-                    onClick={() => setQuantity((q) => q + 1)}
-                    className="w-9 h-9 flex items-center justify-center text-[#3E2723] hover:bg-[#F5F0E6] rounded-lg cursor-pointer"
+                    onClick={() => changeQuantity(quantity + 1)}
+                    disabled={quantity >= 999}
+                    className="w-9 h-9 flex items-center justify-center text-[#3E2723] hover:bg-[#F5F0E6] rounded-lg disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                    aria-label="Tăng số lượng"
                   >
                     <PlusIcon className="w-3.5 h-3.5" />
                   </button>
