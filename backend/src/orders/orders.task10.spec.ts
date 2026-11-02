@@ -53,11 +53,9 @@ describe('Task 10 - Backend Business Logic Tests', () => {
     paymentsService = new PaymentsService(mockPrisma, mockUsersService);
   });
 
-  // =========================================================================
-  // Tiêu chí (a): Order State Machine - Chặn chuyển trạng thái sai
-  // =========================================================================
   describe('1. Order State Machine (assertTransition)', () => {
-    it('cho phép các chuyển đổi trạng thái hợp lệ trong luồng thành công', () => {
+    it('cho phép chuỗi chuyển đổi trạng thái hợp lệ chuẩn: (PENDING -> PAID -> PREPARING -> READY -> COMPLETED)', () => {
+      console.log('\n[Order State Machine] Chuyển đổi trạng thái thành công: (PENDING -> PAID -> PREPARING -> READY -> COMPLETED)');
       expect(() =>
         ordersService.assertTransition(order_status.PENDING, order_status.PAID),
       ).not.toThrow();
@@ -80,12 +78,10 @@ describe('Task 10 - Backend Business Logic Tests', () => {
         ordersService.assertTransition(order_status.PENDING, order_status.PAYMENT_FAILED),
       ).not.toThrow();
 
-      // Thử lại thanh toán: PAYMENT_FAILED -> PENDING
       expect(() =>
         ordersService.assertTransition(order_status.PAYMENT_FAILED, order_status.PENDING),
       ).not.toThrow();
 
-      // Hủy đơn từ PENDING, PAYMENT_FAILED hoặc PAID
       expect(() =>
         ordersService.assertTransition(order_status.PENDING, order_status.CANCELLED),
       ).not.toThrow();
@@ -124,16 +120,13 @@ describe('Task 10 - Backend Business Logic Tests', () => {
     });
   });
 
-  // =========================================================================
-  // Tiêu chí (b): Thanh toán Idempotent - Gửi 2 lần cùng key chỉ tạo 1 giao dịch
-  // =========================================================================
   describe('2. Thanh toán Idempotent (Idempotency-Key)', () => {
     it('gửi yêu cầu thanh toán lần đầu: tạo giao dịch mới và chuyển đơn sang PAID', async () => {
       const orderId = 101;
       const amount = 50000;
       const idempotencyKey = '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d';
 
-      mockPrisma.payment.findUnique.mockResolvedValue(null); // Chưa tồn tại
+      mockPrisma.payment.findUnique.mockResolvedValue(null);
       mockPrisma.order.findUnique.mockResolvedValue({
         id: BigInt(orderId),
         userId: BigInt(1),
@@ -179,7 +172,6 @@ describe('Task 10 - Backend Business Logic Tests', () => {
         idempotencyKey,
       };
 
-      // Giả lập lần 2: DB đã có sẵn payment với key này
       mockPrisma.payment.findUnique.mockResolvedValue(existingPayment);
       mockPrisma.order.findUnique.mockResolvedValue({
         id: BigInt(orderId),
@@ -195,10 +187,8 @@ describe('Task 10 - Backend Business Logic Tests', () => {
         idempotencyKey,
       });
 
-      // Kết quả trả về giao dịch trước đó
       expect(result.idempotent).toBe(true);
       expect(result.payment).toEqual(existingPayment);
-      // Đảm bảo không gọi prisma.payment.create thêm lần nào
       expect(mockPrisma.payment.create).not.toHaveBeenCalled();
     });
 
@@ -227,10 +217,7 @@ describe('Task 10 - Backend Business Logic Tests', () => {
     });
   });
 
-  // =========================================================================
-  // Tiêu chí (c): Kiểm soát tồn kho khi đặt đồng thời (Optimistic Locking)
-  // =========================================================================
-  describe('3. Kiểm soát tồn kho & Optimistic Locking', () => {
+  describe('3. Kiểm soát tồn kho & Transaction Lock (Optimistic Concurrency Control)', () => {
     it('đặt hàng khi còn đủ tồn kho: trừ tồn kho và tăng version thành công', async () => {
       const product = {
         id: BigInt(1),
@@ -242,7 +229,7 @@ describe('Task 10 - Backend Business Logic Tests', () => {
       };
 
       mockPrisma.product.findUnique.mockResolvedValue(product);
-      mockPrisma.product.updateMany.mockResolvedValue({ count: 1 }); // Thành công
+      mockPrisma.product.updateMany.mockResolvedValue({ count: 1 });
       mockPrisma.order.create.mockResolvedValue({ id: BigInt(201), total: 70000 });
 
       const result = await ordersService.create(
@@ -271,7 +258,7 @@ describe('Task 10 - Backend Business Logic Tests', () => {
         id: BigInt(1),
         name: 'Cà phê sữa',
         price: 35000,
-        stock: 1, // Chỉ còn 1 ly
+        stock: 1,
         version: 0,
         status: 'active',
       };
@@ -288,7 +275,8 @@ describe('Task 10 - Backend Business Logic Tests', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
-    it('mô phỏng 2 khách đặt đồng thời (race condition): khách thứ 2 bị chặn do version mismatch (Optimistic Lock)', async () => {
+    it('mô phỏng 2 khách đặt đồng thời (race condition): Transaction Lock chặn khách thứ 2 do version mismatch (Optimistic Lock)', async () => {
+      console.log('\n[Transaction Lock] Kích hoạt Prisma $transaction & Optimistic Lock chống Race Condition (Version Mismatch)');
       const product = {
         id: BigInt(1),
         name: 'Cà phê sữa',
@@ -299,7 +287,6 @@ describe('Task 10 - Backend Business Logic Tests', () => {
       };
 
       mockPrisma.product.findUnique.mockResolvedValue(product);
-      // Giả lập khách thứ 2 bị tranh chấp version -> updateMany trả về count: 0
       mockPrisma.product.updateMany.mockResolvedValue({ count: 0 });
 
       await expect(
@@ -313,9 +300,6 @@ describe('Task 10 - Backend Business Logic Tests', () => {
     });
   });
 
-  // =========================================================================
-  // Tiêu chí (d): Giảm giá theo điểm tích lũy (Loyalty Points) và Tích điểm
-  // =========================================================================
   describe('4. Giảm giá theo loyaltyPoints của User & Tích điểm thưởng', () => {
     it('tự động giảm đúng 10% cho khách hàng hạng Vàng (tích lũy >= 50 loyaltyPoints)', async () => {
       mockUsersService.findOne.mockResolvedValue({ id: 1, email: 'gold@brewlite.com', loyaltyPoints: 50 });
@@ -343,7 +327,7 @@ describe('Task 10 - Backend Business Logic Tests', () => {
       );
 
       expect(result.rawTotal).toBe(100000);
-      expect(result.discount).toBe(10000); // 10% của 100.000đ
+      expect(result.discount).toBe(10000);
       expect(result.total).toBe(90000);
       expect(result.discountPercent).toBe(10);
       expect(result.membershipTier).toBe('Vàng');
@@ -401,7 +385,7 @@ describe('Task 10 - Backend Business Logic Tests', () => {
         { items: [{ productId: 1, size: 'L', qty: 1, price: 100000 }] },
         3,
       );
-      expect(silverResult.discount).toBe(5000); // 5%
+      expect(silverResult.discount).toBe(5000);
       expect(silverResult.membershipTier).toBe('Bạc');
 
       mockUsersService.findOne.mockResolvedValue({ id: 4, email: 'diamond@brewlite.com', loyaltyPoints: 120 });
@@ -409,7 +393,7 @@ describe('Task 10 - Backend Business Logic Tests', () => {
         { items: [{ productId: 1, size: 'L', qty: 1, price: 100000 }] },
         4,
       );
-      expect(diamondResult.discount).toBe(15000); // 15%
+      expect(diamondResult.discount).toBe(15000);
       expect(diamondResult.membershipTier).toBe('Kim Cương');
     });
 
@@ -436,7 +420,6 @@ describe('Task 10 - Backend Business Logic Tests', () => {
         idempotencyKey: 'c3d4e5f6-a7b8-4c9d-8e1f-2a3b4c5d6e7f',
       });
 
-      // 50.000đ -> tích 5 điểm thưởng (1 điểm / 10.000đ)
       expect(result.pointsEarned).toBe(5);
       expect(mockUsersService.addLoyaltyPoints).toHaveBeenCalledWith(userId, 5);
     });

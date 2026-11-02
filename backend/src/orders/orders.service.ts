@@ -17,7 +17,6 @@ export class OrdersService {
     private readonly usersService: UsersService,
   ) {}
 
-  // Lấy danh sách các trạng thái đơn hàng trực tiếp từ database (Enum order_status)
   async getOrderStatuses(): Promise<string[]> {
     try {
       const result: any = await this.prisma.$queryRaw`
@@ -33,13 +32,11 @@ export class OrdersService {
   }
 
   async create(createOrderDto: CreateOrderDto, userId: number) {
-    // 1. Tính tổng tiền gốc của đơn hàng
     const rawTotal = createOrderDto.items.reduce(
       (sum, item) => sum + item.price * item.qty,
       0,
     );
 
-    // 2. Xử lý giảm giá theo điểm tích lũy (loyaltyPoints) của User (Hạng thành viên)
     let loyaltyPoints = 0;
     try {
       const user = await this.usersService.findOne(userId);
@@ -67,7 +64,6 @@ export class OrdersService {
     const discountAmount = Math.round((rawTotal * discountPercent) / 100);
     const finalTotal = Math.max(0, rawTotal - discountAmount);
 
-    // 2.1 Bảo vệ chống double-click / multi-request từ cùng 1 tài khoản (Idempotency)
     const recentPendingOrder = await this.prisma.order.findFirst({
       where: {
         userId: BigInt(userId) as any,
@@ -91,7 +87,6 @@ export class OrdersService {
       };
     }
 
-    // 2.2 Tự động hoàn tồn kho cho các đơn PENDING cũ hơn (> 4s) của user này (nếu có do quay lại giỏ hàng)
     const oldUserPendingOrders = await this.prisma.order.findMany({
       where: {
         userId: BigInt(userId) as any,
@@ -111,7 +106,6 @@ export class OrdersService {
       }
     }
 
-    // 2.3 Quét dọn các đơn PENDING quá hạn (> 6 phút không thanh toán) toàn hệ thống để trả lại tồn kho
     try {
       const expiredPendingOrders = await this.prisma.order.findMany({
         where: {
@@ -145,8 +139,6 @@ export class OrdersService {
       // bỏ qua lỗi background cleanup
     }
 
-    // 3. Sử dụng Transaction + Optimistic Locking để trừ tồn kho an toàn khi đặt đồng thời (Task 10 - Yêu cầu 3)
-    // Tự động retry tối đa 3 lần nếu có xung đột version giữa các giao dịch đồng thời mà kho vẫn còn hàng
     const maxRetries = 3;
     let attempts = 0;
     let order: any = null;
@@ -170,11 +162,10 @@ export class OrdersService {
               );
             }
 
-            // Optimistic locking: kiểm tra version và số lượng tồn kho trong điều kiện update
             const updateResult = await tx.product.updateMany({
               where: {
                 id: product.id,
-                version: product.version, // Khóa lạc quan (Optimistic Concurrency Control)
+                version: product.version,
                 stock: { gte: item.qty },
               },
               data: {
@@ -190,7 +181,6 @@ export class OrdersService {
             }
           }
 
-          // Lấy danh sách Topping từ DB nếu có để lưu vào OrderItemTopping
           const allToppingNames = new Set<string>();
           for (const item of createOrderDto.items) {
             if (item.toppings && Array.isArray(item.toppings)) {
@@ -206,7 +196,6 @@ export class OrdersService {
             dbToppings.forEach((t: any) => toppingsMap.set(t.name, { id: t.id, price: t.price }));
           }
 
-          // Tạo đơn hàng với trạng thái PENDING
           return tx.order.create({
             data: {
               userId: BigInt(userId) as any,
@@ -242,11 +231,9 @@ export class OrdersService {
           });
         });
 
-        // Nếu thành công thì thoát retry loop
         break;
       } catch (err) {
         if (err instanceof ConflictException && attempts < maxRetries) {
-          // Va chạm version do nhiều khách đặt đồng thời -> chờ ngẫu nhiên 50-100ms rồi thử lại
           await new Promise((res) => setTimeout(res, 50 * attempts + Math.floor(Math.random() * 30)));
           continue;
         }
@@ -267,11 +254,9 @@ export class OrdersService {
     };
   }
 
-  // Hủy đơn hàng và hoàn lại số lượng tồn kho (Order State Machine & Inventory Recovery)
   async cancelOrder(id: number, userId: number) {
     const order = await this.findOne(id);
 
-    // Kiểm tra quyền sở hữu đơn hàng
     if (Number(order.userId) !== userId) {
       const user = await this.usersService.findOne(userId);
       const isStaff = user && ((user as any).role === 'barista' || (user as any).email?.includes('barista'));
@@ -280,7 +265,6 @@ export class OrdersService {
       }
     }
 
-    // Nếu đơn hàng đã hủy trước đó rồi thì trả về luôn, tránh hoàn tồn kho 2 lần
     if (order.status === order_status.CANCELLED) {
       return order;
     }
@@ -288,7 +272,6 @@ export class OrdersService {
     this.assertTransition(order.status, order_status.CANCELLED);
 
     return this.prisma.$transaction(async (tx) => {
-      // Hoàn lại tồn kho cho từng món trong đơn
       for (const item of order.OrderItem) {
         await tx.product.update({
           where: { id: item.productId },
@@ -310,7 +293,6 @@ export class OrdersService {
     });
   }
 
-  // Thử lại thanh toán sau khi lỗi: PAYMENT_FAILED -> PENDING
   async retryPayment(id: number, userId: number) {
     const order = await this.findOne(id);
     if (Number(order.userId) !== userId) {
@@ -329,7 +311,6 @@ export class OrdersService {
     });
   }
 
-  // Chuyển đơn sang PAYMENT_FAILED khi thanh toán lỗi
   async markPaymentFailed(id: number) {
     const order = await this.findOne(id);
     this.assertTransition(order.status, order_status.PAYMENT_FAILED);
@@ -344,7 +325,6 @@ export class OrdersService {
     });
   }
 
-  // Lấy danh sách đơn hàng của một người dùng, kèm theo các món và sản phẩm
   async findAllByUser(userId: number) {
     return this.prisma.order.findMany({
       where: {
@@ -368,8 +348,6 @@ export class OrdersService {
     });
   }
 
-  // Lấy chi tiết đơn hàng theo ID, kèm món, sản phẩm và thanh toán
-  // Nếu truyền userId: kiểm tra quyền (khách hàng chỉ được xem đơn do chính mình mua)
   async findOne(id: number, userId?: number) {
     const order = await this.prisma.order.findUnique({
       where: {
@@ -416,12 +394,10 @@ export class OrdersService {
     return order;
   }
 
-  // Alias để controller hoặc các hàm gọi rõ ràng mục đích
   async findOneForUser(id: number, userId: number) {
     return this.findOne(id, userId);
   }
 
-  // Kiểm tra chuyển đổi trạng thái hợp lệ theo Order State Machine
   assertTransition(currentStatus: string, newStatus: string): void {
     const validTransitions: Record<string, string[]> = {
       [order_status.PENDING]: [
@@ -453,7 +429,6 @@ export class OrdersService {
     }
   }
 
-  // Cập nhật trạng thái đơn hàng có kiểm tra State Machine
   async updateStatus(id: number, newStatus: string) {
     const order = await this.findOne(id);
     this.assertTransition(order.status, newStatus);
@@ -481,9 +456,6 @@ export class OrdersService {
     });
   }
 
-  // Lấy hàng đợi đơn hàng:
-  // - Nếu là Barista / Quản lý: lấy toàn bộ đơn hàng trong hàng đợi (PAID, PREPARING, READY)
-  // - Nếu là Khách hàng: CHỈ lấy đơn hàng của chính mình (không xem được đơn người khác)
   async findBaristaQueue(userId?: number) {
     let isCustomer = false;
     let customerUserId: number | null = null;
@@ -549,7 +521,6 @@ export class OrdersService {
     });
   }
 
-  // Barista cập nhật trạng thái đơn hàng (kiểm tra quyền barista từ DB, khách hàng không có quyền)
   async baristaUpdateStatus(orderId: number, newStatus: string, userId: number) {
     const user = await this.usersService.findOne(userId);
     const isBarista =

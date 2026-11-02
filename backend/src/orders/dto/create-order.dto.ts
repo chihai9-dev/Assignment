@@ -8,7 +8,7 @@ export class OrderItemDto {
 
   @IsString()
   @IsNotEmpty()
-  size: string; // Vd: 'S', 'M', 'L'
+  size: string;
 
   @Type(() => Number)
   @IsInt()
@@ -26,7 +26,6 @@ export class OrderItemDto {
 }
 
 export class CreateOrderDto {
-  // userId không còn nhận từ body nữa — Task 7 đã lấy trực tiếp từ JWT (xem orders.controller.ts)
 
   @IsArray()
   @ValidateNested({ each: true })

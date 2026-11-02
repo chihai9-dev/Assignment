@@ -40,7 +40,6 @@ interface OrderSummary {
   OrderItem?: OrderItem[];
 }
 
-// Bảng ánh xạ trạng thái sang nhãn tiếng Việt và màu sắc phù hợp quy trình nhận món tại quầy
 const statusBadgeMap: Record<string, { label: string; className: string; category: string }> = {
   PENDING: { label: 'Chờ thanh toán', className: 'bg-amber-100 text-amber-800', category: 'PROCESSING' },
   PAID: { label: 'Đã thanh toán', className: 'bg-blue-100 text-blue-800', category: 'PROCESSING' },
@@ -51,7 +50,6 @@ const statusBadgeMap: Record<string, { label: string; className: string; categor
   CANCELLED: { label: 'Đã hủy', className: 'bg-gray-100 text-gray-600', category: 'CANCELLED' },
 };
 
-// Filter tabs tương ứng các nhóm trạng thái đơn hàng trong database
 const TABS = [
   { id: 'ALL', label: 'Tất cả' },
   { id: 'PROCESSING', label: 'Đang xử lý' },
@@ -106,7 +104,6 @@ export default function OrderHistoryPage() {
     fetchOrders();
   }, [token, logout]);
 
-  // Lọc theo Tab đã chọn
   const filteredOrders = useMemo(() => {
     if (activeTab === 'ALL') return orders;
     return orders.filter((o) => {
@@ -115,7 +112,6 @@ export default function OrderHistoryPage() {
     });
   }, [orders, activeTab]);
 
-  // Chưa đăng nhập
   if (!token) {
     return (
       <main className="min-h-screen bg-[#FBF8F2] p-8 flex items-center justify-center">
@@ -138,7 +134,6 @@ export default function OrderHistoryPage() {
     );
   }
 
-  // Đang tải
   if (loading) {
     return (
       <main className="min-h-screen bg-[#FBF8F2] p-8 flex flex-col items-center justify-center">
@@ -152,7 +147,6 @@ export default function OrderHistoryPage() {
     <main className="min-h-screen bg-[#FBF8F2] py-8 px-4 sm:px-6 lg:px-8 text-[#1F1F1F]">
       <div className="max-w-5xl mx-auto space-y-6">
         
-        {/* Tiêu đề & Mô tả */}
         <div>
           <h1 className="text-3xl font-extrabold text-[#3E2723] tracking-tight">
             Lịch sử đơn hàng của bạn
@@ -167,7 +161,6 @@ export default function OrderHistoryPage() {
           </p>
         </div>
 
-        {/* Filter Tabs theo đúng mockup: Tất cả | Đang xử lý | Đang giao | Đã giao */}
         <div className="flex flex-wrap items-center gap-2 pb-2">
           {TABS.map((tab) => {
             const isActive = activeTab === tab.id;
@@ -188,7 +181,6 @@ export default function OrderHistoryPage() {
           })}
         </div>
 
-        {/* Lỗi hiển thị nếu có */}
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-2xl text-xs flex justify-between items-center">
             <span>{error}</span>
@@ -201,7 +193,6 @@ export default function OrderHistoryPage() {
           </div>
         )}
 
-        {/* Trường hợp chưa có đơn */}
         {!error && filteredOrders.length === 0 && (
           <div className="bg-white border border-[#E8DFD8] rounded-3xl p-12 text-center shadow-sm space-y-4">
             <CoffeeCupIcon className="w-14 h-14 text-[#D7A86E] mx-auto" />
@@ -224,7 +215,6 @@ export default function OrderHistoryPage() {
           </div>
         )}
 
-        {/* BẢNG ĐƠN HÀNG CHUẨN MOCKUP 8. LỊCH SỬ ĐƠN HÀNG */}
         {filteredOrders.length > 0 && (
           <div className="bg-white border border-[#E8DFD8] rounded-3xl shadow-sm overflow-hidden">
             <div className="overflow-x-auto">
@@ -259,17 +249,14 @@ export default function OrderHistoryPage() {
                         key={order.id}
                         className="hover:bg-[#FDFBF7] transition-colors"
                       >
-                        {/* Mã đơn */}
                         <td className="py-4 px-4 sm:px-6 font-extrabold text-[#3E2723]">
                           #BL{String(order.id).padStart(8, '0')}
                         </td>
 
-                        {/* Ngày giờ */}
                         <td className="py-4 px-4 sm:px-6 text-[#5C4D44]">
                           {formattedDate}
                         </td>
 
-                        {/* Trạng thái */}
                         <td className="py-4 px-4 sm:px-6">
                           <span
                             className={`inline-block px-3 py-1 rounded-full text-xs font-bold ${statusConfig.className}`}
@@ -278,12 +265,10 @@ export default function OrderHistoryPage() {
                           </span>
                         </td>
 
-                        {/* Tổng tiền */}
                         <td className="py-4 px-4 sm:px-6 font-extrabold text-[#3E2723]">
                           {Number(order.total).toLocaleString('vi-VN')}đ
                         </td>
 
-                        {/* Thao tác Xem chi tiết */}
                         <td className="py-4 px-4 sm:px-6 text-right">
                           <Link
                             href={`/orders/${order.id}`}

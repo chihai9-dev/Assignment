@@ -36,9 +36,7 @@ export default function CartPage() {
   const isSubmittingRef = useRef(false);
   const isNavigatingRef = useRef(false);
 
-  // Tự động kiểm tra nếu quay về từ PayOS bị hủy hoặc hết hạn đếm ngược
   useEffect(() => {
-    // Không can thiệp nếu đang trong tiến trình bấm nút chuyển trang sang /checkout
     if (isNavigatingRef.current) return;
 
     const status = searchParams.get('status');
@@ -75,13 +73,11 @@ export default function CartPage() {
           '⚠️ Quá trình thanh toán qua PayOS đã hết hạn hoặc bị hủy. Các sản phẩm đã được tự động hoàn lại vào giỏ hàng.'
         );
       }
-      // Dọn sạch query parameters trên thanh địa chỉ URL
       window.history.replaceState({}, '', '/cart');
     } else if (items.length === 0 && checkoutItems.length > 0) {
       const store = useCartStore.getState();
       const isExpired = !store.checkoutExpiresAt || store.checkoutExpiresAt <= Date.now();
 
-      // Chỉ tự động phục hồi nếu phiên checkout ĐÃ HẾT HẠN
       if (isExpired) {
         const cancelId = store.pendingOrderId;
         if (cancelId && token) {
@@ -122,7 +118,6 @@ export default function CartPage() {
   const discount = Math.round((subtotal * discountPercent) / 100);
   const grandTotal = Math.max(0, subtotal - discount);
 
-  // Khi bấm nút Thanh toán: gọi API tạo đơn giữ kho (trừ stock trong DB), chuyển món sang checkoutItems và sang /checkout
   const handleProceedToCheckout = async () => {
     if (safeItems.length === 0 || isSubmitting || isSubmittingRef.current || isNavigatingRef.current) return;
 
@@ -135,7 +130,6 @@ export default function CartPage() {
     try {
       isSubmittingRef.current = true;
       setIsSubmitting(true);
-      // Gọi API POST /api/orders: Backend tự động kiểm tra tồn kho & trừ stock ngay trong DB
       const orderResponse = await fetch(`${API_URL}/orders`, {
         method: 'POST',
         headers: {
@@ -165,7 +159,6 @@ export default function CartPage() {
 
       const orderId = Number(orderData.orderId);
 
-      // Đánh dấu đang điều hướng sang checkout để tránh bị useEffect tự hủy đơn
       isNavigatingRef.current = true;
 
       const store = useCartStore.getState();
@@ -267,7 +260,6 @@ export default function CartPage() {
     <main className="min-h-screen bg-[#FBF8F2] py-8 px-4 sm:px-6 lg:px-8 text-[#1F1F1F]">
       <div className="max-w-6xl mx-auto space-y-6">
 
-        {/* Thông báo trả hàng về giỏ khi hết thời gian hoặc hủy */}
         {noticeMessage && (
           <div className="p-4 bg-amber-50 border border-amber-200 rounded-2xl flex items-start justify-between gap-3 text-amber-900 shadow-sm animate-fade-in">
             <div className="flex items-center gap-2.5 text-sm font-medium">
@@ -283,7 +275,6 @@ export default function CartPage() {
           </div>
         )}
 
-        {/* Nút quay lại & Tiêu đề Giỏ hàng */}
         <div className="space-y-2">
           <Link
             href="/#menu"
@@ -298,10 +289,8 @@ export default function CartPage() {
           </h1>
         </div>
 
-        {/* Layout 2 cột: Danh sách món (Trái) & Tóm tắt đơn hàng (Phải) */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           
-          {/* CỘT TRÁI: DANH SÁCH MÓN TRONG GIỎ */}
           <div className="lg:col-span-7 xl:col-span-8 space-y-4">
             {safeItems.map((item) => {
               const itemTotal = Number(item.price) * Number(item.quantity);
@@ -344,7 +333,6 @@ export default function CartPage() {
                   </div>
 
                   <div className="flex flex-col sm:flex-row items-end sm:items-center gap-3 sm:gap-6 flex-shrink-0">
-                    {/* Bộ tăng giảm số lượng */}
                     <div className="flex items-center border border-[#E8DFD8] rounded-xl bg-[#FDFBF7] p-1 shadow-inner">
                       <button
                         type="button"
@@ -389,7 +377,6 @@ export default function CartPage() {
             })}
           </div>
 
-          {/* CỘT PHẢI: TÓM TẮT ĐƠN HÀNG */}
           <div className="lg:col-span-5 xl:col-span-4 sticky top-6">
             <div className="bg-white border border-[#E8DFD8] rounded-3xl p-6 shadow-sm space-y-5">
               <h2 className="text-lg font-bold text-[#3E2723] pb-3 border-b border-[#E8DFD8]">
@@ -431,7 +418,6 @@ export default function CartPage() {
                 </span>
               </div>
 
-              {/* Nút thanh toán */}
               <button
                 type="button"
                 disabled={isSubmitting}

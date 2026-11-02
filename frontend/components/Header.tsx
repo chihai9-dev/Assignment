@@ -25,7 +25,6 @@ export default function Header() {
     setIsMounted(true);
   }, []);
 
-  // Close dropdown on click outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
@@ -54,7 +53,6 @@ export default function Header() {
   return (
     <header className="sticky top-0 z-40 w-full bg-[#FDFBF7]/90 backdrop-blur-md border-b border-[#E8DFD8] transition-all">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-18 flex items-center justify-between">
-        {/* LOGO */}
         <Link href="/" className="flex items-center gap-2.5 group">
           <BrewLiteLogo className="w-8 h-8 transition-transform group-hover:scale-105" />
           <span className="font-extrabold text-2xl tracking-tight text-[#3E2723]">
@@ -62,7 +60,6 @@ export default function Header() {
           </span>
         </Link>
 
-        {/* NAVIGATION LINKS (Desktop) */}
         <nav className="hidden md:flex items-center gap-8">
           <Link
             href="/"
@@ -88,9 +85,7 @@ export default function Header() {
           </Link>
         </nav>
 
-        {/* RIGHT ACTIONS */}
         <div className="flex items-center gap-3 sm:gap-4">
-          {/* SEARCH BUTTON */}
           <div className="relative">
             {isSearchOpen ? (
               <form onSubmit={handleSearchSubmit} className="flex items-center">
@@ -121,7 +116,6 @@ export default function Header() {
             )}
           </div>
 
-          {/* CART BUTTON WITH BADGE */}
           <Link
             href="/cart"
             aria-label="Giỏ hàng"
@@ -135,7 +129,6 @@ export default function Header() {
             )}
           </Link>
 
-          {/* USER ACCOUNT MENU */}
           <div className="relative" ref={menuRef}>
             <button
               onClick={() => setIsUserMenuOpen((prev) => !prev)}
@@ -150,7 +143,6 @@ export default function Header() {
               )}
             </button>
 
-            {/* DROPDOWN MENU */}
             {isUserMenuOpen && (
               <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-[#E8DFD8] py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
                 {isMounted && user ? (

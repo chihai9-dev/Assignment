@@ -4,12 +4,6 @@ const { PrismaClient } = require('@prisma/client');
 
 const prisma = new PrismaClient();
 
-/**
- * Phân tích cú pháp file SQL thành từng câu lệnh riêng biệt
- * - Bỏ qua các dòng chú thích (-- ...)
- * - Giữ nguyên dấu chấm phẩy nằm trong chuỗi ký tự ('...')
- * - Tự động loại bỏ BEGIN và COMMIT (vì sẽ chạy qua prisma.$transaction)
- */
 function splitSqlStatements(sql) {
   const statements = [];
   let current = '';

@@ -12,13 +12,11 @@ import { CreatePaymentDto } from './dto/create-payment.dto';
 import { VerifyPayOSDto } from './dto/verify-payos.dto';
 import * as crypto from 'crypto';
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
 const { PayOS } = require('@payos/node');
 
 @Injectable()
 export class PaymentsService implements OnModuleInit {
   private payOS: any = null;
-  // Lưu map tạm thời giữa orderId (DB) và orderCode sinh ra cho PayOS
   private latestOrderCodes = new Map<number, number>();
 
   constructor(
@@ -50,7 +48,6 @@ export class PaymentsService implements OnModuleInit {
     this.initPayOS();
   }
 
-  // Danh dau don hang la da thanh toan thanh cong (PAID), tao Payment va cong diem thuong
   async markOrderAsPaid(
     orderId: number,
     amount?: number,
@@ -86,10 +83,9 @@ export class PaymentsService implements OnModuleInit {
     }
 
     const payAmount = Number(amount || order.total);
-    const idempotencyKey = `PAYOS-${orderId}-${reference || Date.now()}`;
+    const idempotencyKey = reference || `PAYOS-${orderId}-${Date.now()}`;
 
     const result = await this.prisma.$transaction(async (tx) => {
-      // Kiểm tra xem đã có bản ghi payment nào cho đơn này chưa
       const existingPayment = await tx.payment.findFirst({
         where: { orderId: BigInt(orderId) as any },
       });
@@ -127,7 +123,6 @@ export class PaymentsService implements OnModuleInit {
       return { payment, order: updatedOrder };
     });
 
-    // Cộng điểm thưởng tích lũy (Loyalty Points) sau khi thanh toán thành công (1 điểm / 10.000đ)
     const pointsEarned = Math.floor(payAmount / 10000);
     if (pointsEarned > 0) {
       try {
@@ -154,7 +149,6 @@ export class PaymentsService implements OnModuleInit {
       idempotencyKey,
     } = createPaymentDto;
 
-    // 1. Kiểm tra Idempotency: Giao dịch cùng key đã tồn tại -> Trả về giao dịch trước đó, không trừ tiền 2 lần
     const existingPayment =
       await this.prisma.payment.findUnique({
         where: {
@@ -175,7 +169,6 @@ export class PaymentsService implements OnModuleInit {
       };
     }
 
-    // 2. Kiểm tra Order
     const order = await this.prisma.order.findUnique({
       where: {
         id: BigInt(orderId) as any,
@@ -188,7 +181,6 @@ export class PaymentsService implements OnModuleInit {
       );
     }
 
-    // 3. Không cho thanh toán đơn đã hủy hoặc đơn đã hoàn thành
     if (order.status === order_status.CANCELLED) {
       throw new BadRequestException(
         'Không thể thanh toán đơn hàng đã hủy',
@@ -205,14 +197,12 @@ export class PaymentsService implements OnModuleInit {
       );
     }
 
-    // 4. Kiểm tra số tiền thanh toán khớp với tổng đơn
     if (Number(order.total) !== amount) {
       throw new BadRequestException(
         `Số tiền thanh toán (${amount}đ) không khớp với tổng tiền đơn hàng (${Number(order.total)}đ)`,
       );
     }
 
-    // 5. Cập nhật Order sang PAID
     return this.markOrderAsPaid(orderId, amount, idempotencyKey, method);
   }
 
@@ -236,9 +226,6 @@ export class PaymentsService implements OnModuleInit {
     });
   }
 
-  /**
-   * Tạo link thanh toán VietQR động bằng PayOS
-   */
   async createPayOSLink(
     orderId: number,
     options?: { returnUrl?: string; cancelUrl?: string },
@@ -292,7 +279,6 @@ export class PaymentsService implements OnModuleInit {
         amount,
         description,
         cancelUrl,
-        // CHECKOUT_DURATION: Thời gian giữ đơn hàng (giây). Đồng bộ frontend
         expiredAt: Math.floor(Date.now() / 1000) + 5 * 60,
         returnUrl,
       });
@@ -338,9 +324,6 @@ export class PaymentsService implements OnModuleInit {
     }
   }
 
-  /**
-   * Alias tương thích ngược cho createPayOSLink
-   */
   async createPayOSPaymentLink(
     orderId: number,
     options?: { returnUrl?: string; cancelUrl?: string },
@@ -348,10 +331,6 @@ export class PaymentsService implements OnModuleInit {
     return this.createPayOSLink(orderId, options);
   }
 
-  /**
-   * Xác thực và đồng bộ tự động trạng thái thanh toán từ PayOS
-   * Giải quyết triệt để trường hợp PayOS đã hoàn tất nhưng Webhook chưa kịp/không gửi về được localhost
-   */
   async verifyPayOSPayment(body: VerifyPayOSDto) {
     const orderId = Number(body.orderId);
     if (!orderId) {
@@ -379,7 +358,6 @@ export class PaymentsService implements OnModuleInit {
       throw new NotFoundException(`Không tìm thấy đơn hàng #${orderId}`);
     }
 
-    // 1. Nếu đơn hàng đã PAID hoặc COMPLETED -> trả về kết quả thành công ngay
     if (order.status === order_status.PAID || order.status === order_status.COMPLETED) {
       return {
         success: true,
@@ -393,7 +371,6 @@ export class PaymentsService implements OnModuleInit {
       throw new BadRequestException('Đơn hàng này đã bị hủy');
     }
 
-    // Xác định orderCode tương ứng
     let parsedOrderCode: number | null = null;
     if (body.orderCode) {
       parsedOrderCode = Number(body.orderCode);
@@ -401,7 +378,6 @@ export class PaymentsService implements OnModuleInit {
       parsedOrderCode = this.latestOrderCodes.get(orderId)!;
     }
 
-    // 2. Tra cứu trực tiếp với PayOS API nếu có SDK
     if (this.payOS && parsedOrderCode) {
       try {
         const payosInfo = await this.payOS.paymentRequests.get(parsedOrderCode);
@@ -425,7 +401,6 @@ export class PaymentsService implements OnModuleInit {
       }
     }
 
-    // 3. Nếu PayOS redirect về trình duyệt với tham số status=PAID và code=00
     if (body.status === 'PAID' && (body.code === '00' || !body.code)) {
       const res = await this.markOrderAsPaid(
         orderId,
@@ -450,9 +425,6 @@ export class PaymentsService implements OnModuleInit {
     };
   }
 
-  /**
-   * Đăng ký tự động Webhook URL với PayOS API
-   */
   async confirmPayOSWebhookUrl(webhookUrl: string) {
     if (!this.payOS) {
       throw new BadRequestException('PayOS chưa được cấu hình Client ID / API Key trong file .env');
@@ -468,10 +440,6 @@ export class PaymentsService implements OnModuleInit {
     }
   }
 
-  /**
-   * Lấy trạng thái thanh toán hiện tại của đơn hàng
-   * Tự động kiểm tra PayOS API nếu đơn hàng đang ở trạng thái PENDING
-   */
   async getPaymentStatus(orderId: number) {
     const existingOrder = await this.prisma.order.findUnique({
       where: { id: BigInt(orderId) as any },
@@ -496,7 +464,6 @@ export class PaymentsService implements OnModuleInit {
 
     let currentOrder: any = existingOrder;
 
-    // Nếu đơn hàng đang PENDING, chủ động kiểm tra với PayOS API
     if (existingOrder.status === order_status.PENDING && this.payOS) {
       const cachedCode = this.latestOrderCodes.get(orderId);
       if (cachedCode) {
@@ -531,9 +498,6 @@ export class PaymentsService implements OnModuleInit {
     };
   }
 
-  /**
-   * Xử lý webhook từ PayOS khi khách chuyển khoản VietQR thành công
-   */
   async handlePayOSWebhook(webhookBody: any) {
     console.log('[PayOS Webhook] Received webhook payload:', JSON.stringify(webhookBody));
 
@@ -585,7 +549,6 @@ export class PaymentsService implements OnModuleInit {
       return { success: true, message: 'Order not found, acknowledged' };
     }
 
-    // Nếu đơn hàng đã PAID thì không xử lý lại (Idempotent)
     if (order.status === order_status.PAID || order.status === order_status.COMPLETED) {
       return { success: true, message: 'Order already paid' };
     }
@@ -606,7 +569,6 @@ export class PaymentsService implements OnModuleInit {
     };
   }
 
-  // Hàm logic tạo hóa đơn momo
   async createMomoPayment(orderId: number) {
     const order = await this.prisma.order.findUnique({
       where: { id: BigInt(orderId) as any },
@@ -623,13 +585,10 @@ export class PaymentsService implements OnModuleInit {
     const requestId = `${partnerCode}-${orderId}-${Date.now()}`;
     const momoOrderId = `BL_${orderId}_${Date.now()}`;
 
-    // URL nhận kết quả
     const redirectUrl = `http://localhost:3000/orders/${orderId}`;
-    // Link Webhook nhận thông báo tự động duyệt đơn (qua ngrok)
     const ipnUrl = `https://cusp-pager-velvet.ngrok-free.dev/api/payments/momo-ipn`;
     const requestType = 'captureWallet';
-    const extraData = ''; // có thể để trống
-    // Tạo chữ ký HMAC SHA256 chuẩn MoMo
+    const extraData = '';
     const rawSignature = `accessKey=${accessKey}&amount=${amount}&extraData=${extraData}&ipnUrl=${ipnUrl}&orderId=${momoOrderId}&orderInfo=${orderInfo}&partnerCode=${partnerCode}&redirectUrl=${redirectUrl}&requestId=${requestId}&requestType=${requestType}`;
 
     const signature = crypto
@@ -652,7 +611,6 @@ export class PaymentsService implements OnModuleInit {
       extraData,
       signature,
     };
-    // Gửi request sang MoMo Sandbox
     const response = await fetch(momoApiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -664,19 +622,16 @@ export class PaymentsService implements OnModuleInit {
     }
     return {
       orderId,
-      payUrl: result.payUrl, // Link mở cổng thanh toán MoMo
-      qrCodeUrl: result.qrCodeUrl, // Link ảnh QR MoMo
+      payUrl: result.payUrl,
+      qrCodeUrl: result.qrCodeUrl,
       deeplink: result.deeplink, // Mở trực tiếp app MoMo trên điện thoại
     };
   }
 
-  // Xử lý IPN (Webhook) từ MoMo
   async handleMomoIPN(body: any) {
     console.log('[MoMo IPN] Received notification:', JSON.stringify(body));
     const { resultCode, orderId: momoOrderId, amount, transId } = body;
-    // resultCode === 0 là thanh toán thành công
     if (resultCode === 0) {
-      // Tách lấy id đơn hàng thực tế từ chuỗi BL_{orderId}_{timestamp}
       const match = momoOrderId?.match(/BL_(\d+)_/);
       const orderId = match ? Number(match[1]) : null;
       if (!orderId) {
@@ -689,7 +644,6 @@ export class PaymentsService implements OnModuleInit {
         return { message: 'Order processed or not found' };
       }
       const idempotencyKey = `MOMO-${orderId}-${transId || Date.now()}`;
-      // Cập nhật trạng thái đơn sang PAID
       await this.prisma.$transaction(async (tx) => {
         await tx.payment.create({
           data: {
@@ -704,7 +658,6 @@ export class PaymentsService implements OnModuleInit {
           data: { status: order_status.PAID },
         });
       });
-      // Cộng điểm tích lũy
       const pointsEarned = Math.floor(Number(amount) / 10000);
       if (pointsEarned > 0) {
         try {
@@ -715,7 +668,6 @@ export class PaymentsService implements OnModuleInit {
       }
       console.log(`[MoMo IPN] Đơn hàng #${orderId} đã duyệt thanh toán MoMo thành công!`);
     }
-    // MoMo yêu cầu server trả về HTTP 204 No Content hoặc 200
     return { message: 'Received' };
   }
 }

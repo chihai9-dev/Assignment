@@ -6,7 +6,6 @@ interface ApiResponse<T> {
   message?: string;
 }
 
-// 1. Lấy tất cả sản phẩm (Cho Trang Chủ)
 export async function fetchAllProducts(): Promise<Product[]> {
   try {
     const res = await fetchApi<ApiResponse<Product[]> | Product[]>("/products");
@@ -33,7 +32,6 @@ export async function fetchAllProducts(): Promise<Product[]> {
   }
 }
 
-// 2. Lấy chi tiết 1 sản phẩm theo ID (Cho Trang Chi Tiết)
 export async function fetchProductById(id: string): Promise<Product | null> {
   const res = await fetchApi<ApiResponse<Product> | Product>(`/products/${id}`);
   const p = (res as ApiResponse<Product>).data || (res as Product);

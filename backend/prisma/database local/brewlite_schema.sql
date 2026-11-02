@@ -1,11 +1,3 @@
--- =====================================================================
--- BrewLite - Database Schema (PostgreSQL)
--- Đồng bộ 100% với kiến trúc NestJS Backend, Prisma ORM và Đề bài BTL
--- =====================================================================
-
--- ---------------------------------------------------------------------
--- 0. DỌN DẸP BẢNG & ENUM CŨ (NẾU CÓ) ĐỂ KHỞI TẠO MỚI SẠCH SẼ
--- ---------------------------------------------------------------------
 DROP TABLE IF EXISTS "OrderItemTopping" CASCADE;
 DROP TABLE IF EXISTS "Payment" CASCADE;
 DROP TABLE IF EXISTS "OrderItem" CASCADE;
@@ -21,13 +13,8 @@ DROP TYPE IF EXISTS "payment_method" CASCADE;
 DROP TYPE IF EXISTS "user_role" CASCADE;
 DROP TYPE IF EXISTS "ProductStatus" CASCADE;
 
--- ---------------------------------------------------------------------
--- 1. ĐỊNH NGHĨA CÁC ENUM (Kiểu dữ liệu liệt kê)
--- ---------------------------------------------------------------------
--- Phân quyền tài khoản người dùng
 CREATE TYPE "user_role" AS ENUM ('customer', 'barista');
 
--- Máy trạng thái đơn hàng (Order State Machine theo Mục 9.1 của Đề bài)
 CREATE TYPE "order_status" AS ENUM (
     'PENDING', 
     'PAID', 
@@ -38,18 +25,12 @@ CREATE TYPE "order_status" AS ENUM (
     'CANCELLED'
 );
 
--- Hình thức thanh toán không tiền mặt
 CREATE TYPE "payment_method" AS ENUM ('WALLET', 'CARD');
 
--- Kích thước đồ uống
 CREATE TYPE "product_size" AS ENUM ('S', 'M', 'L');
 
--- Trạng thái kinh doanh sản phẩm
 CREATE TYPE "ProductStatus" AS ENUM ('active', 'inactive');
 
--- ---------------------------------------------------------------------
--- 2. BẢNG Category (Danh mục món: Cà phê, Trà, Trà sữa, ...)
--- ---------------------------------------------------------------------
 CREATE TABLE "Category" (
     "id"        SERIAL PRIMARY KEY,
     "name"      VARCHAR(100) NOT NULL UNIQUE,
@@ -57,9 +38,6 @@ CREATE TABLE "Category" (
     "updatedAt" TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
--- ---------------------------------------------------------------------
--- 3. BẢNG User (Người dùng: Khách hàng & Barista/Nhân viên)
--- ---------------------------------------------------------------------
 CREATE TABLE "User" (
     "id"            BIGSERIAL PRIMARY KEY,
     "email"         VARCHAR(255) NOT NULL UNIQUE,
@@ -72,9 +50,6 @@ CREATE TABLE "User" (
 
 CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
 
--- ---------------------------------------------------------------------
--- 4. BẢNG Product (Đồ uống / Sản phẩm menu)
--- ---------------------------------------------------------------------
 CREATE TABLE "Product" (
     "id"          BIGSERIAL PRIMARY KEY,
     "categoryId"  INTEGER REFERENCES "Category"("id") ON DELETE SET NULL ON UPDATE NO ACTION,
@@ -83,17 +58,13 @@ CREATE TABLE "Product" (
     "imageUrl"    VARCHAR(500),
     "description" TEXT,
     "stock"       INTEGER NOT NULL DEFAULT 0 CHECK ("stock" >= 0),
-    "version"     INTEGER NOT NULL DEFAULT 0, -- Dùng cho Optimistic Locking ở Task 10
-    "status"      "ProductStatus" NOT NULL DEFAULT 'active',
+    "version"     INTEGER NOT NULL DEFAULT 0,     "status"      "ProductStatus" NOT NULL DEFAULT 'active',
     "createdAt"   TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt"   TIMESTAMPTZ(6) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX "idx_product_categoryid" ON "Product"("categoryId");
 
--- ---------------------------------------------------------------------
--- 5. BẢNG Topping (Các món thêm: Trân châu, Kem cheese, Thạch, ...)
--- ---------------------------------------------------------------------
 CREATE TABLE "Topping" (
     "id"          SERIAL PRIMARY KEY,
     "name"        VARCHAR(255) NOT NULL UNIQUE,
@@ -104,9 +75,6 @@ CREATE TABLE "Topping" (
 
 CREATE UNIQUE INDEX "Topping_name_key" ON "Topping"("name");
 
--- ---------------------------------------------------------------------
--- 6. BẢNG Order (Đơn hàng)
--- ---------------------------------------------------------------------
 CREATE TABLE "Order" (
     "id"        BIGSERIAL PRIMARY KEY,
     "userId"    BIGINT NOT NULL REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE NO ACTION,
@@ -119,9 +87,6 @@ CREATE TABLE "Order" (
 CREATE INDEX "idx_order_userid" ON "Order"("userId");
 CREATE INDEX "idx_order_status" ON "Order"("status");
 
--- ---------------------------------------------------------------------
--- 7. BẢNG OrderItem (Chi tiết từng món trong đơn)
--- ---------------------------------------------------------------------
 CREATE TABLE "OrderItem" (
     "id"        BIGSERIAL PRIMARY KEY,
     "orderId"   BIGINT NOT NULL REFERENCES "Order"("id") ON DELETE CASCADE ON UPDATE NO ACTION,
@@ -134,24 +99,16 @@ CREATE TABLE "OrderItem" (
 CREATE INDEX "idx_orderitem_orderid" ON "OrderItem"("orderId");
 CREATE INDEX "idx_orderitem_productid" ON "OrderItem"("productId");
 
--- ---------------------------------------------------------------------
--- 8. BẢNG OrderItemTopping (Liên kết Topping được chọn cho từng ly nước)
--- ---------------------------------------------------------------------
 CREATE TABLE "OrderItemTopping" (
     "orderItemId" BIGINT NOT NULL REFERENCES "OrderItem"("id") ON DELETE CASCADE ON UPDATE NO ACTION,
     "toppingId"   INTEGER NOT NULL REFERENCES "Topping"("id") ON DELETE RESTRICT ON UPDATE NO ACTION,
-    "priceAtTime" INTEGER NOT NULL CHECK ("priceAtTime" >= 0), -- Lưu snapshot giá tại thời điểm đặt
-    CONSTRAINT "OrderItemTopping_pkey" PRIMARY KEY ("orderItemId", "toppingId")
+    "priceAtTime" INTEGER NOT NULL CHECK ("priceAtTime" >= 0),     CONSTRAINT "OrderItemTopping_pkey" PRIMARY KEY ("orderItemId", "toppingId")
 );
 
--- ---------------------------------------------------------------------
--- 9. BẢNG Payment (Giao dịch thanh toán không tiền mặt)
--- ---------------------------------------------------------------------
 CREATE TABLE "Payment" (
     "id"             BIGSERIAL PRIMARY KEY,
     "orderId"        BIGINT NOT NULL REFERENCES "Order"("id") ON DELETE RESTRICT ON UPDATE NO ACTION,
-    "idempotencyKey" VARCHAR(255) NOT NULL UNIQUE, -- Khóa chống trùng lặp theo Task 8 & 10
-    "amount"         DECIMAL(12,2) NOT NULL CHECK ("amount" >= 0),
+    "idempotencyKey" VARCHAR(255) NOT NULL UNIQUE,     "amount"         DECIMAL(12,2) NOT NULL CHECK ("amount" >= 0),
     "method"         "payment_method" NOT NULL
 );
 

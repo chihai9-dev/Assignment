@@ -13,11 +13,9 @@ export function BrewLiteLogo({ className = "w-8 h-8", color = "#3E2723" }: { cla
   return (
     <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
       <rect width="32" height="32" rx="16" fill={color} />
-      {/* Coffee cup */}
       <path d="M9 13C9 17.4183 12.134 21 16 21C19.866 21 23 17.4183 23 13H9Z" fill="#FFF8E1" />
       <path d="M22 14H24C24.5523 14 25 14.4477 25 15C25 16.1046 24.1046 17 23 17H22V14Z" stroke="#FFF8E1" strokeWidth="1.5" />
       <ellipse cx="16" cy="13" rx="7" ry="1.5" fill="#D7A86E" />
-      {/* Steam lines */}
       <path d="M13 10C13 8.5 14 8 14 7" stroke="#FFF8E1" strokeWidth="1.2" strokeLinecap="round" />
       <path d="M16 10C16 8 17 7.5 17 6.5" stroke="#FFF8E1" strokeWidth="1.2" strokeLinecap="round" />
       <path d="M19 10C19 8.5 20 8 20 7" stroke="#FFF8E1" strokeWidth="1.2" strokeLinecap="round" />

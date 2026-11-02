@@ -12,7 +12,6 @@ export class CreateUserDto {
   @MaxLength(255)
   email: string;
 
-  // Không còn bắt buộc phải có chữ + số nữa, chỉ cần đủ độ dài tối thiểu
   @IsString()
   @IsNotEmpty()
   @MinLength(8, { message: 'Mật khẩu tối thiểu 8 ký tự' })
@@ -23,7 +22,7 @@ export class CreateUserDto {
   @IsString() @IsNotEmpty({ message: 'Vui lòng nhập họ tên' })
   @MinLength(2, { message: 'Tên tối thiểu 2 ký tự' })
   @MaxLength(100)
-  @Matches(/^[\p{L}\s'.-]+$/u, { message: 'Họ tên chỉ gồm chữ cái' })  // \p{L} hỗ trợ tiếng Việt có dấu
+  @Matches(/^[\p{L}\s'.-]+$/u, { message: 'Họ tên chỉ gồm chữ cái' })
   fullName: string;
 
   @Transform(({ value }) => typeof value === 'string' ? value.replace(/[\s.-]/g, '') : value)

@@ -3,7 +3,6 @@ import { JwtService } from '@nestjs/jwt';
 import { AuthService } from './auth.service';
 import { UsersService } from '../users/users.service';
 
-// Giả lập UsersService (không đụng tới Prisma/DB thật) để test riêng logic AuthService
 function createFakeUsersService() {
   const users: { id: number; email: string; passwordHash: string; loyaltyPoints: number }[] = [];
   let nextId = 1;

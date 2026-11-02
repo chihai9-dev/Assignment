@@ -12,8 +12,6 @@ export class AuthService {
     private readonly jwtService: JwtService,
   ) {}
 
-  // Dùng lại UsersService.create(): đã băm mật khẩu bằng bcrypt + tự ném
-  // ConflictException nếu email trùng (xem users.service.ts -> handleError, mã P2002)
   async register(dto: CreateUserDto) {
     return this.usersService.create(dto);
   }
@@ -23,7 +21,6 @@ export class AuthService {
     const isMatch = user ? await bcrypt.compare(dto.password, user.passwordHash) : false;
 
     if (!user || !isMatch) {
-      // Dùng chung 1 thông báo cho cả 2 trường hợp để tránh lộ email nào đã tồn tại
       throw new UnauthorizedException('Sai email hoặc mật khẩu');
     }
 

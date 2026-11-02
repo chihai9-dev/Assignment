@@ -14,7 +14,7 @@ export class CreateProductDto {
   @IsOptional()
   @IsString({ message: 'URL hình ảnh phải là chuỗi' })
   @MaxLength(500, { message: 'URL hình ảnh không được vượt quá 500 ký tự' })
-  @IsUrl({}, { message: 'Định dạng URL không hợp lệ' }) // Bỏ comment nếu bạn muốn validate chuẩn URL
+  @IsUrl({}, { message: 'Định dạng URL không hợp lệ' })
   imageUrl?: string;
 
   @IsOptional()

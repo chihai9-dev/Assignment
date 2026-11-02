@@ -75,7 +75,6 @@ export default function BaristaDashboardPage() {
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [filterStatus, setFilterStatus] = useState<string>('ALL');
 
-  // Xác định người dùng hiện tại có phải Barista / Nhân viên hay không
   const isBarista = Boolean(
     user?.role === 'barista' ||
     user?.email?.toLowerCase().includes('barista') ||
@@ -116,12 +115,10 @@ export default function BaristaDashboardPage() {
     }
   }, [token, logout]);
 
-  // Initial load
   useEffect(() => {
     fetchQueue(false);
   }, [fetchQueue]);
 
-  // Auto-refresh every 10 seconds
   useEffect(() => {
     if (!token) return;
 
@@ -132,7 +129,6 @@ export default function BaristaDashboardPage() {
     return () => clearInterval(intervalId);
   }, [token, fetchQueue]);
 
-  // Handle status transitions
   const handleUpdateStatus = async (
     orderId: string | number,
     action: 'prepare' | 'ready' | 'complete'
@@ -160,7 +156,6 @@ export default function BaristaDashboardPage() {
         throw new Error(errData.message || 'Cập nhật trạng thái thất bại');
       }
 
-      // Re-fetch queue silently to update UI
       await fetchQueue(true);
     } catch (err) {
       alert(err instanceof Error ? err.message : 'Có lỗi khi cập nhật');
@@ -203,7 +198,6 @@ export default function BaristaDashboardPage() {
   return (
     <main className="min-h-screen bg-[#1a1a2e] text-white py-8 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto space-y-6">
-        {/* Top Header */}
         <div className="flex flex-col md:flex-row md:items-center justify-between pb-6 border-b border-gray-800 gap-4">
           <div>
             <div className="flex flex-wrap items-center gap-3">
@@ -259,7 +253,6 @@ export default function BaristaDashboardPage() {
           </div>
         </div>
 
-        {/* Customer Read-Only Banner */}
         {!isBarista && (
           <div className="bg-amber-950/40 border border-amber-500/40 text-amber-200 px-5 py-4 rounded-2xl text-sm flex items-start sm:items-center gap-3 shadow-md">
             <span className="text-2xl shrink-0">ℹ️</span>
@@ -273,7 +266,6 @@ export default function BaristaDashboardPage() {
           </div>
         )}
 
-        {/* Status Counters & Tabs */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <button
             onClick={() => setFilterStatus('ALL')}
@@ -342,7 +334,6 @@ export default function BaristaDashboardPage() {
           </div>
         )}
 
-        {/* Loading */}
         {loading && orders.length === 0 && (
           <div className="py-20 flex flex-col items-center justify-center text-gray-400">
             <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4" />
@@ -350,7 +341,6 @@ export default function BaristaDashboardPage() {
           </div>
         )}
 
-        {/* Empty state */}
         {!loading && filteredOrders.length === 0 && (
           <div className="bg-[#16213e]/60 border border-gray-800 rounded-2xl p-16 text-center">
             <div className="w-20 h-20 bg-gray-800/80 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl">
@@ -377,7 +367,6 @@ export default function BaristaDashboardPage() {
           </div>
         )}
 
-        {/* Grid Orders */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredOrders.map((order) => {
             const config = statusBadgeMap[order.status] || {
@@ -400,7 +389,6 @@ export default function BaristaDashboardPage() {
                 className={`bg-[#16213e] rounded-2xl border ${config.borderClass} p-5 shadow-xl flex flex-col justify-between transition hover:border-gray-500`}
               >
                 <div>
-                  {/* Card Header */}
                   <div className="flex justify-between items-start pb-3 border-b border-gray-800">
                     <div>
                       <span className="text-xs uppercase tracking-wider font-semibold text-gray-400">
@@ -418,14 +406,12 @@ export default function BaristaDashboardPage() {
                     </div>
                   </div>
 
-                  {/* Customer Info if available */}
                   {order.User?.email && (
                     <div className="py-2 text-xs text-gray-400 border-b border-gray-800/50">
                       Khách: <span className="text-gray-200 font-medium">{order.User.email}</span>
                     </div>
                   )}
 
-                  {/* Danh sách món */}
                   <div className="py-4 space-y-3">
                     <h4 className="text-xs uppercase font-bold text-gray-400 tracking-wider">
                       Món cần pha chế:
@@ -470,7 +456,6 @@ export default function BaristaDashboardPage() {
                   </div>
                 </div>
 
-                {/* Bottom Total & Actions */}
                 <div className="pt-4 border-t border-gray-800 space-y-4">
                   <div className="flex justify-between items-center text-sm">
                     <span className="text-gray-400">Tổng thanh toán:</span>
@@ -479,7 +464,6 @@ export default function BaristaDashboardPage() {
                     </span>
                   </div>
 
-                  {/* Action Buttons: Khách hàng chỉ xem tiến độ, không có quyền chỉnh sửa trạng thái */}
                   <div>
                     {isBarista ? (
                       <>
@@ -535,7 +519,6 @@ export default function BaristaDashboardPage() {
                         )}
                       </>
                     ) : (
-                      /* Hiển thị tiến độ dành riêng cho Khách hàng (Không có quyền chỉnh sửa trạng thái) */
                       <div className="bg-[#0f3460]/40 border border-gray-700/60 rounded-xl p-3 text-center space-y-1.5">
                         <div className="text-xs font-semibold text-gray-200 flex items-center justify-center gap-2">
                           {order.status === 'PAID' && (

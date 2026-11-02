@@ -12,7 +12,6 @@ import {
 export default function Footer() {
   return (
     <footer className="w-full bg-[#24140E] text-[#D7CCC8] border-t border-[#3E2417] mt-auto">
-      {/* Top newsletter / Brand quote banner */}
       <div className="border-b border-[#3A2216] bg-[#1C0F0A]/60">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-4 text-center md:text-left">
@@ -50,11 +49,9 @@ export default function Footer() {
         </div>
       </div>
 
-      {/* Main Footer Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-10">
           
-          {/* CỘT 1: THƯƠNG HIỆU */}
           <div className="space-y-4">
             <Link href="/" className="flex items-center gap-3 group">
               <BrewLiteLogo className="w-9 h-9 transition-transform group-hover:scale-105" />
@@ -72,7 +69,6 @@ export default function Footer() {
               BrewLite là ứng dụng đặt cà phê và thanh toán không tiền mặt tiện lợi. Chúng tôi mang đến những ly cà phê thơm ngon từ hạt cà phê Việt nguyên chất, giúp bạn tiết kiệm thời gian và khởi đầu ngày mới tràn đầy năng lượng.
             </p>
 
-            {/* Social links */}
             <div className="pt-2 flex items-center gap-3">
               <a
                 href="https://facebook.com"
@@ -110,7 +106,6 @@ export default function Footer() {
             </div>
           </div>
 
-          {/* CỘT 2: THÔNG TIN QUÁN CÀ PHÊ & LIÊN HỆ */}
           <div className="space-y-4">
             <h4 className="text-white font-bold text-sm uppercase tracking-wider border-l-2 border-[#D7A86E] pl-2.5">
               Thông tin cửa hàng
@@ -153,7 +148,6 @@ export default function Footer() {
             </ul>
           </div>
 
-          {/* CỘT 3: KHÁM PHÁ & ĐIỀU HƯỚNG */}
           <div className="space-y-4">
             <h4 className="text-white font-bold text-sm uppercase tracking-wider border-l-2 border-[#D7A86E] pl-2.5">
               Khám phá thực đơn
@@ -192,7 +186,6 @@ export default function Footer() {
             </ul>
           </div>
 
-          {/* CỘT 4: PHƯƠNG THỨC THANH TOÁN & CAM KẾT */}
           <div className="space-y-4">
             <h4 className="text-white font-bold text-sm uppercase tracking-wider border-l-2 border-[#D7A86E] pl-2.5">
               Thanh toán không tiền mặt
@@ -232,7 +225,6 @@ export default function Footer() {
         </div>
       </div>
 
-      {/* Bottom Bar: Copyright & Policies */}
       <div className="border-t border-[#3A2216] bg-[#1A0D08] pb-20 md:pb-6 pt-6">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-[#8D7B6F]">
           <div className="flex items-center gap-2 text-center sm:text-left">

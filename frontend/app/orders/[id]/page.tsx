@@ -56,7 +56,6 @@ interface OrderDetail {
   Payment?: Payment[];
 }
 
-// Bảng màu trạng thái chuẩn
 const statusBadgeMap: Record<string, { label: string; className: string }> = {
   PENDING: { label: 'Chờ thanh toán', className: 'bg-amber-100 text-amber-800' },
   PAID: { label: 'Đã thanh toán - Đang pha chế', className: 'bg-emerald-100 text-emerald-800' },
@@ -67,7 +66,6 @@ const statusBadgeMap: Record<string, { label: string; className: string }> = {
   CANCELLED: { label: 'Đã hủy', className: 'bg-gray-200 text-gray-600' },
 };
 
-// Các trạng thái chưa thanh toán -> cần polling
 const PENDING_STATUSES = ['PENDING'];
 
 function OrderConfirmationContent() {
@@ -115,7 +113,6 @@ function OrderConfirmationContent() {
 
       const data: OrderDetail = await res.json();
 
-      // Kiểm tra bảo mật bổ sung: Nếu là khách hàng thì chỉ xem đơn của chính mình
       if (user && Number(data.userId) !== Number(user.id)) {
         const isStaff = user.role === 'barista' || user.email?.toLowerCase().includes('barista');
         if (!isStaff) {
@@ -133,11 +130,9 @@ function OrderConfirmationContent() {
     }
   }, [orderId, token, user, logout]);
 
-  // Tự động kiểm tra và xác thực với PayOS khi có redirect từ PayOS hoặc đơn đang PENDING
   const verifyAndFetchOrder = useCallback(async () => {
     if (!token || !orderId) return null;
 
-    // Nếu trình duyệt được PayOS redirect về sau khi thanh toán thành công
     if (paymentStatus === 'PAID' || payosCode === '00' || orderCode) {
       try {
         const verifyRes = await fetch('http://localhost:3001/api/payments/payos-verify', {
@@ -168,11 +163,9 @@ function OrderConfirmationContent() {
       }
     }
 
-    // Tải thông tin đơn hàng bình thường
     return fetchOrder();
   }, [token, orderId, paymentStatus, payosCode, orderCode, fetchOrder, clearActiveCart, clearCheckoutItems]);
 
-  // Tải đơn hàng lần đầu và xóa giỏ hàng vì đơn đã được tạo thành công
   useEffect(() => {
     if (!token) {
       setLoading(false);
@@ -182,7 +175,6 @@ function OrderConfirmationContent() {
 
     setLoading(true);
     verifyAndFetchOrder().then((data) => {
-      // Khi đã vào trang chi tiết đơn hàng (hoặc PayOS redirect về), xóa sạch giỏ hàng
       if (data) {
         clearActiveCart();
         clearCheckoutItems();
@@ -190,12 +182,10 @@ function OrderConfirmationContent() {
     }).finally(() => setLoading(false));
   }, [orderId, token, verifyAndFetchOrder, clearActiveCart, clearCheckoutItems]);
 
-  // Polling tự động mỗi 2.5 giây khi đơn ở trạng thái PENDING
   useEffect(() => {
     if (!order || !PENDING_STATUSES.includes(order.status)) return;
 
     const interval = setInterval(async () => {
-      // Thử gọi payos-verify để cập nhật nếu khách quét mã trực tiếp trên điện thoại
       try {
         const verifyRes = await fetch('http://localhost:3001/api/payments/payos-verify', {
           method: 'POST',
@@ -234,7 +224,6 @@ function OrderConfirmationContent() {
     return () => clearInterval(interval);
   }, [order?.status, fetchOrder, token, orderId, orderCode, paymentStatus, payosCode, clearActiveCart, clearCheckoutItems]);
 
-  // Xác nhận thanh toán thủ công (cho trường hợp webhook không gửi được)
   const handleManualConfirm = async () => {
     if (!token || !order) return;
     setIsConfirming(true);
@@ -336,7 +325,6 @@ function OrderConfirmationContent() {
     className: 'bg-gray-100 text-gray-800',
   };
 
-  // Cấu hình tiêu đề, thông điệp và biểu tượng tương ứng với trạng thái thực tế trong database
   const statusHeaderMap: Record<
     string,
     { title: string; subtitle: string; iconBg: string; iconSvg: React.ReactNode }
@@ -436,10 +424,8 @@ function OrderConfirmationContent() {
     <main className="min-h-screen bg-[#FBF8F2] py-10 px-4 sm:px-6 lg:px-8 text-[#1F1F1F]">
       <div className="max-w-4xl mx-auto space-y-8">
         
-        {/* CARD ĐẶT HÀNG THÀNH CÔNG */}
         <div className="bg-white border border-[#E8DFD8] rounded-3xl p-6 sm:p-10 shadow-sm grid grid-cols-1 md:grid-cols-12 gap-8 items-center">
           
-          {/* CỘT TRÁI: HÌNH ẢNH LY CÀ PHÊ NHƯ MOCKUP */}
           <div className="md:col-span-5 flex justify-center">
             <div className="relative w-64 h-72 sm:w-72 sm:h-80 rounded-2xl overflow-hidden shadow-lg border-2 border-[#E8DFD8] bg-[#F5F0E6]">
               <img
@@ -455,10 +441,8 @@ function OrderConfirmationContent() {
             </div>
           </div>
 
-          {/* CỘT PHẢI: ICON CHECKMARK, TIÊU ĐỀ & THÔNG TIN ĐƠN */}
           <div className="md:col-span-7 space-y-6">
             
-            {/* Biểu tượng trạng thái & Tiêu đề tương ứng database */}
             <div className="space-y-2">
               <div
                 className={`w-14 h-14 rounded-full ${headerInfo.iconBg} flex items-center justify-center shadow-md`}
@@ -474,7 +458,6 @@ function OrderConfirmationContent() {
               </p>
             </div>
 
-            {/* Thông tin đơn tóm tắt (Mã đơn hàng, Thời gian, Tổng tiền) */}
             <div className="bg-[#FDFBF7] border border-[#E8DFD8] rounded-2xl p-4 sm:p-5 space-y-3 text-xs sm:text-sm">
               <div className="flex justify-between items-center py-1">
                 <span className="text-[#756C65] font-medium">Mã đơn hàng:</span>
@@ -497,7 +480,6 @@ function OrderConfirmationContent() {
                 </span>
               </div>
 
-              {/* Polling indicator khi đang chờ thanh toán (chỉ hiện khi chưa thanh toán xong) */}
               {PENDING_STATUSES.includes(order.status) && (
                 <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-3">
                   <div className="flex items-center gap-2 text-amber-700 text-xs">
@@ -538,7 +520,6 @@ function OrderConfirmationContent() {
               </div>
             </div>
 
-            {/* Hai nút hành động chuẩn Mockup */}
             <div className="flex flex-col sm:flex-row gap-3 pt-2">
               <Link
                 href="/orders"
@@ -558,7 +539,6 @@ function OrderConfirmationContent() {
 
         </div>
 
-        {/* CHI TIẾT DANH SÁCH MÓN ĐÃ ĐẶT */}
         <div className="bg-white border border-[#E8DFD8] rounded-3xl p-6 sm:p-8 shadow-sm space-y-4">
           <h2 className="font-extrabold text-lg text-[#3E2723] pb-3 border-b border-gray-100">
             Chi tiết món đã đặt

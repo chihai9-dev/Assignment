@@ -19,10 +19,9 @@ interface CartStore {
   cartsByUser: Record<string, CartItem[]>;
   activeUserEmail: string | null;
 
-  // Trạng thái giữ hàng khi đang trong phiên checkout
   checkoutItems: CartItem[];
-  checkoutExpiresAt: number | null; // Timestamp (ms) hết hạn (khoảng 5-6 phút)
-  pendingOrderId: number | null; // ID đơn hàng PENDING đã trừ tồn kho ở backend
+  checkoutExpiresAt: number | null;
+  pendingOrderId: number | null;
 
   setPendingOrderId: (orderId: number | null) => void;
   addToCart: (newItem: CartItem) => void;
@@ -31,11 +30,8 @@ interface CartStore {
   loadCartForUser: (email: string) => void;
   clearActiveCart: () => void;
 
-  // Bắt đầu thanh toán: đưa món từ cart sang checkoutItems, làm rỗng cart ngay lập tức
   startCheckout: (durationMinutes?: number, orderId?: number | null) => void;
-  // Hoàn trả các món từ checkoutItems về lại cart khi hết giờ hoặc hủy
   restoreCheckoutToCart: () => void;
-  // Xóa checkoutItems khi đơn hàng thanh toán thành công
   clearCheckoutItems: () => void;
 }
 
@@ -51,7 +47,6 @@ export const useCartStore = create<CartStore>()(
 
       setPendingOrderId: (orderId) => set({ pendingOrderId: orderId }),
 
-      // Thêm vào giỏ (hỗ trợ cả khách vãng lai chưa đăng nhập)
       addToCart: (newItem) =>
         set((state) => {
           const authUser = useAuthStore.getState().user;
@@ -96,7 +91,6 @@ export const useCartStore = create<CartStore>()(
           };
         }),
 
-      // Xóa khỏi giỏ
       removeFromCart: (cartItemId) =>
         set((state) => {
           const updatedItems = state.items.filter(
@@ -114,7 +108,6 @@ export const useCartStore = create<CartStore>()(
           };
         }),
 
-      // Cập nhật số lượng
       updateQuantity: (cartItemId, quantity) =>
         set((state) => {
           const updatedItems = state.items.map((item) =>
@@ -137,7 +130,6 @@ export const useCartStore = create<CartStore>()(
           };
         }),
 
-      // Load giỏ hàng của tài khoản (giữ lại các món khách vừa chọn trước khi đăng nhập)
       loadCartForUser: (email) =>
         set((state) => {
           const savedUserItems = state.cartsByUser[email] ?? [];
@@ -154,7 +146,6 @@ export const useCartStore = create<CartStore>()(
           };
         }),
 
-      // Bắt đầu thanh toán: chuyển món từ giỏ hàng sang checkoutItems và làm trống giỏ
       startCheckout: (durationMinutes = CHECKOUT_DURATION_MINUTES, orderId?: number | null) =>
         set((state) => {
           const authUser = useAuthStore.getState().user;
@@ -163,7 +154,7 @@ export const useCartStore = create<CartStore>()(
           const expiresAt = Date.now() + durationMinutes * 60 * 1000;
 
           return {
-            items: [], // Làm rỗng giỏ hàng ngay khi nhấn thanh toán
+            items: [],
             checkoutItems: [...currentItems],
             checkoutExpiresAt: expiresAt,
             pendingOrderId: orderId !== undefined ? orderId : state.pendingOrderId,
@@ -176,13 +167,11 @@ export const useCartStore = create<CartStore>()(
           };
         }),
 
-      // Hoàn trả các món từ checkoutItems về lại cart khi hết hạn hoặc hủy
       restoreCheckoutToCart: () =>
         set((state) => {
           const authUser = useAuthStore.getState().user;
           const email = authUser?.email || state.activeUserEmail;
 
-          // Lấy món cần hoàn: ưu tiên checkoutItems, fallback items
           const source = (state.checkoutItems && state.checkoutItems.length > 0) ? state.checkoutItems : state.items;
           if (!source || source.length === 0) {
             return state;
@@ -204,7 +193,6 @@ export const useCartStore = create<CartStore>()(
           };
         }),
 
-      // Xóa checkoutItems khi thanh toán hoàn tất thành công
       clearCheckoutItems: () =>
         set({
           checkoutItems: [],
@@ -212,7 +200,6 @@ export const useCartStore = create<CartStore>()(
           pendingOrderId: null,
         }),
 
-      // Đăng xuất thì bỏ tài khoản đang active nhưng vẫn giữ món
       clearActiveCart: () =>
         set({
           items: [],
@@ -232,6 +219,5 @@ export const useCartStore = create<CartStore>()(
   )
 );
 
-// Kiểm tra tài khoản đang có giỏ hàng
 export const getActiveCartUser = () =>
   useCartStore.getState().activeUserEmail;

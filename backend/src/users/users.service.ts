@@ -6,7 +6,6 @@ import { CreateUserDto } from './dto/create-user.dto';
 import { UpdateUserDto } from './dto/update-user.dto';
 import { PaginationQueryDto } from './dto/pagination-query.dto';
 
-// Không bao giờ trả passwordHash
 const userSelect = {
   id: true,
   fullName: true, 
@@ -81,12 +80,10 @@ export class UsersService {
     }
   }
 
-  // Dùng nội bộ cho Auth module (login cần passwordHash)
   findByEmailWithHash(email: string) {
     return this.prisma.user.findUnique({ where: { email } });
   }
 
-  // Chỉ hệ thống gọi, không có endpoint public
   addLoyaltyPoints(userId: number, points: number) {
     return this.prisma.user.update({
       where: { id: userId },
@@ -102,7 +99,6 @@ export class UsersService {
         if (t.includes('phone')) throw new ConflictException('Số điện thoại đã được sử dụng');
         throw new ConflictException('Email đã được sử dụng');};
       if (e.code === 'P2025') throw new NotFoundException(`User ${id} không tồn tại`);
-      // P2003: xóa user đang có Order (FK) -> nên xử lý riêng nếu cần
     }
     throw e;
   }

@@ -17,7 +17,6 @@ import {
 function HomeContent() {
   const searchParams = useSearchParams();
 
-  // Gọi danh sách sản phẩm từ custom hook dùng chung
   const { products: apiProducts, isLoading } = useProducts();
 
   const [categories, setCategories] = useState<Category[]>([]);
@@ -31,7 +30,6 @@ function HomeContent() {
     });
   }, []);
 
-  // Nhận search query từ URL nếu có
   useEffect(() => {
     const query = searchParams.get("search");
     if (query) {
@@ -39,7 +37,6 @@ function HomeContent() {
     }
   }, [searchParams]);
 
-  // Lọc sản phẩm theo danh mục và tìm kiếm
   const filteredProducts = useMemo(() => {
     return apiProducts.filter((p) => {
       const matchCategory =
@@ -55,9 +52,6 @@ function HomeContent() {
 
   return (
     <main className="w-full min-h-screen bg-[#FBF8F2] text-[#1F1F1F]">
-      {/* =========================================================
-          1. BANNER HERO SECTION (Bề ngang full 100% trang web - Edge-to-edge)
-      ========================================================= */}
       <section className="relative w-full overflow-hidden bg-[#24130A] shadow-xl">
         <div className="relative w-full aspect-[16/7] sm:aspect-[21/9] lg:aspect-[1024/450] min-h-[360px] sm:min-h-[440px] md:min-h-[500px] overflow-hidden">
           <img
@@ -66,7 +60,6 @@ function HomeContent() {
             className="w-full h-full object-cover object-right sm:object-center transition-transform duration-700 hover:scale-[1.01]"
           />
 
-          {/* Typography Overlay: Căn lề chuẩn max-w-7xl đồng bộ với Header */}
           <div className="absolute inset-0 flex items-center z-10 pointer-events-none">
             <div className="max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 flex flex-col justify-center">
               <div className="max-w-md sm:max-w-lg md:max-w-xl space-y-3 sm:space-y-4 md:space-y-5 pointer-events-auto select-none pb-6 sm:pb-8">
@@ -103,13 +96,8 @@ function HomeContent() {
         </div>
       </section>
 
-      {/* Container nội dung chính của trang (Cards, Menu, About) */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 sm:py-12 space-y-16">
-        {/* =========================================================
-            3 VALUE PROPOSITIONS (Tính năng nổi bật - Floating Cards)
-        ========================================================= */}
         <section className="relative z-10 -mt-14 sm:-mt-20 grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
-          {/* Card 1 */}
           <div className="bg-white/95 backdrop-blur-sm border border-[#E8DFD8] rounded-2xl p-5 sm:p-6 flex items-center gap-4 shadow-lg hover:shadow-xl transition-all">
             <div className="w-12 h-12 rounded-xl bg-[#F5F0E6] text-[#3E2723] flex items-center justify-center shrink-0">
               <CoffeeCupIcon className="w-6 h-6" />
@@ -124,7 +112,6 @@ function HomeContent() {
             </div>
           </div>
 
-          {/* Card 2 */}
           <div className="bg-white/95 backdrop-blur-sm border border-[#E8DFD8] rounded-2xl p-5 sm:p-6 flex items-center gap-4 shadow-lg hover:shadow-xl transition-all">
             <div className="w-12 h-12 rounded-xl bg-[#F5F0E6] text-[#3E2723] flex items-center justify-center shrink-0">
               <svg
@@ -148,7 +135,6 @@ function HomeContent() {
             </div>
           </div>
 
-          {/* Card 3 */}
           <div className="bg-white/95 backdrop-blur-sm border border-[#E8DFD8] rounded-2xl p-5 sm:p-6 flex items-center gap-4 shadow-lg hover:shadow-xl transition-all">
             <div className="w-12 h-12 rounded-xl bg-[#F5F0E6] text-[#3E2723] flex items-center justify-center shrink-0">
               <CardIcon className="w-6 h-6" />
@@ -164,11 +150,7 @@ function HomeContent() {
           </div>
         </section>
 
-        {/* =========================================================
-            2. MENU SECTION (Trang Menu)
-        ========================================================= */}
         <section id="menu" className="scroll-mt-24 space-y-8">
-          {/* Header Tiêu đề Menu */}
           <div className="text-center max-w-2xl mx-auto space-y-2">
             <h2 className="text-3xl sm:text-4xl font-extrabold text-[#3E2723] tracking-tight">
               Menu
@@ -178,9 +160,7 @@ function HomeContent() {
             </p>
           </div>
 
-          {/* Category Filter Pills & Search */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-[#E8DFD8] pb-5">
-            {/* Filter Pills */}
             <div className="flex flex-wrap items-center gap-2">
               {[{ id: "ALL" as const, label: "Tất cả" }, ...categories.map((cat) => ({ id: cat.id, label: cat.name }))].map((cat) => {
                 const isActive = selectedCategory === cat.id;
@@ -200,7 +180,6 @@ function HomeContent() {
               })}
             </div>
 
-            {/* Quick Search inside menu */}
             <div className="w-full sm:w-64 relative">
               <SearchIcon className="w-4 h-4 text-[#8D6E63] absolute left-3 top-1/2 -translate-y-1/2" />
               <input
@@ -221,7 +200,6 @@ function HomeContent() {
             </div>
           </div>
 
-          {/* Product Grid (Lưới sản phẩm chuẩn Mockup) */}
           {isLoading ? (
             <div className="text-center py-16 bg-white rounded-2xl border border-[#E8DFD8] p-8">
               <div className="w-8 h-8 border-4 border-[#3E2723] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
@@ -255,7 +233,6 @@ function HomeContent() {
                   key={product.id}
                   className="group bg-white rounded-2xl border border-[#E8DFD8] overflow-hidden shadow-sm hover:shadow-xl hover:border-[#D7A86E] transition-all duration-300 flex flex-col"
                 >
-                  {/* Product Image Link */}
                   <Link
                     href={`/product/${product.id}`}
                     className="relative block w-full aspect-square bg-[#F5F0E6] overflow-hidden"
@@ -268,7 +245,6 @@ function HomeContent() {
                     />
                   </Link>
 
-                  {/* Product Details */}
                   <div className="p-4 flex-1 flex flex-col justify-between">
                     <div>
                       <Link
@@ -277,12 +253,16 @@ function HomeContent() {
                       >
                         {product.name}
                       </Link>
-                      <p className="text-sm font-semibold text-[#8D6E63] mt-1">
+                      {product.description && (
+                        <p className="text-xs text-[#756C65] mt-1 line-clamp-2 leading-relaxed">
+                          {product.description}
+                        </p>
+                      )}
+                      <p className="text-sm font-semibold text-[#8D6E63] mt-2">
                         {Number(product.price).toLocaleString("vi-VN")}đ
                       </p>
                     </div>
 
-                    {/* Bottom Row with '+' Action Button */}
                     <div className="pt-3 mt-2 flex items-center justify-between border-t border-gray-100">
                       <Link
                         href={`/product/${product.id}`}
@@ -306,9 +286,6 @@ function HomeContent() {
           )}
         </section>
 
-        {/* =========================================================
-            ABOUT SECTION (Về chúng tôi)
-        ========================================================= */}
         <section
           id="about"
           className="bg-[#F5F0E6] rounded-3xl p-8 sm:p-12 border border-[#E8DFD8] scroll-mt-24"

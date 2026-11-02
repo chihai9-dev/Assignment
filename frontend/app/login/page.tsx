@@ -53,7 +53,6 @@ function LoginForm() {
     }
   };
 
-  // Nạp nhanh tài khoản demo
   const fillDemoAccount = (role: 'customer' | 'barista') => {
     if (role === 'customer') {
       setEmail('customer@brewlite.com');
@@ -68,7 +67,6 @@ function LoginForm() {
     <main className="min-h-screen bg-[#FBF8F2] flex items-center justify-center p-4 py-12">
       <div className="w-full max-w-md bg-white border border-[#E8DFD8] rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
         
-        {/* Header form */}
         <div className="text-center space-y-2">
           <div className="inline-flex justify-center mb-1">
             <BrewLiteLogo className="w-10 h-10" />
@@ -81,7 +79,6 @@ function LoginForm() {
           </p>
         </div>
 
-        {/* Form Fields */}
         <form onSubmit={handleSubmit} className="space-y-4">
           <div className="space-y-1.5">
             <label className="block text-xs font-bold text-[#3E2723]">
@@ -125,7 +122,6 @@ function LoginForm() {
             </div>
           )}
 
-          {/* Submit Button */}
           <button
             type="submit"
             disabled={isLoading}
@@ -135,9 +131,6 @@ function LoginForm() {
           </button>
         </form>
 
-
-
-        {/* Quick Demo Fill Buttons */}
         <div className="bg-[#F5F0E6] rounded-2xl p-3 border border-[#E8DFD8] text-center space-y-2">
           <p className="text-[11px] font-semibold text-[#8D6E63] uppercase tracking-wider">
             ⚡ Tài khoản mẫu kiểm thử
@@ -160,7 +153,6 @@ function LoginForm() {
           </div>
         </div>
 
-        {/* Footer links */}
         <div className="text-center space-y-2 pt-2 border-t border-gray-100 text-xs">
           <p className="text-[#756C65]">
             Chưa có tài khoản?{' '}

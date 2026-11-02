@@ -17,7 +17,6 @@ interface AuthStore {
   updateLoyaltyPoints: (points: number) => void;
 }
 
-// Cùng cách dùng persist như cartStore.ts để tự lưu/khôi phục khi F5 trang
 export const useAuthStore = create<AuthStore>()(
   persist(
     (set) => ({

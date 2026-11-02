@@ -77,7 +77,6 @@ export default function RegisterPage() {
     <main className="min-h-screen bg-[#FBF8F2] flex items-center justify-center p-4 py-12">
       <div className="w-full max-w-md bg-white border border-[#E8DFD8] rounded-3xl p-6 sm:p-8 shadow-sm space-y-6">
         
-        {/* Header */}
         <div className="text-center space-y-2">
           <div className="inline-flex justify-center mb-1">
             <BrewLiteLogo className="w-10 h-10" />
@@ -90,7 +89,6 @@ export default function RegisterPage() {
           </p>
         </div>
 
-        {/* Form Fields matching mockup */}
         <form onSubmit={handleSubmit} className="space-y-3.5">
           <div className="space-y-1">
             <label className="block text-xs font-bold text-[#3E2723]">
@@ -187,7 +185,6 @@ export default function RegisterPage() {
           </button>
         </form>
 
-        {/* Footer */}
         <div className="text-center pt-2 border-t border-gray-100 text-xs">
           <p className="text-[#756C65]">
             Đã có tài khoản?{' '}

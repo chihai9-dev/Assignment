@@ -3,11 +3,10 @@
 import { useParams, useRouter } from "next/navigation";
 import { useState, useMemo } from "react";
 import Link from "next/link";
-// Import dùng chung từ thư mục app/ ngoài cùng
 import { useProductDetail } from '@/hooks/useProductDetail';
 import { useToppings } from '@/hooks/useToppings';
 import { ProductSize, ProductSizeKey } from '@/types/types';
-import { useCartStore } from '@/store/cartStore'; // Hoặc đường dẫn cartStore của bạn
+import { useCartStore } from '@/store/cartStore';
 import {
   ArrowLeftIcon,
   PlusIcon,
@@ -28,7 +27,6 @@ export default function ProductDetailPage() {
 
   const productIdStr = String(params?.id || "");
 
-  // Gọi hooks dùng chung
   const { product, isLoading, error } = useProductDetail(productIdStr);
   const { toppingsList, selectedToppings, handleToppingToggle } = useToppings();
 
@@ -126,7 +124,6 @@ export default function ProductDetailPage() {
         </div>
 
         <div className="bg-white border border-[#E8DFD8] rounded-3xl p-6 sm:p-10 shadow-sm grid grid-cols-1 md:grid-cols-12 gap-8 lg:gap-12">
-          {/* Ảnh sản phẩm */}
           <div className="md:col-span-5 space-y-4">
             <div className="relative aspect-square w-full rounded-2xl overflow-hidden bg-[#F5F0E6] border border-[#E8DFD8] shadow-inner group">
               <img
@@ -138,7 +135,6 @@ export default function ProductDetailPage() {
 
           </div>
 
-          {/* Chi tiết & Tùy chọn */}
           <div className="md:col-span-7 flex flex-col justify-between space-y-6">
             <div className="space-y-4">
               <div>
@@ -155,7 +151,6 @@ export default function ProductDetailPage() {
 
               <hr className="border-[#E8DFD8]" />
 
-              {/* Chọn Size */}
               <div className="space-y-2.5">
                 <label className="block text-sm font-bold text-[#3E2723]">
                   Chọn size
@@ -191,7 +186,6 @@ export default function ProductDetailPage() {
                 </div>
               </div>
 
-              {/* Chọn Topping */}
               {toppingsList.length > 0 && (
                 <div className="space-y-2.5 pt-2">
                   <label className="block text-sm font-bold text-[#3E2723]">
@@ -231,7 +225,6 @@ export default function ProductDetailPage() {
               )}
             </div>
 
-            {/* Số lượng & Nút thêm giỏ hàng */}
             <div className="pt-6 border-t border-[#E8DFD8] space-y-4">
               <div className="flex items-center gap-4">
                 <div className="flex items-center border border-[#E8DFD8] rounded-xl bg-[#FDFBF7] p-1">
@@ -270,7 +263,6 @@ export default function ProductDetailPage() {
         </div>
       </div>
 
-      {/* Toast thông báo thêm giỏ hàng thành công (Transition trượt từ trên xuống) */}
       <div
         className={`fixed top-6 right-4 sm:right-6 md:right-8 z-50 max-w-sm sm:max-w-md w-[calc(100%-2rem)] sm:w-auto transition-all duration-500 ease-out transform ${
           isAddedSuccess

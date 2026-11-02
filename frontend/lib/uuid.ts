@@ -1,7 +1,3 @@
-/**
- * Tạo Idempotency Key định dạng chuẩn RFC 4122 UUID v4
- * Tương thích cả trình duyệt hiện đại (Web Crypto API) và môi trường SSR/Node.js
- */
 export function generateUUIDv4(): string {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
