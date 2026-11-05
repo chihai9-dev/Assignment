@@ -5,7 +5,7 @@ import { CreateUserDto } from '../users/dto/create-user.dto';
 import { LoginDto } from './dto/login.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 
-@Controller('api/auth') // Đồng bộ tiền tố "api" với các controller khác trong dự án
+@Controller('api/auth') 
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
