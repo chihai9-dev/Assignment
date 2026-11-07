@@ -9,4 +9,14 @@ export class AppController {
   getHello(): string {
     return this.appService.getHello();
   }
+
+  @Get('health')
+  getHealth() {
+    return this.appService.checkHealth();
+  }
+
+  @Get('api/health')
+  getApiHealth() {
+    return this.appService.checkHealth();
+  }
 }
