@@ -12,3 +12,11 @@ dist/
 .DS_Store
 
 .vscode/
+
+# Bỏ qua các file phụ trợ sinh ra khi biên dịch LaTeX
+*.aux
+*.out
+*.synctex.gz
+*.toc
+*.fls
+*.fdb_latexmk
