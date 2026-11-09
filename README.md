@@ -565,8 +565,9 @@ Dự án được thực hiện bởi nhóm sinh viên Khoa Công nghệ Thông 
 
 ### 📋 Quy ước Commit & Định nghĩa Hoàn thành (Conventions & Definition of Done)
 
-Toàn bộ quy chuẩn phát triển phần mềm của nhóm được quy định chi tiết tại:  
-👉 **[Tài liệu Quy ước Phát triển & Definition of Done (docs/conventions.md)](docs/conventions.md)**
+Toàn bộ quy chuẩn phát triển phần mềm và quy trình làm việc của nhóm được quy định chi tiết tại:  
+👉 **[Tài liệu Quy ước Phát triển & Definition of Done (docs/conventions.md)](docs/conventions.md)**  
+👉 **[Hướng dẫn Quy trình Làm việc Nhóm & 6 bước thực hiện Task (docs/team-workflow.md)](docs/team-workflow.md)**
 
 #### 1. Quy ước Commit (Conventional Commits):
 Định dạng chuẩn: `<type>(<scope>): [<mã-task/FR>] <tiêu đề tóm tắt>`

@@ -28,6 +28,8 @@ Mọi thay đổi đưa vào nhánh `main` / `develop` **bắt buộc** phải t
 4. **Peer Review**: Tối thiểu **1 thành viên khác trong nhóm** phải review mã nguồn, để lại nhận xét và bấm **Approve**.
 5. **Merge**: Sử dụng hình thức **Squash and Merge** hoặc **Rebase and Merge** để giữ lịch sử commit tinh gọn, có ý nghĩa.
 
+> 📖 **Xem hướng dẫn thực hành 6 bước chi tiết:** [`docs/team-workflow.md`](team-workflow.md)
+
 ---
 
 ## 2. Quy ước đặt tên Commit (Conventional Commits)
