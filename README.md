@@ -563,14 +563,29 @@ Dự án được thực hiện bởi nhóm sinh viên Khoa Công nghệ Thông 
 
 ---
 
-### 📋 Quy định Definition of Done (DoD) của nhóm:
-Mỗi Pull Request trước khi được merge vào `main` / `develop` phải đảm bảo:
-1. Đạt 100% tiêu chí chấp nhận (Acceptance Criteria) của Task/Story.
-2. Viết Unit Test / Integration Test tương ứng và kết quả pass 100%.
-3. Chạy Lint (`npm run lint`) không có lỗi.
-4. Pipeline GitHub Actions CI báo xanh (Green).
-5. Được ít nhất 1 thành viên review và Approve trên Pull Request.
-6. Cập nhật Ma trận truy vết (`docs/traceability-matrix.md`).
+### 📋 Quy ước Commit & Định nghĩa Hoàn thành (Conventions & Definition of Done)
+
+Toàn bộ quy chuẩn phát triển phần mềm của nhóm được quy định chi tiết tại:  
+👉 **[Tài liệu Quy ước Phát triển & Definition of Done (docs/conventions.md)](docs/conventions.md)**
+
+#### 1. Quy ước Commit (Conventional Commits):
+Định dạng chuẩn: `<type>(<scope>): [<mã-task/FR>] <tiêu đề tóm tắt>`
+* `feat`: Thêm tính năng mới (ví dụ: `feat(api): [FR-01] implement GET /products endpoint`)
+* `fix`: Sửa lỗi (ví dụ: `fix(cart): [FR-03] fix price calculation when selecting toppings`)
+* `docs`: Cập nhật tài liệu (ví dụ: `docs(srs): [TASK-4.2] add acceptance criteria`)
+* `style`: Format code, chỉnh khoảng trắng (ví dụ: `style(web): format components with prettier`)
+* `refactor`: Tái cấu trúc mã nguồn (ví dụ: `refactor(repo): [TASK-4.1] restructure to monorepo`)
+* `test`: Thêm hoặc sửa test case (ví dụ: `test(orders): [FR-05] add optimistic locking unit tests`)
+* `chore`: Cấu hình build, CI/CD (ví dụ: `chore(ci): [TASK-4.4] setup github actions pipeline`)
+
+#### 2. Tiêu chí Definition of Done (DoD) để chuyển sang cột `Done` & Merge PR:
+Một Task / User Story chỉ được chuyển sang cột **Done** trên board và merge vào nhánh chính khi đạt tất cả 6 tiêu chí:
+1. **Chức năng (Functionality)**: Đáp ứng 100% Acceptance Criteria được mô tả trong Issue/User Story.
+2. **Kiểm thử (Testing)**: Đã viết Unit Test / Integration Test bao phủ luồng chính và biên; pass 100%.
+3. **Chất lượng (Code Quality)**: Vượt qua kiểm tra linting (`npm run lint`), không có lỗi TypeScript/syntax.
+4. **Tích hợp liên tục (CI)**: Pipeline CI tự động kích hoạt và trả về kết quả màu xanh (Success).
+5. **Đồng cấp kiểm tra (Peer Review)**: Có ít nhất 1 thành viên review code và Approve trên PR.
+6. **Tài liệu & Ma trận truy vết**: Đã cập nhật tương ứng vào [`docs/traceability-matrix.md`](docs/traceability-matrix.md).
 
 ---
 
